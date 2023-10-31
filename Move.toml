@@ -1,0 +1,15 @@
+[package]
+name = "halo2-verifier"
+version = "1.0.0"
+authors = []
+
+[addresses]
+halo2_verifier = "_"
+[dev-addresses]
+halo2_verifier = "0x1234"
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "mainnet"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]
