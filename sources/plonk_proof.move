@@ -6,13 +6,23 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::protocol;
     use halo2_verifier::transcript;
     use halo2_verifier::point::Point;
+    use halo2_verifier::pcs;
+    use halo2_verifier::params::Params;
+    use halo2_verifier::pcs::Proof;
 
     const INVALID_INSTANCES: u64 = 100;
 
-    struct PlonkProof {}
+    struct PlonkProof {
+        commitments: vector<Point>,
+        challenges: vector<Scalar>,
+        quotients: vector<Point>,
+        evaluations: vector<Scalar>,
+        z: Scalar,
+        pcs: Proof,
+    }
 
 
-    public fun read(protocol: &Protocol, instances: vector<vector<vector<Scalar>>>, transcript: Transcript): PlonkProof {
+    public fun read(params: &Params, protocol: &Protocol, instances: vector<vector<vector<Scalar>>>, transcript: Transcript): PlonkProof {
         let scalar = transcript_initial_state(protocol);
         transcript::common_scalar(&mut transcript, scalar);
         // check_instances(&instances, protocol::num_instance(protocol));
@@ -32,7 +42,15 @@ module halo2_verifier::plonk_proof {
         let evaluation_len = evaluations_len(protocol, num_proof);
         // read evaluations of polys at z.
         let evaluations = transcript::read_n_scalar(&mut transcript, evaluation_len);
-        abort 100
+        let proof = pcs::read_proof(params, protocol,&mut transcript);
+        PlonkProof {
+            commitments: witness_commitments,
+            challenges,
+            quotients,
+            z,
+            evaluations,
+            pcs: proof
+        }
     }
 
     fun check_instances(instances: &vector<vector<Scalar>>, num: u64) {
