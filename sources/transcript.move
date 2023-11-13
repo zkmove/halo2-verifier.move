@@ -4,6 +4,10 @@ module halo2_verifier::transcript {
 
     struct Transcript {}
 
+    /// create a transcript_read
+    public fun read(bytes: vector<u8>): Transcript {
+        abort 100
+    }
     public fun common_scalar(transcript: &mut Transcript, scalar: Scalar) {
         abort 100
     }

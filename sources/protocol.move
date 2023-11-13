@@ -7,6 +7,7 @@ module halo2_verifier::protocol {
 
     struct Protocol {
         domain: Domain,
+        cs_degree: u32,
         blinding_factors: u32,
         num_fixed: u64,
         num_permutation_fixed: u64,

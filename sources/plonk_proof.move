@@ -9,6 +9,7 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::pcs;
     use halo2_verifier::params::Params;
     use halo2_verifier::pcs::Proof;
+    use halo2_verifier::verify_key::VerifyingKey;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -22,7 +23,7 @@ module halo2_verifier::plonk_proof {
     }
 
 
-    public fun read(params: &Params, protocol: &Protocol, instances: vector<vector<vector<Scalar>>>, transcript: Transcript): PlonkProof {
+    public fun read(params: &Params,vk: &VerifyingKey, protocol: &Protocol, instances: vector<vector<vector<Scalar>>>, transcript: Transcript): PlonkProof {
         let scalar = transcript_initial_state(protocol);
         transcript::common_scalar(&mut transcript, scalar);
         // check_instances(&instances, protocol::num_instance(protocol));
