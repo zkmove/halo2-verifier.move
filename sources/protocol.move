@@ -4,8 +4,12 @@ module halo2_verifier::protocol {
     use std::vector::{for_each_ref, map_ref, length, fold, map};
     use std::vector;
     use halo2_verifier::protocol::{fix_query, num_lookup};
+    use halo2_verifier::column::Column;
+    use halo2_verifier::column;
 
     struct Protocol {
+        query_instance: bool,
+        // for ipa, true; for kzg, false
         domain: Domain,
         cs_degree: u32,
         blinding_factors: u32,
@@ -29,11 +33,19 @@ module halo2_verifier::protocol {
         instance_queries: vector<InstanceQuery>,
         advice_queries: vector<AdviceQuery>,
         fixed_queries: vector<FixQuery>,
+        permutation_columns: vector<Column>,
+        gates: vector<Gate>,
+    }
+
+    struct Gate {
+        ploys: vector<Expression>,
+    }
+    struct Expression {
+
     }
 
     struct AdviceQuery {
         q: ColumnQuery,
-        phase: u8,
     }
 
     struct InstanceQuery {
@@ -45,7 +57,7 @@ module halo2_verifier::protocol {
     }
 
     struct ColumnQuery {
-        column_index: u64,
+        column: Column,
         rotation: Rotation,
     }
 
@@ -59,6 +71,21 @@ module halo2_verifier::protocol {
         rotation: Rotation,
     }
 
+    public fun query_instance(protocol: &Protocol): bool {
+        protocol.query_instance
+    }
+    public fun instance_queries(protocol: &Protocol): &vector<InstanceQuery> {
+        &protocol.instance_queries
+    }
+    public fun advice_queries(protocol: &Protocol): &vector<AdviceQuery> {
+        &protocol.advice_queries
+    }
+    public fun fixed_queries(protocol: &Protocol): &vector<FixQuery> {
+        &protocol.fixed_queries
+    }
+    public fun blinding_factors(protocol: &Protocol): u64 {
+        abort 100
+    }
     public fun transcript_initial_state(protocol: &Protocol): Scalar {
         abort 100
     }
@@ -171,21 +198,28 @@ module halo2_verifier::protocol {
         num_challenge
     }
 
+
+
     public fun evaluations_len(protocol: &Protocol, num_proof: u64): u64 {
-        num_proof * vector::length(&protocol.instance_queries) +
+        let instance_evals = if (protocol.query_instance) {
+            vector::length(&protocol.instance_queries)
+        } else {
+            0
+        };
+        num_proof * instance_evals +
             num_proof * vector::length(&protocol.advice_queries) +
             /* fixed polys */ vector::length(&protocol.fixed_queries) +
             /* random poly*/ 1 +
             /* permutation fixed polys */ protocol.num_permutation_fixed +
-        /* permutation_z*/ num_proof * (3*num_permutation_z(protocol)-1)+
-        /* lookups evals*/ num_proof * 5 * num_lookup(protocol)
+            /* permutation_z*/ num_proof * (3 * num_permutation_z(protocol) - 1) +
+            /* lookups evals*/ num_proof * 5 * num_lookup(protocol)
     }
 
     public fun evalutations(protocol: &Protocol, num_proof: u64): vector<Query> {
         let evals = vector::empty();
 
         // instance queries
-        {
+        if (protocol.query_instance){
             let i = 0;
             while (i < num_proof) {
                 vector::append(&mut evals, map_ref<InstanceQuery, Query>(&protocol.instance_queries, |q|
@@ -222,9 +256,9 @@ module halo2_verifier::protocol {
             while (i < protocol.num_permutation_fixed) {
                 vector::push_back(&mut evals, Query {
                     poly: protocol.num_fixed + i,
-                    rotation: Rotation {rotation: 0, next: true}
+                    rotation: Rotation { rotation: 0, next: true }
                 });
-                i=i+1;
+                i = i + 1;
             }
         };
 
@@ -264,7 +298,7 @@ module halo2_verifier::protocol {
 
     public fun fix_query(_protocol: &Protocol, query: &FixQuery): Query {
         Query {
-            poly: query.q.column_index,
+            poly: (column::column_index(&query.q.column)as u64),
             rotation: query.q.rotation
         }
     }
@@ -272,17 +306,17 @@ module halo2_verifier::protocol {
     public fun instance_query(protocol: &Protocol, i: u64, query: &InstanceQuery): Query {
         let offset = instance_offset(protocol) + i * length(&protocol.num_instance);
         Query {
-            poly: query.q.column_index + offset,
+            poly: (column::column_index(&query.q.column)as u64) + offset,
             rotation: query.q.rotation
         }
     }
 
     public fun advice_query(protocol: &Protocol, num_proof: u64, i: u64, query: &AdviceQuery): Query {
-        let column_index = *vector::borrow(&protocol.advice_index, query.q.column_index);
+        let column_index = *vector::borrow(&protocol.advice_index, (column::column_index(&query.q.column)as u64));
         let sum = {
             let i = 0;
             let sum = 0;
-            while (i < query.phase) {
+            while (i < column::phase(&query.q.column)) {
                 sum = sum + *vector::borrow(&protocol.num_advice_in_phase, i);
                 i = i + 1;
             };
@@ -291,7 +325,7 @@ module halo2_verifier::protocol {
         let phase_offset = num_proof * sum;
         let offset = witness_offset(protocol, num_proof) + phase_offset + i * (*vector::borrow(
             &protocol.num_advice_in_phase,
-            (query.phase as u64)
+            (column::phase(&query.q.column) as u64)
         ));
         Query {
             poly: column_index + offset,
@@ -300,12 +334,17 @@ module halo2_verifier::protocol {
     }
 
     public fun random_query(protocol: &Protocol, num_proof: u64): Query {
-        let poly= witness_offset(protocol, num_proof) + fold(num_witness(protocol, num_proof), 0, |acc, elem| acc+elem) - 1;
+        let poly = witness_offset(protocol, num_proof) + fold(
+            num_witness(protocol, num_proof),
+            0,
+            |acc, elem| acc + elem
+        ) - 1;
         Query {
             poly,
-            rotation: Rotation {rotation: 0, next: true}
+            rotation: Rotation { rotation: 0, next: true }
         }
     }
+
     fun permutation_poly(protocol: &Protocol, num_proof: u64, t: u64, i: u64): u64 {
         cs_witness_offset(protocol, num_proof) + num_proof * num_lookup_permuted(protocol) + num_permutation_z(
             protocol
