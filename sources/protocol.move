@@ -6,6 +6,8 @@ module halo2_verifier::protocol {
     use halo2_verifier::protocol::{fix_query, num_lookup};
     use halo2_verifier::column::Column;
     use halo2_verifier::column;
+    use halo2_verifier::rotation::Rotation;
+    use halo2_verifier::rotation;
 
     struct Protocol {
         query_instance: bool,
@@ -61,11 +63,6 @@ module halo2_verifier::protocol {
         rotation: Rotation,
     }
 
-    struct Rotation {
-        rotation: u32,
-        next: bool,
-    }
-
     struct Query {
         poly: u64,
         rotation: Rotation,
@@ -86,6 +83,16 @@ module halo2_verifier::protocol {
     public fun blinding_factors(protocol: &Protocol): u64 {
         abort 100
     }
+
+    public fun permutation_columns(protocol: &Protocol): &vector<Column> {
+        &protocol.permutation_columns
+    }
+
+    /// get query index of any column
+    public fun get_query_index(protocol: &Protocol, column: &Column, rotation: &Rotation): u64 {
+        abort 100
+    }
+
     public fun transcript_initial_state(protocol: &Protocol): Scalar {
         abort 100
     }
@@ -256,7 +263,7 @@ module halo2_verifier::protocol {
             while (i < protocol.num_permutation_fixed) {
                 vector::push_back(&mut evals, Query {
                     poly: protocol.num_fixed + i,
-                    rotation: Rotation { rotation: 0, next: true }
+                    rotation: rotation::cur(),
                 });
                 i = i + 1;
             }
@@ -341,7 +348,7 @@ module halo2_verifier::protocol {
         ) - 1;
         Query {
             poly,
-            rotation: Rotation { rotation: 0, next: true }
+            rotation: rotation::cur()
         }
     }
 
@@ -367,8 +374,8 @@ module halo2_verifier::protocol {
         let evals = vector::empty();
         while (i < chunk_num) {
             let z = permutation_poly(protocol, num_proof, t, i);
-            vector::push_back(&mut evals, Query { poly: z, rotation: Rotation { rotation: 0, next: true } });
-            vector::push_back(&mut evals, Query { poly: z, rotation: Rotation { rotation: 1, next: true } });
+            vector::push_back(&mut evals, Query { poly: z, rotation: rotation::cur() });
+            vector::push_back(&mut evals, Query { poly: z, rotation: rotation::next(1) });
             // not the last set
             if (i < chunk_num - 1) {
                 vector::push_back(&mut evals, Query { poly: z, rotation: rotation_last(protocol) });
@@ -384,26 +391,27 @@ module halo2_verifier::protocol {
         let evals = vector::empty();
         while (i < num_lookup) {
             let (z, permuted_input, permuted_table) = lookup_polys(protocol, num_proof, t, i);
-            vector::push_back(&mut evals, Query { poly: z, rotation: Rotation { rotation: 0, next: true } });
-            vector::push_back(&mut evals, Query { poly: z, rotation: Rotation { rotation: 1, next: true } });
+            vector::push_back(&mut evals, Query { poly: z, rotation:rotation::cur() });
+            vector::push_back(&mut evals, Query { poly: z, rotation: rotation::next(1) });
             vector::push_back(
                 &mut evals,
-                Query { poly: permuted_input, rotation: Rotation { rotation: 0, next: true } }
+                Query { poly: permuted_input, rotation: rotation::cur() }
             );
             vector::push_back(
                 &mut evals,
-                Query { poly: permuted_input, rotation: Rotation { rotation: 1, next: false } }
+                Query { poly: permuted_input, rotation:rotation::prev(1) }
             );
             vector::push_back(
                 &mut evals,
-                Query { poly: permuted_table, rotation: Rotation { rotation: 0, next: true } }
+                Query { poly: permuted_table, rotation:rotation::next(1) }
             );
             i = i + 1;
         };
         evals
     }
 
+    // TODO: check the func
     fun rotation_last(protocol: &Protocol): Rotation {
-        Rotation { rotation: protocol.blinding_factors + 1, next: false }
+        rotation::prev(protocol.blinding_factors + 1)
     }
 }
