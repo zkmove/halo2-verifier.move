@@ -1,5 +1,5 @@
 module halo2_verifier::protocol {
-    use halo2_verifier::Domain::Domain;
+    use halo2_verifier::domain::Domain;
     use halo2_verifier::scalar::Scalar;
     use std::vector::{ map_ref, length, fold};
     use std::vector;
@@ -65,6 +65,10 @@ module halo2_verifier::protocol {
     struct Query {
         poly: u64,
         rotation: Rotation,
+    }
+
+    public fun domain(p: &Protocol): &Domain {
+        &p.domain
     }
 
     public fun query_instance(protocol: &Protocol): bool {
@@ -189,6 +193,16 @@ module halo2_verifier::protocol {
         abort 100
     }
 
+
+    public fun from_instance_query(q: &InstanceQuery): (&Column, &Rotation) {
+        (&q.q.column, &q.q.rotation)
+    }
+    public fun from_advice_query(q: &AdviceQuery): (&Column, &Rotation) {
+        (&q.q.column, &q.q.rotation)
+    }
+    public fun from_fixed_query(q: &FixQuery): (&Column, &Rotation) {
+        (&q.q.column, &q.q.rotation)
+    }
     /// return num polys of each phase
     public fun num_witness(protocol: &Protocol, num_proof: u64): vector<u64> {
         let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * (*n));

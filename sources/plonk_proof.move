@@ -1,5 +1,5 @@
 module halo2_verifier::plonk_proof {
-    use halo2_verifier::protocol::{Protocol, transcript_initial_state, evaluations_len, query_instance, instance_queries, permutation_columns, num_challenges};
+    use halo2_verifier::protocol::{Protocol, transcript_initial_state, query_instance, instance_queries, num_challenges};
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::transcript::{Transcript};
     use std::vector;
@@ -10,22 +10,23 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::params::Params;
     use halo2_verifier::pcs::Proof;
     use halo2_verifier::verify_key::VerifyingKey;
-    use std::vector::{map_ref, map};
+    use std::vector::{map_ref, map, enumerate_ref};
     use std::option::Option;
-    use std::option;
     use halo2_verifier::common_evaluations;
     use halo2_verifier::params;
     use halo2_verifier::scalar;
     use halo2_verifier::column;
-    use halo2_verifier::rotation;
     use halo2_verifier::msm::MSM;
-    use halo2_verifier::msm;
     use halo2_verifier::vec_utils::repeat;
     use halo2_verifier::point;
     use halo2_verifier::lookup;
     use halo2_verifier::lookup::PermutationCommitments;
     use halo2_verifier::permutation;
     use halo2_verifier::vanishing;
+    use halo2_verifier::query::VerifierQuery;
+    use halo2_verifier::query;
+    use halo2_verifier::domain;
+    use halo2_verifier::verify_key;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -38,8 +39,8 @@ module halo2_verifier::plonk_proof {
         advice_evals: vector<vector<Scalar>>,
         fixed_evals: vector<Scalar>,
         random_poly_eval: Scalar,
-        permutations_common: vector<Scalar>,
-        permutations_evaluated: vector<vector<PermutationEvaluatedSet>>,
+        //permutations_common: vector<Scalar>,
+        //permutations_evaluated: vector<vector<PermutationEvaluatedSet>>,
         //lookups_evaluated: vector<vector<LookupEvaluated>>,
         z: Scalar,
         pcs: Proof,
@@ -167,7 +168,10 @@ module halo2_verifier::plonk_proof {
         let random_poly_committed = transcript::read_point(&mut transcript);
         let y = transcript::squeeze_challenge(&mut transcript);
 
-        let quotients = vanishing::read_commitments_after_y(&mut transcript, protocol::num_chunks_of_quotient(protocol, num_proof));
+        let quotients = vanishing::read_commitments_after_y(
+            &mut transcript,
+            protocol::num_chunks_of_quotient(protocol, num_proof)
+        );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
 
@@ -197,39 +201,13 @@ module halo2_verifier::plonk_proof {
         };
         let fixed_evals = transcript::read_n_scalar(&mut transcript, vector::length(protocol::fixed_queries(protocol)));
         let random_poly_eval = transcript::read_scalar(&mut transcript);
-        let permutations_common = transcript::read_n_scalar(&mut transcript, protocol::num_permutation_fixed(protocol));
-        let permutations_evaluated = {
-            map_ref<permutation::Commited, vector<PermutationEvaluatedSet>>(
-                &permutations_committed,
-                |product_commitments| {
-                    let product_commitments: &vector<Point> = permutation::permutation_product_commitments(
-                        product_commitments
-                    );
-                    let i = 0;
-                    let len = vector::length(product_commitments);
-                    let result = vector::empty();
-                    while (i < len) {
-                        let permutation_product_commitment = *vector::borrow(product_commitments, i);
-                        let permutation_product_eval = transcript::read_scalar(&mut transcript);
-                        let permutation_product_next_eval = transcript::read_scalar(&mut transcript);
-                        i = i + 1;
-                        let permutation_product_last_eval = if (i == len) {
-                            option::some(transcript::read_scalar(&mut transcript))
-                        } else {
-                            option::none()
-                        };
+        let permutations_common =permutation::evalute_common(&mut transcript,protocol::num_permutation_fixed(protocol));
+        let permutations_evaluated =
+            map<permutation::Commited, permutation::Evaluted>(
+                permutations_committed,
+                |product_commitments|permutation::evaluate(product_commitments, &mut transcript)
+            );
 
-                        vector::push_back(&mut result, PermutationEvaluatedSet {
-                            permutation_product_commitment,
-                            permutation_product_eval,
-                            permutation_product_next_eval,
-                            permutation_product_last_eval
-                        });
-                    };
-                    result
-                }
-            )
-        };
         let lookups_evaluated = map_ref<vector<lookup::Commited>, vector<lookup::Evaluated>>(
             &lookups_committed,
             |commited| {
@@ -247,7 +225,7 @@ module halo2_verifier::plonk_proof {
             while (i < num_proof) {
                 // todo: calculate gates' evals result
                 let gate_expressions = vector::empty();
-                let permutation_expressions = permutation_expressions(
+                let permutation_expressions = permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
                     protocol,
                     &permutations_common,
@@ -270,15 +248,43 @@ module halo2_verifier::plonk_proof {
                 i = i + 1;
             };
             let xn = common_evaluations::xn(&commons);
-            h_eval(vanishing::h_commitments(&quotients), &expressions, &y, &xn)
+
+            vanishing::h_eval(quotients, &expressions, &y, &xn)
         };
 
 
         // mapping query with it commitments
+        let queries = vector::empty();
         {
             let i = 0;
+            while (i < num_proof) {
+                queries(protocol,
+                    &mut queries,
+                    &z,
+                    vector::borrow(&instance_commitments, i),
+                    vector::borrow(&instance_evals, i),
+                    vector::borrow(&advice_commitments, i),
+                    vector::borrow(&advice_evals, i),
+                    vector::borrow(&permutations_evaluated, i),
+                    vector::borrow(&lookups_evaluated, i),
+                );
+                i = i + 1;
+            };
 
-            while (i < num_proof) {}
+            // fixed queries
+            let fixed_commitments = verify_key::fixed_commitments(vk);
+            enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
+                let (column, rotation) = protocol::from_fixed_query(query);
+                vector::push_back(&mut queries,
+                    query::new_commitment(
+                        *vector::borrow(fixed_commitments, (column::column_index(column) as u64)),
+                        domain::rotate_omega(protocol::domain(protocol), &z, rotation),
+                        *vector::borrow(&fixed_evals, query_index),
+                    ));
+            });
+
+            permutation::common_queries(&permutations_common, &mut queries, verify_key::permutation_commitments(vk), &z);
+            vanishing::queries(vanishing, &mut queries, &z);
         };
 
 
@@ -295,8 +301,8 @@ module halo2_verifier::plonk_proof {
             advice_evals,
             fixed_evals,
             random_poly_eval,
-            permutations_common,
-            permutations_evaluated,
+            //permutations_common,
+            //permutations_evaluated,
             //lookups_evaluated,
             pcs: proof
         }
@@ -312,163 +318,26 @@ module halo2_verifier::plonk_proof {
         }
     }
 
-    fun read_commitment_and_challenges(
-        transcript: &mut Transcript,
-        num_in_phase: &vector<u64>,
-        num_challenge_in_phase: &vector<u64>,
-    ): (vector<Point>, vector<Scalar>) {
-        let phase_len = vector::length(num_in_phase);
-        let i = 0;
-        let commitments = vector[];
-        let challenges = vector[];
-        while (i < phase_len) {
-            vector::append(&mut commitments, transcript::read_n_point(transcript, *vector::borrow(num_in_phase, i)));
-            vector::append(
-                &mut challenges,
-                transcript::squeeze_n_challenges(transcript, *vector::borrow(num_challenge_in_phase, i))
-            );
-            i = i + 1;
-        };
-        (commitments, challenges)
-    }
 
-    fun permutation_expressions(
-        evaluted: &vector<PermutationEvaluatedSet>,
-        protocol: &Protocol,
-        permutations_common: &vector<Scalar>,
-        advice_evals: &vector<Scalar>, fixed_evals: &vector<Scalar>, instance_evals: &vector<Scalar>,
-        l_0: &Scalar, l_last: &Scalar, l_blind: &Scalar, beta: &Scalar, gamma: &Scalar, x: &Scalar
-    ): vector<Scalar> {
-        let sets_len = vector::length(evaluted);
-        let results = vector::empty();
-        if (sets_len == 0) {
-            return results
-        };
-
-        // l_0(X)*(1 - z_0(X)) = 0
-        let first_set = vector::borrow(evaluted, 0);
-        vector::push_back(
-            &mut results,
-            scalar::mul(l_0, &scalar::sub(&scalar::one(), &first_set.permutation_product_eval))
-        );
-        // l_last(X)*(z_l(X)^2 - z_l(X)) = 0
-        let last_set = vector::borrow(evaluted, sets_len - 1);
-        vector::push_back(&mut results,
-            scalar::mul(
-                l_last,
-                &scalar::sub(
-                    &scalar::square(&last_set.permutation_product_eval),
-                    &last_set.permutation_product_eval
-                )
-            ));
-        // Except for the first set, enforce.
-        // l_0(X) * (z_i(X) - z_{i-1}(\omega^(last) X)) = 0
-        {
-            let i = 1;
-            while (i < sets_len) {
-                let prev = vector::borrow(evaluted, i - 1);
-                let cur = vector::borrow(evaluted, i);
-                vector::push_back(
-                    &mut results,
-                    scalar::mul(
-                        l_0,
-                        &scalar::sub(
-                            &cur.permutation_product_eval,
-                            option::borrow(&prev.permutation_product_last_eval)
-                        )
-                    )
-                );
-                i = i + 1;
-            }
-        };
-
-        // And for all the sets we enforce:
-        // (1 - (l_last(X) + l_blind(X))) * (
-        //   z_i(\omega X) \prod (p(X) + \beta s_i(X) + \gamma)
-        // - z_i(X) \prod (p(X) + \delta^i \beta X + \gamma)
-        // )
-        {
-            let chunk_len = protocol::permutation_chunk_size(protocol);
-            let permutation_columns = permutation_columns(protocol);
-            let permutation_columns_len = vector::length(permutation_columns);
-            let i = 0;
-            while (i < sets_len) {
-                let set = vector::borrow(evaluted, i);
-                // left = z_i(w*X) * (p(X) + beta * s_i(X) + gamma)
-                let left = set.permutation_product_next_eval;
-                // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
-                let right = set.permutation_product_eval;
-                // cur_delta = beta * x * delta^(i*chunk_len)
-                let current_delta = scalar::mul(&scalar::mul(beta, x), &scalar::pow(&scalar::delta(), i * chunk_len));
-                let j = i * chunk_len;
-                while (j < (i + 1) * chunk_len && j < permutation_columns_len) {
-                    let permutation_eval = vector::borrow(permutations_common, j);
-                    let column = vector::borrow(permutation_columns, j);
-                    let eval = if (column::is_fixed(column)) {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
-                        vector::borrow(fixed_evals, query_index)
-                    } else if (column::is_instance(column)) {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
-                        vector::borrow(instance_evals, query_index)
-                    } else {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
-                        vector::borrow(advice_evals, query_index)
-                    };
-                    left = scalar::mul(
-                        &left,
-                        &scalar::add(&scalar::add(eval, gamma), &scalar::mul(beta, permutation_eval))
-                    );
-                    right = scalar::mul(&right, &scalar::add(&scalar::add(eval, gamma), &current_delta));
-                    current_delta = scalar::mul(&current_delta, &scalar::delta());
-                    j = j + 1;
-                };
-
-                // (1-(l_last(X) + l_blind(X))) * (left - right)
-                vector::push_back(
-                    &mut results,
-                    scalar::mul(
-                        &scalar::sub(&left, &right),
-                        &scalar::sub(&scalar::one(), &scalar::add(l_last, l_blind))
-                    )
-                );
-                i = i + 1;
-            }
-        };
-
-
-        results
-    }
-
-    public fun h_eval(
-        h_commitments: &vector<Point>,
-        expressions: &vector<Scalar>,
-        y: &Scalar,
-        xn: &Scalar
-    ): EvaluatedH {
-        let i = 0;
-        let len = vector::length(expressions);
-        let h_eval = scalar::zero();
-        while (i < len) {
-            let v = vector::borrow(expressions, i);
-            h_eval = scalar::add(&scalar::mul(&h_eval, y), v);
-            i = i + 1;
-        };
-        h_eval = scalar::mul(&h_eval, &scalar::invert(&scalar::sub(xn, &scalar::one())));
-
-        let msm = msm::empty_msm();
-        let i = vector::length(h_commitments);
-        while (i > 0) {
-            i = i - 1;
-            // TODO: change to pop?
-            let commitment = vector::borrow(h_commitments, i);
-            msm::scale(&mut msm, xn);
-            msm::append_term(&mut msm, scalar::one(), *commitment);
-        };
-        EvaluatedH {
-            expected_h_eval: h_eval,
-            h_commitment: msm
-        }
-    }
+    // fun read_commitment_and_challenges(
+    //     transcript: &mut Transcript,
+    //     num_in_phase: &vector<u64>,
+    //     num_challenge_in_phase: &vector<u64>,
+    // ): (vector<Point>, vector<Scalar>) {
+    //     let phase_len = vector::length(num_in_phase);
+    //     let i = 0;
+    //     let commitments = vector[];
+    //     let challenges = vector[];
+    //     while (i < phase_len) {
+    //         vector::append(&mut commitments, transcript::read_n_point(transcript, *vector::borrow(num_in_phase, i)));
+    //         vector::append(
+    //             &mut challenges,
+    //             transcript::squeeze_n_challenges(transcript, *vector::borrow(num_challenge_in_phase, i))
+    //         );
+    //         i = i + 1;
+    //     };
+    //     (commitments, challenges)
+    // }
 
     fun lookup_read_permuted_commitments(
         transcript: &mut Transcript,
@@ -510,5 +379,45 @@ module halo2_verifier::plonk_proof {
         };
 
         result
+    }
+
+    fun queries(
+        protocol: &Protocol,
+        queries: &mut vector<VerifierQuery>,
+        x: &Scalar,
+        instance_commitments: &vector<Point>,
+        instance_evals: &vector<Scalar>,
+        advice_commitments: &vector<Point>,
+        advice_evals: &vector<Scalar>,
+        permutation: &permutation::Evaluted,
+        lookups: &vector<lookup::Evaluated>
+    ) {
+        // instance queries
+        if (protocol::query_instance(protocol)) {
+            enumerate_ref(protocol::instance_queries(protocol), |query_index, query| {
+                let (column, rotation) = protocol::from_instance_query(query);
+                vector::push_back(queries,
+                    query::new_commitment(
+                        *vector::borrow(instance_commitments, (column::column_index(column) as u64)),
+                        domain::rotate_omega(protocol::domain(protocol), x, rotation),
+                        *vector::borrow(instance_evals, query_index),
+                    ));
+            });
+        };
+
+        // advice queries
+        enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{
+            let (column, rotation) = protocol::from_advice_query(query);
+            vector::push_back(queries,
+                query::new_commitment(
+                    *vector::borrow(advice_commitments, (column::column_index(column) as u64)),
+                    domain::rotate_omega(protocol::domain(protocol), x, rotation),
+                    *vector::borrow(advice_evals, query_index),
+                ));
+        });
+
+        permutation::queries(permutation, queries, protocol, x);
+        lookup::queries(lookups, queries, protocol, x);
+
     }
 }

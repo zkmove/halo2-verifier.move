@@ -3,6 +3,8 @@ module halo2_verifier::lookup {
     use halo2_verifier::transcript;
     use halo2_verifier::point::Point;
     use halo2_verifier::scalar::Scalar;
+    use halo2_verifier::query::VerifierQuery;
+    use halo2_verifier::protocol::Protocol;
 
     struct PermutationCommitments has copy,drop {
         permuted_input_commitment: Point,
@@ -47,5 +49,9 @@ module halo2_verifier::lookup {
             permuted_input_inv_eval,
             permuted_table_eval
         }
+    }
+
+    public fun queries(self: &vector<Evaluated>,  queries: &mut vector<VerifierQuery>, protocol: &Protocol, x: &Scalar) {
+        // TODO
     }
 }

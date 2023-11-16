@@ -7,4 +7,12 @@ module halo2_verifier::verify_key {
         permutation_commitments: vector<Point>,
         selectors: vector<vector<bool>>,
     }
+
+    public fun fixed_commitments(self: &VerifyingKey): &vector<Point> {
+        &self.fixed_commitments
+    }
+
+    public fun permutation_commitments(self: &VerifyingKey): &vector<Point> {
+        &self.permutation_commitments
+    }
 }

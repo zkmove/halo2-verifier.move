@@ -22,4 +22,5 @@ module halo2_verifier::vec_utils {
         assert!(*vector::borrow(&r, 9) == 1u8, 2);
         assert!(*vector::borrow(&r, 0) == 1u8, 2);
     }
+
 }
