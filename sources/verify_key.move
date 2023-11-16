@@ -1,10 +1,10 @@
 module halo2_verifier::verify_key {
-    use halo2_verifier::point::Point;
+    use halo2_verifier::point::G1Affine;
 
     struct VerifyingKey {
         k: u32,
-        fixed_commitments: vector<Point>,
-        permutation_commitments: vector<Point>,
+        fixed_commitments: vector<G1Affine>,
+        permutation_commitments: vector<G1Affine>,
         selectors: vector<vector<bool>>,
     }
 
