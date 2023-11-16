@@ -1,33 +1,22 @@
 module halo2_verifier::plonk_proof {
-    use halo2_verifier::protocol::{Protocol, transcript_initial_state, query_instance, instance_queries, num_challenges};
-    use halo2_verifier::scalar::Scalar;
-    use halo2_verifier::transcript::{Transcript};
-    use std::vector;
-    use halo2_verifier::protocol;
-    use halo2_verifier::transcript;
-    use halo2_verifier::point::Point;
+    use std::vector::{Self, map_ref, map, enumerate_ref};
+
     use halo2_verifier::bn254_types::G1;
-    use halo2_verifier::pcs;
-    use halo2_verifier::params::Params;
-    use halo2_verifier::pcs::Proof;
-    use halo2_verifier::verify_key::VerifyingKey;
-    use std::vector::{map_ref, map, enumerate_ref};
-    use std::option::Option;
-    use halo2_verifier::common_evaluations;
-    use halo2_verifier::params;
-    use halo2_verifier::scalar;
     use halo2_verifier::column;
-    use halo2_verifier::msm::MSM;
-    use halo2_verifier::vec_utils::repeat;
-    use halo2_verifier::point;
-    use halo2_verifier::lookup;
-    use halo2_verifier::lookup::PermutationCommitments;
-    use halo2_verifier::permutation;
-    use halo2_verifier::vanishing;
-    use halo2_verifier::query::VerifierQuery;
-    use halo2_verifier::query;
+    use halo2_verifier::common_evaluations;
     use halo2_verifier::domain;
-    use halo2_verifier::verify_key;
+    use halo2_verifier::lookup::{Self, PermutationCommitments};
+    use halo2_verifier::params::{Self, Params};
+    use halo2_verifier::pcs::{Self, Proof};
+    use halo2_verifier::permutation;
+    use halo2_verifier::point::{Self, Point};
+    use halo2_verifier::protocol::{Self, Protocol, transcript_initial_state, query_instance, instance_queries, num_challenges};
+    use halo2_verifier::query::{Self, VerifierQuery};
+    use halo2_verifier::scalar::{Self, Scalar};
+    use halo2_verifier::transcript::{Self, Transcript};
+    use halo2_verifier::vanishing;
+    use halo2_verifier::vec_utils::repeat;
+    use halo2_verifier::verify_key::{Self, VerifyingKey};
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -47,17 +36,6 @@ module halo2_verifier::plonk_proof {
         pcs: Proof,
     }
 
-    struct PermutationEvaluatedSet has copy, drop {
-        permutation_product_commitment: Point<G1>,
-        permutation_product_eval: Scalar,
-        permutation_product_next_eval: Scalar,
-        permutation_product_last_eval: Option<Scalar>,
-    }
-
-    struct EvaluatedH has copy, drop {
-        expected_h_eval: Scalar,
-        h_commitment: MSM,
-    }
 
     public fun read(
         params: &Params,
@@ -166,10 +144,10 @@ module halo2_verifier::plonk_proof {
             protocol::num_permutation_z(protocol)
         );
         let lookups_committed = lookup_read_product_commitments(lookups_permuted, &mut transcript);
-        let random_poly_committed = transcript::read_point(&mut transcript);
+        let vanishing = vanishing::read_commitments_before_y(&mut transcript);
         let y = transcript::squeeze_challenge(&mut transcript);
-
-        let quotients = vanishing::read_commitments_after_y(
+        let vanishing = vanishing::read_commitments_after_y(
+            vanishing,
             &mut transcript,
             protocol::num_chunks_of_quotient(protocol, num_proof)
         );
@@ -202,7 +180,11 @@ module halo2_verifier::plonk_proof {
         };
         let fixed_evals = transcript::read_n_scalar(&mut transcript, vector::length(protocol::fixed_queries(protocol)));
         let random_poly_eval = transcript::read_scalar(&mut transcript);
-        let permutations_common =permutation::evalute_common(&mut transcript,protocol::num_permutation_fixed(protocol));
+        let vanishing = vanishing::evaluate_after_x(vanishing, &mut transcript);
+        let permutations_common = permutation::evalute_common(
+            &mut transcript,
+            protocol::num_permutation_fixed(protocol)
+        );
         let permutations_evaluated =
             map<permutation::Commited, permutation::Evaluted>(
                 permutations_committed,
@@ -250,13 +232,15 @@ module halo2_verifier::plonk_proof {
             };
             let xn = common_evaluations::xn(&commons);
 
-            vanishing::h_eval(quotients, &expressions, &y, &xn)
+            vanishing::h_eval(vanishing, &expressions, &y, &xn)
         };
 
 
-        // mapping query with it commitments
+        // mapping evaluations with it commitments
         let queries = vector::empty();
         {
+            vector::reverse(&mut permutations_evaluated);
+            vector::reverse(&mut lookups_evaluated);
             let i = 0;
             while (i < num_proof) {
                 queries(protocol,
@@ -266,8 +250,8 @@ module halo2_verifier::plonk_proof {
                     vector::borrow(&instance_evals, i),
                     vector::borrow(&advice_commitments, i),
                     vector::borrow(&advice_evals, i),
-                    vector::borrow(&permutations_evaluated, i),
-                    vector::borrow(&lookups_evaluated, i),
+                    vector::pop_back(&mut permutations_evaluated),
+                    vector::pop_back(&mut lookups_evaluated),
                 );
                 i = i + 1;
             };
@@ -284,7 +268,12 @@ module halo2_verifier::plonk_proof {
                     ));
             });
 
-            permutation::common_queries(&permutations_common, &mut queries, verify_key::permutation_commitments(vk), &z);
+            permutation::common_queries(
+                permutations_common,
+                &mut queries,
+                *verify_key::permutation_commitments(vk),
+                &z
+            );
             vanishing::queries(vanishing, &mut queries, &z);
         };
 
@@ -390,8 +379,8 @@ module halo2_verifier::plonk_proof {
         instance_evals: &vector<Scalar>,
         advice_commitments: &vector<Point<G1>>,
         advice_evals: &vector<Scalar>,
-        permutation: &permutation::Evaluted,
-        lookups: &vector<lookup::Evaluated>
+        permutation: permutation::Evaluted,
+        lookups: vector<lookup::Evaluated>
     ) {
         // instance queries
         if (protocol::query_instance(protocol)) {
@@ -418,7 +407,6 @@ module halo2_verifier::plonk_proof {
         });
 
         permutation::queries(permutation, queries, protocol, x);
-        lookup::queries(lookups, queries, protocol, x);
-
+        lookup::queries(&lookups, queries, protocol, x);
     }
 }

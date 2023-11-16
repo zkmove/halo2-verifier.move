@@ -1,6 +1,6 @@
 module halo2_verifier::verify_key {
-    use halo2_verifier::point::Point;
     use halo2_verifier::bn254_types::G1;
+    use halo2_verifier::point::Point;
 
     struct VerifyingKey {
         k: u32,

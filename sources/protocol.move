@@ -1,14 +1,12 @@
 module halo2_verifier::protocol {
-    use halo2_verifier::domain::Domain;
-    use halo2_verifier::scalar::Scalar;
-    use std::vector::{ map_ref, length, fold};
-    use std::vector;
-    use halo2_verifier::column::Column;
-    use halo2_verifier::column;
-    use halo2_verifier::rotation::Rotation;
-    use halo2_verifier::rotation;
+    use std::vector::{Self, map_ref, length, fold};
 
-    struct Protocol  {
+    use halo2_verifier::column::{Self, Column};
+    use halo2_verifier::domain::Domain;
+    use halo2_verifier::rotation::{Self, Rotation};
+    use halo2_verifier::scalar::Scalar;
+
+    struct Protocol {
         query_instance: bool,
         // for ipa, true; for kzg, false
         domain: Domain,
@@ -41,9 +39,8 @@ module halo2_verifier::protocol {
     struct Gate {
         ploys: vector<Expression>,
     }
-    struct Expression {
 
-    }
+    struct Expression {}
 
     struct AdviceQuery {
         q: ColumnQuery,
@@ -74,15 +71,19 @@ module halo2_verifier::protocol {
     public fun query_instance(protocol: &Protocol): bool {
         protocol.query_instance
     }
+
     public fun instance_queries(protocol: &Protocol): &vector<InstanceQuery> {
         &protocol.instance_queries
     }
+
     public fun advice_queries(protocol: &Protocol): &vector<AdviceQuery> {
         &protocol.advice_queries
     }
+
     public fun fixed_queries(protocol: &Protocol): &vector<FixQuery> {
         &protocol.fixed_queries
     }
+
     public fun blinding_factors(protocol: &Protocol): u64 {
         abort 100
     }
@@ -197,12 +198,15 @@ module halo2_verifier::protocol {
     public fun from_instance_query(q: &InstanceQuery): (&Column, &Rotation) {
         (&q.q.column, &q.q.rotation)
     }
+
     public fun from_advice_query(q: &AdviceQuery): (&Column, &Rotation) {
         (&q.q.column, &q.q.rotation)
     }
+
     public fun from_fixed_query(q: &FixQuery): (&Column, &Rotation) {
         (&q.q.column, &q.q.rotation)
     }
+
     /// return num polys of each phase
     public fun num_witness(protocol: &Protocol, num_proof: u64): vector<u64> {
         let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * (*n));
@@ -216,13 +220,12 @@ module halo2_verifier::protocol {
 
     public fun num_challenge(protocol: &Protocol): vector<u64> {
         let num_challenge = protocol.num_challenge_in_phase;
-        let x=vector::pop_back(&mut num_challenge);
-        vector::push_back(&mut num_challenge,  x + 1); // theta
+        let x = vector::pop_back(&mut num_challenge);
+        vector::push_back(&mut num_challenge, x + 1); // theta
         vector::push_back(&mut num_challenge, 2);// beta, gamma
         vector::push_back(&mut num_challenge, 1); // y/alpha
         num_challenge
     }
-
 
 
     public fun evaluations_len(protocol: &Protocol, num_proof: u64): u64 {
@@ -244,7 +247,7 @@ module halo2_verifier::protocol {
         let evals = vector::empty();
 
         // instance queries
-        if (protocol.query_instance){
+        if (protocol.query_instance) {
             let i = 0;
             while (i < num_proof) {
                 vector::append(&mut evals, map_ref<InstanceQuery, Query>(&protocol.instance_queries, |q|
@@ -323,7 +326,7 @@ module halo2_verifier::protocol {
 
     public fun fix_query(_protocol: &Protocol, query: &FixQuery): Query {
         Query {
-            poly: (column::column_index(&query.q.column)as u64),
+            poly: (column::column_index(&query.q.column) as u64),
             rotation: query.q.rotation
         }
     }
@@ -331,13 +334,13 @@ module halo2_verifier::protocol {
     public fun instance_query(protocol: &Protocol, i: u64, query: &InstanceQuery): Query {
         let offset = instance_offset(protocol) + i * length(&protocol.num_instance);
         Query {
-            poly: (column::column_index(&query.q.column)as u64) + offset,
+            poly: (column::column_index(&query.q.column) as u64) + offset,
             rotation: query.q.rotation
         }
     }
 
     public fun advice_query(protocol: &Protocol, num_proof: u64, i: u64, query: &AdviceQuery): Query {
-        let column_index = *vector::borrow(&protocol.advice_index, (column::column_index(&query.q.column)as u64));
+        let column_index = *vector::borrow(&protocol.advice_index, (column::column_index(&query.q.column) as u64));
         let sum = {
             let i = 0;
             let sum = 0;
@@ -409,7 +412,7 @@ module halo2_verifier::protocol {
         let evals = vector::empty();
         while (i < num_lookup) {
             let (z, permuted_input, permuted_table) = lookup_polys(protocol, num_proof, t, i);
-            vector::push_back(&mut evals, Query { poly: z, rotation:rotation::cur() });
+            vector::push_back(&mut evals, Query { poly: z, rotation: rotation::cur() });
             vector::push_back(&mut evals, Query { poly: z, rotation: rotation::next(1) });
             vector::push_back(
                 &mut evals,
@@ -417,11 +420,11 @@ module halo2_verifier::protocol {
             );
             vector::push_back(
                 &mut evals,
-                Query { poly: permuted_input, rotation:rotation::prev(1) }
+                Query { poly: permuted_input, rotation: rotation::prev(1) }
             );
             vector::push_back(
                 &mut evals,
-                Query { poly: permuted_table, rotation:rotation::next(1) }
+                Query { poly: permuted_table, rotation: rotation::next(1) }
             );
             i = i + 1;
         };
