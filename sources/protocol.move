@@ -1,15 +1,14 @@
 module halo2_verifier::protocol {
     use halo2_verifier::Domain::Domain;
     use halo2_verifier::scalar::Scalar;
-    use std::vector::{for_each_ref, map_ref, length, fold, map};
+    use std::vector::{ map_ref, length, fold};
     use std::vector;
-    use halo2_verifier::protocol::{fix_query, num_lookup};
     use halo2_verifier::column::Column;
     use halo2_verifier::column;
     use halo2_verifier::rotation::Rotation;
     use halo2_verifier::rotation;
 
-    struct Protocol {
+    struct Protocol  {
         query_instance: bool,
         // for ipa, true; for kzg, false
         domain: Domain,
@@ -97,6 +96,10 @@ module halo2_verifier::protocol {
         abort 100
     }
 
+    public fun num_phase(protocol: &Protocol): u8 {
+        abort 100
+    }
+
     public fun num_fixed(protocol: &Protocol): u64 {
         protocol.num_fixed
     }
@@ -143,7 +146,7 @@ module halo2_verifier::protocol {
     }
 
     // return advice's phase
-    public fun advice_phase(protocol: &Protocol): &vector<u8> {
+    public fun advice_column_phase(protocol: &Protocol): &vector<u8> {
         abort 100
     }
 
@@ -188,7 +191,7 @@ module halo2_verifier::protocol {
 
     /// return num polys of each phase
     public fun num_witness(protocol: &Protocol, num_proof: u64): vector<u64> {
-        let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * n);
+        let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * (*n));
         vector::push_back(&mut witness, num_proof * num_lookup_permuted(protocol));
         vector::push_back(
             &mut witness,
@@ -199,7 +202,8 @@ module halo2_verifier::protocol {
 
     public fun num_challenge(protocol: &Protocol): vector<u64> {
         let num_challenge = protocol.num_challenge_in_phase;
-        vector::push_back(&mut num_challenge, vector::pop_back(&mut num_challenge) + 1); // theta
+        let x=vector::pop_back(&mut num_challenge);
+        vector::push_back(&mut num_challenge,  x + 1); // theta
         vector::push_back(&mut num_challenge, 2);// beta, gamma
         vector::push_back(&mut num_challenge, 1); // y/alpha
         num_challenge
@@ -299,7 +303,7 @@ module halo2_verifier::protocol {
     }
 
     fun cs_witness_offset(protocol: &Protocol, num_proof: u64): u64 {
-        let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * n);
+        let witness = map_ref<u64, u64>(num_advice_in_phase(protocol), |n| num_proof * (*n));
         witness_offset(protocol, num_proof) + fold(witness, 0, |acc, elem| acc + elem)
     }
 
@@ -324,7 +328,7 @@ module halo2_verifier::protocol {
             let i = 0;
             let sum = 0;
             while (i < column::phase(&query.q.column)) {
-                sum = sum + *vector::borrow(&protocol.num_advice_in_phase, i);
+                sum = sum + *vector::borrow(&protocol.num_advice_in_phase, (i as u64));
                 i = i + 1;
             };
             sum

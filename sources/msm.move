@@ -2,7 +2,7 @@ module halo2_verifier::msm {
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::point::Point;
 
-    struct MSM {
+    struct MSM has copy, drop {
 
     }
 

@@ -1,5 +1,5 @@
 module halo2_verifier::scalar {
-    struct Scalar {}
+    struct Scalar has copy, drop,store {}
     public fun one(): Scalar {
         abort 100
     }

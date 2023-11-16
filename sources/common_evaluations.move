@@ -1,7 +1,7 @@
 module halo2_verifier::common_evaluations {
     use halo2_verifier::scalar::Scalar;
 
-    struct CommonEvaluations {
+    struct CommonEvaluations has copy,drop {
 
     }
 

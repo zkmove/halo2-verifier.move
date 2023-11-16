@@ -2,7 +2,7 @@ module halo2_verifier::transcript {
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::point::Point;
 
-    struct Transcript {}
+    struct Transcript has copy, drop {}
 
     /// create a transcript_read
     public fun read(bytes: vector<u8>): Transcript {
