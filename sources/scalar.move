@@ -4,6 +4,10 @@ module halo2_verifier::scalar {
 
     struct Scalar has copy, drop {e: Element<Fr>}
 
+    public fun inner(self: &Scalar): Element<Fr> {
+        self.e
+    }
+
     public fun from_repr(repr: vector<u8>): Scalar {
         let e = std::option::extract(&mut crypto_algebra::deserialize<Fr, FormatFrLsb>(&repr));
         Scalar {e}
