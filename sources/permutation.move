@@ -1,6 +1,6 @@
 module halo2_verifier::permutation {
     use halo2_verifier::transcript::Transcript;
-    use halo2_verifier::point::Point;
+    use halo2_verifier::point::G1Affine;
     use halo2_verifier::transcript;
     use halo2_verifier::scalar::Scalar;
     use std::option::Option;
@@ -16,7 +16,7 @@ module halo2_verifier::permutation {
     use halo2_verifier::query;
 
     struct Commited has copy, drop {
-        permutation_product_commitments: vector<Point>,
+        permutation_product_commitments: vector<G1Affine>,
     }
 
     struct CommonEvaluted has copy, drop {
@@ -24,7 +24,7 @@ module halo2_verifier::permutation {
     }
 
     struct PermutationEvaluatedSet has copy, drop {
-        permutation_product_commitment: Point,
+        permutation_product_commitment: G1Affine,
         permutation_product_eval: Scalar,
         permutation_product_next_eval: Scalar,
         permutation_product_last_eval: Option<Scalar>,
@@ -40,7 +40,7 @@ module halo2_verifier::permutation {
         }
     }
 
-    public fun permutation_product_commitments(self: &Commited): &vector<Point> {
+    public fun permutation_product_commitments(self: &Commited): &vector<G1Affine> {
         &self.permutation_product_commitments
     }
 
@@ -51,7 +51,7 @@ module halo2_verifier::permutation {
     }
 
     public fun evaluate(self: Commited, transcript: &mut Transcript): Evaluted {
-        let product_commitments: &vector<Point> = &self.permutation_product_commitments;
+        let product_commitments: &vector<G1Affine> = &self.permutation_product_commitments;
         let i = 0;
         let len = vector::length(product_commitments);
         let sets = vector::empty();
@@ -200,10 +200,10 @@ module halo2_verifier::permutation {
     public fun common_queries(
         self: &CommonEvaluted,
         queries: &mut vector<VerifierQuery>,
-        permutation_commitments: &vector<Point>,
+        permutation_commitments: &vector<G1Affine>,
         x: &Scalar
     ) {
-        zip_ref<Point, Scalar>(
+        zip_ref<G1Affine, Scalar>(
             permutation_commitments, &self.permutation_evals,
             |commit, eval| vector::push_back(queries, query::new_commitment(*commit, *x, *eval))
         );

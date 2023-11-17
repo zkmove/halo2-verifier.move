@@ -1,7 +1,7 @@
 module halo2_verifier::vanishing {
     use halo2_verifier::transcript::Transcript;
     use halo2_verifier::transcript;
-    use halo2_verifier::point::Point;
+    use halo2_verifier::point::G1Affine;
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::msm::MSM;
     use halo2_verifier::query::VerifierQuery;
@@ -11,7 +11,7 @@ module halo2_verifier::vanishing {
     use halo2_verifier::msm;
 
     struct Constructed has copy, drop {
-        h_commitments: vector<Point>,
+        h_commitments: vector<G1Affine>,
     }
 
     struct EvaluatedH has copy, drop {
@@ -19,7 +19,7 @@ module halo2_verifier::vanishing {
         h_commitment: MSM,
     }
 
-    public fun h_commitments(c: &Constructed): &vector<Point> {
+    public fun h_commitments(c: &Constructed): &vector<G1Affine> {
         &c.h_commitments
     }
 

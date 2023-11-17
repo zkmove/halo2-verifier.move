@@ -5,7 +5,7 @@ module halo2_verifier::plonk_proof {
     use std::vector;
     use halo2_verifier::protocol;
     use halo2_verifier::transcript;
-    use halo2_verifier::point::Point;
+    use halo2_verifier::point::G1Affine;
     use halo2_verifier::pcs;
     use halo2_verifier::params::Params;
     use halo2_verifier::pcs::Proof;
@@ -31,9 +31,9 @@ module halo2_verifier::plonk_proof {
     const INVALID_INSTANCES: u64 = 100;
 
     struct PlonkProof has copy, drop {
-        //commitments: vector<Point>,
+        //commitments: vector<G1Affine>,
         challenges: vector<Scalar>,
-        //quotients: vector<Point>,
+        //quotients: vector<G1Affine>,
 
         instance_evals: vector<vector<Scalar>>,
         advice_evals: vector<vector<Scalar>>,
@@ -47,7 +47,7 @@ module halo2_verifier::plonk_proof {
     }
 
     struct PermutationEvaluatedSet has copy, drop {
-        permutation_product_commitment: Point,
+        permutation_product_commitment: G1Affine,
         permutation_product_eval: Scalar,
         permutation_product_next_eval: Scalar,
         permutation_product_last_eval: Option<Scalar>,
@@ -66,7 +66,7 @@ module halo2_verifier::plonk_proof {
         transcript: Transcript
     ): PlonkProof {
         // check_instances(&instances, protocol::num_instance(protocol));
-        let instance_commitments: vector<vector<Point>> = if (protocol::query_instance(protocol)) {
+        let instance_commitments: vector<vector<G1Affine>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
             abort 100
         } else {
@@ -323,7 +323,7 @@ module halo2_verifier::plonk_proof {
     //     transcript: &mut Transcript,
     //     num_in_phase: &vector<u64>,
     //     num_challenge_in_phase: &vector<u64>,
-    // ): (vector<Point>, vector<Scalar>) {
+    // ): (vector<G1Affine>, vector<Scalar>) {
     //     let phase_len = vector::length(num_in_phase);
     //     let i = 0;
     //     let commitments = vector[];
@@ -385,9 +385,9 @@ module halo2_verifier::plonk_proof {
         protocol: &Protocol,
         queries: &mut vector<VerifierQuery>,
         x: &Scalar,
-        instance_commitments: &vector<Point>,
+        instance_commitments: &vector<G1Affine>,
         instance_evals: &vector<Scalar>,
-        advice_commitments: &vector<Point>,
+        advice_commitments: &vector<G1Affine>,
         advice_evals: &vector<Scalar>,
         permutation: &permutation::Evaluted,
         lookups: &vector<lookup::Evaluated>
