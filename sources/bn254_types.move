@@ -11,6 +11,11 @@ module halo2_verifier::bn254_types {
 
     struct G1 {}
 
+    /// A serialization scheme for `G1` elements
+    /// the serialization procedure takes a `G1` element `p` and outputs a byte array of size 32.
+    /// the deserialization procedure takes a byte array `b[]` and outputs either a `G1` element or none.
+    struct FormatG1Compr {}
+
     struct G2 {}
 
     struct Gt {}
