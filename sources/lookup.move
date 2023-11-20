@@ -10,17 +10,17 @@ module halo2_verifier::lookup {
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::transcript::{Self, Transcript};
 
-    struct PermutationCommitments has drop {
+    struct PermutationCommitments has copy, drop {
         permuted_input_commitment: Point<G1>,
         permuted_table_commitment: Point<G1>,
     }
 
-    struct Commited has drop {
+    struct Commited has copy, drop {
         permuted: PermutationCommitments,
         product_commitment: Point<G1>,
     }
 
-    struct Evaluated has drop {
+    struct Evaluated has  drop {
         commited: Commited,
         product_eval: Scalar,
         product_next_eval: Scalar,
