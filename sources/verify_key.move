@@ -1,18 +1,19 @@
 module halo2_verifier::verify_key {
-    use halo2_verifier::point::G1Affine;
+    use halo2_verifier::point::Point;
+    use halo2_verifier::bn254_types::G1;
 
     struct VerifyingKey {
         k: u32,
-        fixed_commitments: vector<G1Affine>,
-        permutation_commitments: vector<G1Affine>,
+        fixed_commitments: vector<Point<G1>>,
+        permutation_commitments: vector<Point<G1>>,
         selectors: vector<vector<bool>>,
     }
 
-    public fun fixed_commitments(self: &VerifyingKey): &vector<G1Affine> {
+    public fun fixed_commitments(self: &VerifyingKey): &vector<Point<G1>> {
         &self.fixed_commitments
     }
 
-    public fun permutation_commitments(self: &VerifyingKey): &vector<G1Affine> {
+    public fun permutation_commitments(self: &VerifyingKey): &vector<Point<G1>> {
         &self.permutation_commitments
     }
 }

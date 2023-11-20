@@ -3,46 +3,46 @@ module halo2_verifier::point {
     use aptos_std::crypto_algebra::{Self, Element};
     use halo2_verifier::scalar::{Self, Scalar};
 
-    struct G1Affine has copy, drop {e: Element<G1>}
+    struct Point<G> has copy, drop {e: Element<G>}
 
-    public fun default(): G1Affine {
+    public fun default<G>(): Point<G> {
         abort 100
     }
 
-    public fun from_bytes(compressed: vector<u8>): G1Affine {
-        let e = std::option::extract(&mut crypto_algebra::deserialize<G1, FormatG1Compr>(&compressed));
-        G1Affine {e}
+    public fun from_bytes<G, Format>(compressed: vector<u8>): Point<G> {
+        let e = std::option::extract(&mut crypto_algebra::deserialize<G, Format>(&compressed));
+        Point<G> {e}
     }
 
-    public fun to_bytes(self: &G1Affine): vector<u8> {
-        crypto_algebra::serialize<G1, FormatG1Compr>(&self.e)
+    public fun to_bytes<G, Format>(self: &Point<G>): vector<u8> {
+        crypto_algebra::serialize<G, Format>(&self.e)
     }
 
-    public fun one(): G1Affine {
-        G1Affine { e: crypto_algebra::one<G1>() }
+    public fun one<G>(): Point<G> {
+        Point<G> { e: crypto_algebra::one<G>() }
     }
-    public fun zero(): G1Affine {
-        G1Affine { e: crypto_algebra::zero<G1>() }
+    public fun zero<G>(): Point<G> {
+        Point<G> { e: crypto_algebra::zero<G>() }
     }
-    public fun order(): vector<u8> {
-        crypto_algebra::order<G1>()
+    public fun order<G>(): vector<u8> {
+        crypto_algebra::order<G>()
     }
-    public fun scalar_mul(point: &G1Affine, scalar: &Scalar): G1Affine {
-        G1Affine { e: crypto_algebra::scalar_mul<G1, Fr>(&point.e, &scalar::inner(scalar)) }
+    public fun scalar_mul<G>(point: &Point<G>, scalar: &Scalar): Point<G> {
+        Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, &scalar::inner(scalar)) }
     }
-    public fun multi_scalar_mul(point: &vector<G1Affine>, scalar: &vector<Scalar>): G1Affine {
+    public fun multi_scalar_mul<G>(point: &vector<Point<G>>, scalar: &vector<Scalar>): Point<G> {
         abort 100
     }
-    public fun double(a: &G1Affine): G1Affine{
-        G1Affine { e: crypto_algebra::double<G1>(&a.e) }
+    public fun double<G>(a: &Point<G>): Point<G>{
+        Point<G> { e: crypto_algebra::double<G>(&a.e) }
     }
-    public fun add(a: &G1Affine, b: &G1Affine): G1Affine {
-        G1Affine { e: crypto_algebra::add<G1>(&a.e, &b.e) }
+    public fun add<G>(a: &Point<G>, b: &Point<G>): Point<G> {
+        Point<G> { e: crypto_algebra::add<G>(&a.e, &b.e) }
     }
-    public fun sub(a: &G1Affine, b: &G1Affine): G1Affine {
-        G1Affine { e: crypto_algebra::sub<G1>(&a.e, &b.e) }
+    public fun sub<G>(a: &Point<G>, b: &Point<G>): Point<G> {
+        Point<G> { e: crypto_algebra::sub<G>(&a.e, &b.e) }
     }
-    public fun neg(a: &G1Affine): G1Affine {
-        G1Affine { e: crypto_algebra::neg<G1>(&a.e) }
+    public fun neg<G>(a: &Point<G>): Point<G> {
+        Point<G> { e: crypto_algebra::neg<G>(&a.e) }
     }
 }

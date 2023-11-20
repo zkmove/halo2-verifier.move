@@ -9,7 +9,7 @@ module halo2_verifier::bn254_types {
     /// where an element is represented by a byte array `b[]` of size 32 with the least significant byte (LSB) coming first.
     struct FormatFrLsb {}
 
-    struct G1 {}
+    struct G1 has copy, drop {}
 
     /// A serialization scheme for `G1` elements
     /// the serialization procedure takes a `G1` element `p` and outputs a byte array of size 32.
