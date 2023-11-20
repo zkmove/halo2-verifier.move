@@ -5,15 +5,21 @@ module halo2_verifier::protocol {
     use halo2_verifier::domain::Domain;
     use halo2_verifier::rotation::{Self, Rotation};
     use halo2_verifier::scalar::Scalar;
+    use aptos_std::math64::max;
+    use halo2_verifier::domain;
+    use std::error;
+    const QUERY_NOT_FOUND: u64 = 1;
 
-    struct Protocol {
+    struct Protocol has store,key {
         query_instance: bool,
         // for ipa, true; for kzg, false
         domain: Domain,
-        cs_degree: u32,
-        blinding_factors: u32,
-        num_fixed: u64,
-        num_permutation_fixed: u64,
+
+        /// it's constraint_system's degree()
+        cs_degree: u64,
+
+        num_fixed_columns: u64,
+        //num_instance_columns: u64,
 
         num_instance: vector<u64>,
 
@@ -26,41 +32,45 @@ module halo2_verifier::protocol {
         // challenge_index: vector<u64>,
         // challenge_phase: vector<u8>,
 
-        lookups_len: u64,
-        permutation_columns_len: u64,
+        advice_column_phase: vector<u8>,
+        challenge_phase: vector<u8>,
 
-        instance_queries: vector<InstanceQuery>,
-        advice_queries: vector<AdviceQuery>,
-        fixed_queries: vector<FixQuery>,
-        permutation_columns: vector<Column>,
         gates: vector<Gate>,
+
+        advice_queries: vector<AdviceQuery>,
+        instance_queries: vector<InstanceQuery>,
+        fixed_queries: vector<FixQuery>,
+
+        permutation_columns: vector<Column>,
+        lookups: vector<Lookup>,
+        /// it's `advice_queries.count_by(|q| q.column).max`
+        max_num_query_of_advice_column: u32,
     }
 
-    struct Gate {
+    struct Gate has store {
         ploys: vector<Expression>,
     }
 
-    struct Expression {}
+    struct Lookup has  store {
+        input_expressions: vector<Expression>,
+        table_expressions: vector<Expression>,
+    }
+    struct Expression has store {}
 
-    struct AdviceQuery {
+    struct AdviceQuery has store {
         q: ColumnQuery,
     }
 
-    struct InstanceQuery {
+    struct InstanceQuery has store{
         q: ColumnQuery
     }
 
-    struct FixQuery {
+    struct FixQuery  has store{
         q: ColumnQuery
     }
 
-    struct ColumnQuery {
+    struct ColumnQuery  has store{
         column: Column,
-        rotation: Rotation,
-    }
-
-    struct Query {
-        poly: u64,
         rotation: Rotation,
     }
 
@@ -85,7 +95,31 @@ module halo2_verifier::protocol {
     }
 
     public fun blinding_factors(protocol: &Protocol): u64 {
-        abort 100
+        // All of the prover's advice columns are evaluated at no more than
+        let factors = max((protocol.max_num_query_of_advice_column as u64), 1);
+
+        // distinct points during gate checks.
+
+        // - The permutation argument witness polynomials are evaluated at most 3 times.
+        // - Each lookup argument has independent witness polynomials, and they are
+        //   evaluated at most 2 times.
+        let factors = max(3, factors);
+
+        // Each polynomial is evaluated at most an additional time during
+        // multiopen (at x_3 to produce q_evals):
+        let factors = factors + 1;
+
+        // h(x) is derived by the other evaluations so it does not reveal
+        // anything; in fact it does not even appear in the proof.
+
+        // h(x_3) is also not revealed; the verifier only learns a single
+        // evaluation of a polynomial in x_1 which has h(x_3) and another random
+        // polynomial evaluated at x_3 as coefficients -- this random polynomial
+        // is "random_poly" in the vanishing argument.
+
+        // Add an additional blinding factor as a slight defense against
+        // off-by-one errors.
+        factors + 1
     }
 
     public fun permutation_columns(protocol: &Protocol): &vector<Column> {
@@ -94,73 +128,92 @@ module halo2_verifier::protocol {
 
     /// get query index of any column
     public fun get_query_index(protocol: &Protocol, column: &Column, rotation: &Rotation): u64 {
-        abort 100
-    }
-
-    public fun transcript_initial_state(protocol: &Protocol): Scalar {
-        abort 100
+        if (column::is_fixed(column)) {
+            let (find, index)  = vector::find(&protocol.fixed_queries, |q| {
+                let q: &FixQuery = q;
+                (&q.q.column == column) && (&q.q.rotation == rotation)
+            });
+            assert!(find, error::invalid_state(QUERY_NOT_FOUND));
+            index
+        } else if (column::is_instance(column)) {
+            let (find, index)  = vector::find(&protocol.instance_queries, |q| {
+                let q: &InstanceQuery = q;
+                (&q.q.column == column) && (&q.q.rotation == rotation)
+            });
+            assert!(find, error::invalid_state(QUERY_NOT_FOUND));
+            index
+        } else if (column::is_advice(column)) {
+            let (find, index)  = vector::find(&protocol.advice_queries, |q| {
+                let q: &AdviceQuery = q;
+                (&q.q.column == column) && (&q.q.rotation == rotation)
+            });
+            assert!(find, error::invalid_state(QUERY_NOT_FOUND));
+            index
+        } else {
+            abort error::invalid_state(QUERY_NOT_FOUND)
+        }
     }
 
     public fun num_phase(protocol: &Protocol): u8 {
-        abort 100
+        let max_phase = 0;
+        vector::for_each_ref(&protocol.advice_column_phase, |p| if (*p > max_phase) { max_phase = *p});
+        vector::for_each_ref(&protocol.challenge_phase, |p| if (*p > max_phase) { max_phase = *p});
+        max_phase
     }
-    public fun num_permutation_fixed(protocol: &Protocol): u64 {
-        protocol.num_permutation_fixed
-    }
-
 
     /// return the num of challenges
     public fun num_challenges(protocol: &Protocol): u64 {
-        abort 100
+        vector::length(&protocol.challenge_phase)
     }
 
     /// return the num of instance columns
     public fun num_instance_columns(protocol: &Protocol): u64 {
-        abort 100
+        vector::length(&protocol.num_instance)
     }
 
     /// return the num of advice columns
     public fun num_advice_columns(protocol: &Protocol): u64 {
-        abort 100
+        vector::length(&protocol.advice_column_phase)
     }
 
     /// return the number of rows of each instance columns
-    public fun num_instance(protocol: &Protocol): vector<u64> {
-        abort 100
+    public fun num_instance(protocol: &Protocol): &vector<u64> {
+        &protocol.num_instance
     }
 
 
 
     // return advice's phase
     public fun advice_column_phase(protocol: &Protocol): &vector<u8> {
-        abort 100
+        &protocol.advice_column_phase
     }
 
 
     public fun challenge_phase(protocol: &Protocol): &vector<u8> {
-        abort 100
+        &protocol.challenge_phase
     }
 
     public fun num_lookup(protocol: &Protocol): u64 {
-        protocol.lookups_len
+        vector::length(&protocol.lookups)
     }
 
     public fun permutation_chunk_size(protocol: &Protocol): u64 {
-        abort 100
+        protocol.cs_degree - 2
     }
 
     public fun num_permutation_z(protocol: &Protocol): u64 {
         let chunk_size = permutation_chunk_size(protocol);
-        let chunk = protocol.permutation_columns_len / chunk_size;
-        if (protocol.permutation_columns_len % chunk_size != 0) {
+        let permutation_columns_len = vector::length(&protocol.permutation_columns);
+        let chunk = permutation_columns_len / chunk_size;
+        if (permutation_columns_len % chunk_size != 0) {
             chunk + 1
         } else {
             chunk
         }
     }
 
-    public fun num_chunks_of_quotient(protocol: &Protocol, num_proof: u64): u64 {
-        abort 100
+    public fun quotient_poly_degree(protocol: &Protocol): u64 {
+        domain::quotient_poly_degree(&protocol.domain)
     }
 
 

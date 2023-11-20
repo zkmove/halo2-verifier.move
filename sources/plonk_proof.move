@@ -10,7 +10,7 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::pcs::{Self, Proof};
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, transcript_initial_state, query_instance, instance_queries, num_challenges};
+    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
@@ -52,7 +52,7 @@ module halo2_verifier::plonk_proof {
             map_ref(&instances, |i| vector::empty())
         };
         let num_proof = vector::length(&instances);
-        transcript::common_scalar(&mut transcript, transcript_initial_state(protocol));
+        transcript::common_scalar(&mut transcript, verify_key::transcript_repr(vk));
 
         if (protocol::query_instance(protocol)) {
             // TODO: impl for ipa
@@ -149,7 +149,7 @@ module halo2_verifier::plonk_proof {
         let vanishing = vanishing::read_commitments_after_y(
             vanishing,
             &mut transcript,
-            protocol::num_chunks_of_quotient(protocol, num_proof)
+            protocol::quotient_poly_degree(protocol)
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
@@ -183,7 +183,7 @@ module halo2_verifier::plonk_proof {
         let vanishing = vanishing::evaluate_after_x(vanishing, &mut transcript);
         let permutations_common = permutation::evalute_common(
             &mut transcript,
-            protocol::num_permutation_fixed(protocol)
+            vector::length(protocol::permutation_columns(protocol))
         );
         let permutations_evaluated =
             map<permutation::Commited, permutation::Evaluted>(
