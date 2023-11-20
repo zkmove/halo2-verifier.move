@@ -1,31 +1,48 @@
 module halo2_verifier::scalar {
-    struct Scalar has copy, drop,store {}
+    use halo2_verifier::bn254_types::{Fr, FormatFrLsb};
+    use aptos_std::crypto_algebra::{Self, Element};
+
+    struct Scalar has copy, drop {e: Element<Fr>}
+
+    public fun inner(self: &Scalar): Element<Fr> {
+        self.e
+    }
+
+    public fun from_repr(repr: vector<u8>): Scalar {
+        let e = std::option::extract(&mut crypto_algebra::deserialize<Fr, FormatFrLsb>(&repr));
+        Scalar {e}
+    }
+
+    public fun to_repr(self: &Scalar): vector<u8> {
+        crypto_algebra::serialize<Fr, FormatFrLsb>(&self.e)
+    }
+
     public fun one(): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::one<Fr>() }
     }
     public fun zero(): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::zero<Fr>() }
     }
     public fun delta(): Scalar {
         abort 100
     }
     public fun invert(x: &Scalar): Scalar {
-        abort 100
+        Scalar { e: std::option::extract(&mut crypto_algebra::inv<Fr>(&x.e)) }
     }
     public fun square(x: &Scalar): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::sqr<Fr>(&x.e) }
     }
     public fun mul(a: &Scalar, b: &Scalar): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::mul<Fr>(&a.e, &b.e) }
     }
     public fun add(a: &Scalar, b: &Scalar): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::add<Fr>(&a.e, &b.e) }
     }
     public fun sub(a: &Scalar, b: &Scalar): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::sub<Fr>(&a.e, &b.e) }
     }
     public fun neg(a: &Scalar): Scalar {
-        abort 100
+        Scalar { e: crypto_algebra::neg<Fr>(&a.e) }
     }
     public fun pow(a: &Scalar, p: u64):Scalar {
         abort 100

@@ -2,18 +2,19 @@ module halo2_verifier::lookup {
     use halo2_verifier::transcript::Transcript;
     use halo2_verifier::transcript;
     use halo2_verifier::point::Point;
+    use halo2_verifier::bn254_types::G1;
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::query::VerifierQuery;
     use halo2_verifier::protocol::Protocol;
 
     struct PermutationCommitments has copy,drop {
-        permuted_input_commitment: Point,
-        permuted_table_commitment: Point,
+        permuted_input_commitment: Point<G1>,
+        permuted_table_commitment: Point<G1>,
     }
 
     struct Commited has copy,drop {
         permuted: PermutationCommitments,
-        product_commitment: Point,
+        product_commitment: Point<G1>,
     }
     struct Evaluated has copy, drop {
         product_eval: Scalar,

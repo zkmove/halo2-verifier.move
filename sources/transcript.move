@@ -1,6 +1,7 @@
 module halo2_verifier::transcript {
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::point::Point;
+    use halo2_verifier::bn254_types::G1;
 
     struct Transcript has copy, drop {}
 
@@ -12,14 +13,14 @@ module halo2_verifier::transcript {
         abort 100
     }
 
-    public fun common_point(transcript: &mut Transcript, point: Point) {
+    public fun common_point(transcript: &mut Transcript, point: Point<G1>) {
         abort 100
     }
 
-    public fun read_point(transcript: &mut Transcript): Point {
+    public fun read_point(transcript: &mut Transcript): Point<G1> {
         abort 100
     }
-    public fun read_n_point(transcript: &mut Transcript, n: u64): vector<Point> {
+    public fun read_n_point(transcript: &mut Transcript, n: u64): vector<Point<G1>> {
         abort 100
     }
     public fun read_scalar(transcript: &mut Transcript): Scalar {

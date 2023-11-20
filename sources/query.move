@@ -2,6 +2,7 @@ module halo2_verifier::query {
 
     use halo2_verifier::scalar::Scalar;
     use halo2_verifier::point::Point;
+    use halo2_verifier::bn254_types::G1;
     use halo2_verifier::msm::MSM;
 
     struct VerifierQuery has drop {
@@ -10,7 +11,7 @@ module halo2_verifier::query {
         commitment: CommitmentReference
     }
     struct CommitmentReference has drop {}
-    public fun new_commitment(commtiment: Point,point: Scalar, eval: Scalar): VerifierQuery {
+    public fun new_commitment(commtiment: Point<G1>,point: Scalar, eval: Scalar): VerifierQuery {
         abort 100
     }
 
