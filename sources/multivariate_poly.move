@@ -4,14 +4,18 @@ module halo2_verifier::multivariate_poly {
     use std::vector;
 
     /// TODO: we cannot make the poly `store`, as Scalar cannot be store.
+    /// it's something like: coff1 * x1^1 * x2^2 + coff2 * x2^3 * x5^4 + coff3
     struct MultiVariatePoly has drop {
         terms: vector<Term>,
     }
 
+    /// example: coff1 * x1^1 * x2^2,
+    /// then: coff = coff1, terms = [(1,1), (2,2)]
     struct Term has drop{
         coff: Scalar,
         terms: vector<SparseTerm>,
     }
+    /// for x2^3, sparse term is: (2, 3)
     struct SparseTerm has drop {
         variable_index: u64,
         power: u64
