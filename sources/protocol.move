@@ -158,7 +158,7 @@ module halo2_verifier::protocol {
         let max_phase = 0;
         vector::for_each_ref(&protocol.advice_column_phase, |p| if (*p > max_phase) { max_phase = *p});
         vector::for_each_ref(&protocol.challenge_phase, |p| if (*p > max_phase) { max_phase = *p});
-        max_phase
+        max_phase + 1
     }
 
     /// return the num of challenges
