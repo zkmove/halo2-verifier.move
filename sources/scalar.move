@@ -3,7 +3,7 @@ module halo2_verifier::scalar {
 
     use halo2_verifier::bn254_types::{Fr, FormatFrLsb};
 
-    struct Scalar has copy, drop { e: Element<Fr> }
+    struct Scalar has copy, drop{ e: Element<Fr> }
 
     public fun inner(self: &Scalar): Element<Fr> {
         self.e

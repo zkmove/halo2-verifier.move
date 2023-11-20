@@ -10,13 +10,14 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::pcs::{Self, Proof};
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges};
+    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
     use halo2_verifier::verify_key::{Self, VerifyingKey};
+    use halo2_verifier::expression;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -206,8 +207,13 @@ module halo2_verifier::plonk_proof {
             let expressions = vector::empty();
             let i = 0;
             while (i < num_proof) {
-                // todo: calculate gates' evals result
-                let gate_expressions = vector::empty();
+                let gate_expressions = evaluate_gates(
+                    protocol::gates(protocol),
+                    vector::borrow(&advice_evals, i),
+                    &fixed_evals,
+                    vector::borrow(&instance_evals, i),
+                    &challenges,
+                );
                 let permutation_expressions = permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
                     protocol,
@@ -408,5 +414,29 @@ module halo2_verifier::plonk_proof {
 
         permutation::queries(permutation, queries, protocol, x);
         lookup::queries(&lookups, queries, protocol, x);
+    }
+
+    fun evaluate_gates(gates: &vector<Gate>,
+                       advice_evals: &vector<Scalar>,
+                       fixed_evals: &vector<Scalar>,
+                       instance_evals: &vector<Scalar>, challenges: &vector<Scalar>): vector<Scalar> {
+        let result = vector::empty();
+        let gate_len = vector::length(gates);
+        let i = 0;
+        while (i < gate_len) {
+            let gate = vector::borrow(gates,i);
+            let gate_polys = protocol::polys(gate);
+            let polys_len = vector::length(gate_polys);
+            let j = 0;
+            while (j < polys_len) {
+                let poly = vector::borrow(gate_polys, j);
+                let poly_eval= expression::evaluate(poly, advice_evals, fixed_evals, instance_evals, challenges);
+                vector::push_back(&mut result, poly_eval);
+                j=j+1;
+            };
+            i = i+1;
+        };
+
+        result
     }
 }
