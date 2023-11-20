@@ -13,7 +13,7 @@ module halo2_verifier::plonk_verifier {
         instances: vector<vector<vector<Scalar>>>,
         proof: vector<u8>
     ): bool {
-        let transcript = transcript::read(proof);
+        let transcript = transcript::init(proof);
         let plonk_proof = plonk_proof::read(params, vk, protocol, instances, transcript);
 
         // todo: add verify code
