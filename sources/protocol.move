@@ -8,9 +8,11 @@ module halo2_verifier::protocol {
     use aptos_std::math64::max;
     use halo2_verifier::domain;
     use std::error;
+    use halo2_verifier::expression::Expression;
+
     const QUERY_NOT_FOUND: u64 = 1;
 
-    struct Protocol has store,key {
+    struct Protocol {
         query_instance: bool,
         // for ipa, true; for kzg, false
         domain: Domain,
@@ -47,15 +49,14 @@ module halo2_verifier::protocol {
         max_num_query_of_advice_column: u32,
     }
 
-    struct Gate has store {
+    struct Gate  {
         ploys: vector<Expression>,
     }
 
-    struct Lookup has  store {
+    struct Lookup {
         input_expressions: vector<Expression>,
         table_expressions: vector<Expression>,
     }
-    struct Expression has store {}
 
     struct AdviceQuery has store {
         q: ColumnQuery,
@@ -92,6 +93,13 @@ module halo2_verifier::protocol {
 
     public fun fixed_queries(protocol: &Protocol): &vector<FixQuery> {
         &protocol.fixed_queries
+    }
+
+    public fun gates(protocol: &Protocol): &vector<Gate> {
+        &protocol.gates
+    }
+    public fun polys(gate: &Gate): &vector<Expression> {
+        &gate.ploys
     }
 
     public fun blinding_factors(protocol: &Protocol): u64 {
