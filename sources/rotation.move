@@ -1,5 +1,5 @@
 module halo2_verifier::rotation {
-    struct Rotation has copy,drop,store {
+    struct Rotation has copy, drop, store {
         rotation: u32,
         next: bool,
     }
@@ -10,6 +10,7 @@ module halo2_verifier::rotation {
             next: true
         }
     }
+
     public fun next(rotation: u32): Rotation {
         Rotation {
             rotation,

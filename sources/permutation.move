@@ -1,37 +1,33 @@
 module halo2_verifier::permutation {
-    use halo2_verifier::transcript::Transcript;
-    use halo2_verifier::point::Point;
-    use halo2_verifier::bn254_types::G1;
-    use halo2_verifier::transcript;
-    use halo2_verifier::scalar::Scalar;
-    use std::option::Option;
-    use halo2_verifier::query::VerifierQuery;
-    use halo2_verifier::protocol::{Protocol, permutation_columns};
-    use std::vector;
-    use std::option;
-    use halo2_verifier::scalar;
-    use halo2_verifier::protocol;
-    use halo2_verifier::column;
-    use halo2_verifier::rotation;
-    use std::vector::{zip_ref};
-    use halo2_verifier::query;
+    use std::option::{Self, Option};
+    use std::vector::{Self, zip, for_each_ref, for_each_reverse};
 
-    struct Commited has copy, drop {
+    use halo2_verifier::bn254_types::G1;
+    use halo2_verifier::column;
+    use halo2_verifier::domain;
+    use halo2_verifier::point::Point;
+    use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
+    use halo2_verifier::query::{Self, VerifierQuery};
+    use halo2_verifier::rotation;
+    use halo2_verifier::scalar::{Self, Scalar};
+    use halo2_verifier::transcript::{Self, Transcript};
+
+    struct Commited has drop {
         permutation_product_commitments: vector<Point<G1>>,
     }
 
-    struct CommonEvaluted has copy, drop {
+    struct CommonEvaluted has drop {
         permutation_evals: vector<Scalar>,
     }
 
-    struct PermutationEvaluatedSet has copy, drop {
+    struct PermutationEvaluatedSet has drop {
         permutation_product_commitment: Point<G1>,
         permutation_product_eval: Scalar,
         permutation_product_next_eval: Scalar,
         permutation_product_last_eval: Option<Scalar>,
     }
 
-    struct Evaluted has copy, drop {
+    struct Evaluted has drop {
         sets: vector<PermutationEvaluatedSet>,
     }
 
@@ -194,19 +190,44 @@ module halo2_verifier::permutation {
         results
     }
 
-    public fun queries(self: &Evaluted, queries: &mut vector<VerifierQuery>, protocol: &Protocol, x: &Scalar) {
-        // TODO
+    public fun queries(self: Evaluted, queries: &mut vector<VerifierQuery>, protocol: &Protocol, x: &Scalar) {
+        let blinding_factors = protocol::blinding_factors(protocol);
+        let domain = protocol::domain(protocol);
+        let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
+        let x_last = domain::rotate_omega(domain, x, &rotation::prev((blinding_factors as u32) + 1));
+        // Open permutation product commitments at x and \omega^{-1} x
+        // Open permutation product commitments at x and \omega x
+        for_each_ref(&self.sets, |set| {
+            let s: &PermutationEvaluatedSet = set;
+            vector::push_back(queries,
+                query::new_commitment(s.permutation_product_commitment, *x, s.permutation_product_eval));
+            vector::push_back(queries,
+                query::new_commitment(s.permutation_product_commitment, x_next, s.permutation_product_next_eval));
+        });
+
+        // Open it at \omega^{last} x for all but the last set
+        vector::pop_back(&mut self.sets);
+        let Evaluted { sets } = self;
+        for_each_reverse(sets, |set| {
+            let s: PermutationEvaluatedSet = set;
+            vector::push_back(queries,
+                query::new_commitment(
+                    s.permutation_product_commitment,
+                    x_last,
+                    option::destroy_some(s.permutation_product_last_eval)
+                ));
+        });
     }
 
     public fun common_queries(
-        self: &CommonEvaluted,
+        self: CommonEvaluted,
         queries: &mut vector<VerifierQuery>,
-        permutation_commitments: &vector<Point<G1>>,
+        permutation_commitments: vector<Point<G1>>,
         x: &Scalar
     ) {
-        zip_ref<Point<G1>, Scalar>(
-            permutation_commitments, &self.permutation_evals,
-            |commit, eval| vector::push_back(queries, query::new_commitment(*commit, *x, *eval))
+        zip<Point<G1>, Scalar>(
+            permutation_commitments, self.permutation_evals,
+            |commit, eval| vector::push_back(queries, query::new_commitment(commit, *x, eval))
         );
     }
 }
