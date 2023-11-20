@@ -95,13 +95,21 @@ module halo2_verifier::protocol {
         &protocol.fixed_queries
     }
 
+    public fun lookups(protocol: &Protocol): &vector<Lookup> {
+        &protocol.lookups
+    }
     public fun gates(protocol: &Protocol): &vector<Gate> {
         &protocol.gates
     }
     public fun polys(gate: &Gate): &vector<Expression> {
         &gate.ploys
     }
-
+    public fun input_exprs(self: &Lookup): &vector<Expression> {
+        &self.input_expressions
+    }
+    public fun table_exprs(self: &Lookup): &vector<Expression> {
+        &self.table_expressions
+    }
     public fun blinding_factors(protocol: &Protocol): u64 {
         // All of the prover's advice columns are evaluated at no more than
         let factors = max((protocol.max_num_query_of_advice_column as u64), 1);

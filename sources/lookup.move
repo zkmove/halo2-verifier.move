@@ -3,11 +3,12 @@ module halo2_verifier::lookup {
 
     use halo2_verifier::bn254_types::G1;
     use halo2_verifier::domain;
+    use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::point::Point;
-    use halo2_verifier::protocol::{Self, Protocol};
+    use halo2_verifier::protocol::{Self, Protocol, Lookup};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
-    use halo2_verifier::scalar::Scalar;
+    use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
 
     struct PermutationCommitments has copy, drop {
@@ -20,7 +21,7 @@ module halo2_verifier::lookup {
         product_commitment: Point<G1>,
     }
 
-    struct Evaluated has  drop {
+    struct Evaluated has drop {
         commited: Commited,
         product_eval: Scalar,
         product_next_eval: Scalar,
@@ -57,6 +58,114 @@ module halo2_verifier::lookup {
             permuted_input_inv_eval,
             permuted_table_eval
         }
+    }
+
+    public fun expression(
+        self: &Evaluated,
+        lookup: &Lookup,
+        advice_evals: &vector<Scalar>,
+        fixed_evals: &vector<Scalar>,
+        instance_evals: &vector<Scalar>,
+        challenges: &vector<Scalar>,
+        l_0: &Scalar,
+        l_last: &Scalar,
+        l_blind: &Scalar,
+        theta: &Scalar,
+        beta: &Scalar,
+        gamma: &Scalar,
+    ): vector<Scalar> {
+        let active_rows = scalar::sub(&scalar::one(), &scalar::add(l_last, l_blind));
+
+        // z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
+        // - z(X) (\theta^{m-1} a_0(X) + ... + a_{m-1}(X) + \beta) (\theta^{m-1} s_0(X) + ... + s_{m-1}(X) + \gamma)
+        let product_expression = {
+            let left = scalar::mul(
+                &self.product_next_eval,
+                &scalar::mul(
+                    &scalar::add(&self.permuted_input_eval, beta),
+                    &scalar::add(&self.permuted_table_eval, gamma)
+                ));
+            let right = scalar::mul(
+                &self.product_eval,
+                &scalar::mul(
+                    &scalar::add(
+                        &compress_expressions(
+                            protocol::input_exprs(lookup),
+                            advice_evals,
+                            fixed_evals,
+                            instance_evals,
+                            challenges,
+                            theta
+                        ),
+                        beta
+                    ),
+                    &scalar::add(
+                        &compress_expressions(
+                            protocol::table_exprs(lookup),
+                            advice_evals,
+                            fixed_evals,
+                            instance_evals,
+                            challenges,
+                            theta
+                        ), gamma),
+                )
+            );
+
+            scalar::mul(&active_rows, &scalar::sub(&left, &right))
+        };
+
+        let result = vector::empty();
+        // l_0(X) * (1 - z'(X)) = 0
+        vector::push_back(&mut result, scalar::mul(l_0, &scalar::sub(&scalar::one(), &self.product_eval)));
+        // l_last(X) * (z(X)^2 - z(X)) = 0
+        vector::push_back(
+            &mut result,
+            scalar::mul(l_last, &scalar::sub(&scalar::square(&self.product_eval), &self.product_eval))
+        );
+        // (1 - (l_last(X) + l_blind(X))) * (
+        //   z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
+        //   - z(X) (\theta^{m-1} a_0(X) + ... + a_{m-1}(X) + \beta) (\theta^{m-1} s_0(X) + ... + s_{m-1}(X) + \gamma)
+        // ) = 0
+        vector::push_back(&mut result, product_expression);
+
+        // l_0(X) * (a'(X) - s'(X)) = 0
+        vector::push_back(
+            &mut result,
+            scalar::mul(l_0, &scalar::sub(&self.permuted_input_eval, &self.permuted_table_eval))
+        );
+        // (1 - (l_last(X) + l_blind(X))) * (a'(X) - s'(X))*(a'(X) - a'(\omega^{-1} X)) = 0
+        vector::push_back(&mut result,
+            scalar::mul(&active_rows,
+                &scalar::mul(
+                    &scalar::sub(&self.permuted_input_eval, &self.permuted_table_eval),
+                    &scalar::sub(&self.permuted_input_eval, &self.permuted_input_inv_eval)),
+            ));
+
+        result
+    }
+
+    fun compress_expressions(exprs: &vector<Expression>,
+                             advice_evals: &vector<Scalar>,
+                             fixed_evals: &vector<Scalar>,
+                             instance_evals: &vector<Scalar>,
+                             challenges: &vector<Scalar>,
+                             theta: &Scalar
+    ): Scalar {
+        let acc = scalar::zero();
+        let i = 0;
+        let len = vector::length(exprs);
+        while (i < len) {
+            let eval = expression::evaluate(
+                vector::borrow(exprs, i),
+                advice_evals,
+                fixed_evals,
+                instance_evals,
+                challenges
+            );
+            acc = scalar::add(&scalar::mul(theta, &acc), &eval);
+            i = i + 1;
+        };
+        acc
     }
 
     public fun queries(self: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, protocol: &Protocol, x: &Scalar) {

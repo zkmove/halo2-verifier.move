@@ -10,7 +10,7 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::pcs::{Self, Proof};
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate};
+    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
@@ -214,6 +214,10 @@ module halo2_verifier::plonk_proof {
                     vector::borrow(&instance_evals, i),
                     &challenges,
                 );
+                let l_0 = &common_evaluations::l_0(&commons);
+                let l_last = &common_evaluations::l_last(&commons);
+                let l_blind = &common_evaluations::l_blind(&commons);
+
                 let permutation_expressions = permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
                     protocol,
@@ -221,16 +225,23 @@ module halo2_verifier::plonk_proof {
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
-                    &common_evaluations::l_0(&commons),
-                    &common_evaluations::l_last(&commons),
-                    &common_evaluations::l_blind(&commons),
+                    l_0,l_last, l_blind,
                     &beta,
                     &gamma,
                     &z,
                 );
-                // todo: lookup polys evals
-                let lookup_expressions: vector<Scalar> = vector::empty();
-
+                let lookup_expressions: vector<Scalar> = evaluate_lookups(
+                    vector::borrow(&lookups_evaluated, i),
+                    protocol::lookups(protocol),
+                    protocol,
+                    vector::borrow(&advice_evals, i),
+                    &fixed_evals,
+                    vector::borrow(&instance_evals, i),
+                    &challenges,
+                    l_0,l_last, l_blind,
+                    &theta,&beta,&gamma
+                );
+                // TODO: optimize the vector
                 vector::append(&mut expressions, gate_expressions);
                 vector::append(&mut expressions, permutation_expressions);
                 vector::append(&mut expressions, lookup_expressions);
@@ -437,6 +448,38 @@ module halo2_verifier::plonk_proof {
             i = i+1;
         };
 
+        result
+    }
+
+    fun evaluate_lookups(
+        lookup_evaluates: &vector<lookup::Evaluated>,
+        lookup: &vector<Lookup>,
+        protocol: &Protocol,
+                         advice_evals: &vector<Scalar>,
+                         fixed_evals: &vector<Scalar>,
+                         instance_evals: &vector<Scalar>,
+                         challenges: &vector<Scalar>,
+                         l_0: &Scalar,
+                         l_last: &Scalar,
+                         l_blind: &Scalar,
+                         theta: &Scalar,
+                         beta: &Scalar,
+                         gamma: &Scalar,
+    ): vector<Scalar> {
+        let result = vector::empty();
+        let i = 0;
+        let lookup_len = vector::length(lookup_evaluates);
+        while (i < lookup_len) {
+            i = i+1;
+            vector::append(&mut result,
+            lookup::expression(
+                vector::borrow(lookup_evaluates, i),
+                vector::borrow(lookup, i),
+                advice_evals,
+                fixed_evals,
+                instance_evals,challenges,l_0,l_last,l_blind,theta,beta,gamma
+            ));
+        };
         result
     }
 }
