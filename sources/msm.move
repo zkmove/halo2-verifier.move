@@ -40,4 +40,8 @@ module halo2_verifier::msm {
     public fun eval(msm: &MSM): Point<G1> {
         point::multi_scalar_mul(&msm.bases, &msm.scalars)
     }
+
+    public fun eval(msm: &MSM): Point<G1> {
+        abort 100
+    }
 }

@@ -1,4 +1,4 @@
-module halo2_verifier::plonk_proof {
+module halo2_verifier::halo2_verifier {
     use std::vector::{Self, map_ref, map, enumerate_ref};
 
     use halo2_verifier::bn254_types::G1;
@@ -8,7 +8,7 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::expression;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::pcs::{Self, Proof};
+    use halo2_verifier::gwc;
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
     use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup};
@@ -21,30 +21,24 @@ module halo2_verifier::plonk_proof {
 
     const INVALID_INSTANCES: u64 = 100;
 
-    struct PlonkProof has copy, drop {
-        //commitments: vector<Point<G1>>,
-        challenges: vector<Scalar>,
-        //quotients: vector<Point<G1>>,
-
-        instance_evals: vector<vector<Scalar>>,
-        advice_evals: vector<vector<Scalar>>,
-        fixed_evals: vector<Scalar>,
-        random_poly_eval: Scalar,
-        //permutations_common: vector<Scalar>,
-        //permutations_evaluated: vector<vector<PermutationEvaluatedSet>>,
-        //lookups_evaluated: vector<vector<LookupEvaluated>>,
-        z: Scalar,
-        pcs: Proof,
+    public fun verify(
+        params: &Params,
+        vk: &VerifyingKey,
+        protocol: &Protocol,
+        instances: vector<vector<vector<Scalar>>>,
+        proof: vector<u8>
+    ): bool {
+        let transcript = transcript::read(proof);
+        verify_inner(params, vk, protocol, instances, transcript)
     }
 
-
-    public fun read(
+    fun verify_inner(
         params: &Params,
         vk: &VerifyingKey,
         protocol: &Protocol,
         instances: vector<vector<vector<Scalar>>>,
         transcript: Transcript
-    ): PlonkProof {
+    ): bool {
         // check_instances(&instances, protocol::num_instance(protocol));
         let instance_commitments: vector<vector<Point<G1>>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
@@ -180,7 +174,6 @@ module halo2_verifier::plonk_proof {
             result
         };
         let fixed_evals = transcript::read_n_scalar(&mut transcript, vector::length(protocol::fixed_queries(protocol)));
-        let random_poly_eval = transcript::read_scalar(&mut transcript);
         let vanishing = vanishing::evaluate_after_x(vanishing, &mut transcript);
         let permutations_common = permutation::evalute_common(
             &mut transcript,
@@ -298,21 +291,7 @@ module halo2_verifier::plonk_proof {
         //let evaluation_len = evaluations_len(protocol, num_proof);
         // read evaluations of polys at z.
         //let evaluations = transcript::read_n_scalar(&mut transcript, evaluation_len);
-        let proof = pcs::read_proof(params, protocol, &mut transcript);
-        PlonkProof {
-            //commitments: witness_commitments,
-            challenges,
-            //quotients,
-            z,
-            instance_evals: vector::empty(),
-            advice_evals,
-            fixed_evals,
-            random_poly_eval,
-            //permutations_common,
-            //permutations_evaluated,
-            //lookups_evaluated,
-            pcs: proof
-        }
+        gwc::verify(params, &mut transcript, &queries)
     }
 
 
