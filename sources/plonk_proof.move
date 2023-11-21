@@ -5,6 +5,7 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::column;
     use halo2_verifier::common_evaluations;
     use halo2_verifier::domain;
+    use halo2_verifier::expression;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::{Self, Params};
     use halo2_verifier::pcs::{Self, Proof};
@@ -17,7 +18,6 @@ module halo2_verifier::plonk_proof {
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
     use halo2_verifier::verify_key::{Self, VerifyingKey};
-    use halo2_verifier::expression;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -225,7 +225,7 @@ module halo2_verifier::plonk_proof {
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
-                    l_0,l_last, l_blind,
+                    l_0, l_last, l_blind,
                     &beta,
                     &gamma,
                     &z,
@@ -238,8 +238,8 @@ module halo2_verifier::plonk_proof {
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
                     &challenges,
-                    l_0,l_last, l_blind,
-                    &theta,&beta,&gamma
+                    l_0, l_last, l_blind,
+                    &theta, &beta, &gamma
                 );
                 // TODO: optimize the vector
                 vector::append(&mut expressions, gate_expressions);
@@ -435,17 +435,17 @@ module halo2_verifier::plonk_proof {
         let gate_len = vector::length(gates);
         let i = 0;
         while (i < gate_len) {
-            let gate = vector::borrow(gates,i);
+            let gate = vector::borrow(gates, i);
             let gate_polys = protocol::polys(gate);
             let polys_len = vector::length(gate_polys);
             let j = 0;
             while (j < polys_len) {
                 let poly = vector::borrow(gate_polys, j);
-                let poly_eval= expression::evaluate(poly, advice_evals, fixed_evals, instance_evals, challenges);
+                let poly_eval = expression::evaluate(poly, advice_evals, fixed_evals, instance_evals, challenges);
                 vector::push_back(&mut result, poly_eval);
-                j=j+1;
+                j = j + 1;
             };
-            i = i+1;
+            i = i + 1;
         };
 
         result
@@ -455,30 +455,30 @@ module halo2_verifier::plonk_proof {
         lookup_evaluates: &vector<lookup::Evaluated>,
         lookup: &vector<Lookup>,
         protocol: &Protocol,
-                         advice_evals: &vector<Scalar>,
-                         fixed_evals: &vector<Scalar>,
-                         instance_evals: &vector<Scalar>,
-                         challenges: &vector<Scalar>,
-                         l_0: &Scalar,
-                         l_last: &Scalar,
-                         l_blind: &Scalar,
-                         theta: &Scalar,
-                         beta: &Scalar,
-                         gamma: &Scalar,
+        advice_evals: &vector<Scalar>,
+        fixed_evals: &vector<Scalar>,
+        instance_evals: &vector<Scalar>,
+        challenges: &vector<Scalar>,
+        l_0: &Scalar,
+        l_last: &Scalar,
+        l_blind: &Scalar,
+        theta: &Scalar,
+        beta: &Scalar,
+        gamma: &Scalar,
     ): vector<Scalar> {
         let result = vector::empty();
         let i = 0;
         let lookup_len = vector::length(lookup_evaluates);
         while (i < lookup_len) {
-            i = i+1;
+            i = i + 1;
             vector::append(&mut result,
-            lookup::expression(
-                vector::borrow(lookup_evaluates, i),
-                vector::borrow(lookup, i),
-                advice_evals,
-                fixed_evals,
-                instance_evals,challenges,l_0,l_last,l_blind,theta,beta,gamma
-            ));
+                lookup::expression(
+                    vector::borrow(lookup_evaluates, i),
+                    vector::borrow(lookup, i),
+                    advice_evals,
+                    fixed_evals,
+                    instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma
+                ));
         };
         result
     }
