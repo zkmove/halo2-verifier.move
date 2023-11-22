@@ -1,4 +1,5 @@
 module halo2_verifier::point {
+    use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_types::Fr;
@@ -35,8 +36,17 @@ module halo2_verifier::point {
         Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, &scalar::inner(scalar)) }
     }
 
-    public fun multi_scalar_mul<G>(point: &vector<Point<G>>, scalar: &vector<Scalar>): Point<G> {
-        abort 100
+    public fun multi_scalar_mul<G>(points: &vector<Point<G>>, scalars: &vector<Scalar>): Point<G> {
+        let _points = vector::map_ref(points, |p| {
+            let p: &Point<G> = p;
+            p.e
+        });
+        let _scalars = vector::map_ref(scalars, |p| {
+            let p: &Scalar = p;
+            scalar::inner(p)
+        });
+
+        Point<G> { e: crypto_algebra::multi_scalar_mul<G, Fr>(&_points, &_scalars) }
     }
 
     public fun double<G>(a: &Point<G>): Point<G> {
