@@ -194,8 +194,8 @@ module halo2_verifier::halo2_verifier {
             }
         );
 
-
         let vanishing = {
+
             let commons = common_evaluations::new(params::k(params), z);
             let expressions = vector::empty();
             let i = 0;

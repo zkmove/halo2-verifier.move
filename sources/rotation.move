@@ -10,6 +10,12 @@ module halo2_verifier::rotation {
             next: true
         }
     }
+    public fun is_neg(rotation: &Rotation): bool {
+        !rotation.next
+    }
+    public fun value(rotation: &Rotation): u32 {
+        rotation.rotation
+    }
 
     public fun next(rotation: u32): Rotation {
         Rotation {

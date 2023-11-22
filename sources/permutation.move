@@ -150,7 +150,7 @@ module halo2_verifier::permutation {
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
                 let right = set.permutation_product_eval;
                 // cur_delta = beta * x * delta^(i*chunk_len)
-                let current_delta = scalar::mul(&scalar::mul(beta, x), &scalar::pow(&scalar::delta(), i * chunk_len));
+                let current_delta = scalar::mul(&scalar::mul(beta, x), &scalar::from_element(scalar::pow(scalar::inner(&scalar::delta()), i * chunk_len)));
                 let j = i * chunk_len;
                 while (j < (i + 1) * chunk_len && j < permutation_columns_len) {
                     let permutation_eval = vector::borrow(&permutations_common.permutation_evals, j);
