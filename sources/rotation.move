@@ -30,4 +30,24 @@ module halo2_verifier::rotation {
             next: false
         }
     }
+    public fun get_next(self: &Rotation): Rotation {
+        if (self.next) {
+            Rotation {
+                rotation: self.rotation+1,
+                next: true
+            }
+        } else {
+            if (self.rotation == 1) {
+                Rotation {
+                    rotation: 0,
+                    next: true
+                }
+            } else {
+                Rotation {
+                    rotation: self.rotation - 1,
+                    next: false
+                }
+            }
+        }
+    }
 }
