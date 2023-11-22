@@ -37,7 +37,7 @@ module halo2_verifier::point {
     }
 
     public fun scalar_mul<G>(point: &Point<G>, scalar: &Scalar): Point<G> {
-        Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, &scalar::inner(scalar)) }
+        Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, scalar::inner(scalar)) }
     }
 
     public fun multi_scalar_mul<G>(points: &vector<Point<G>>, scalars: &vector<Scalar>): Point<G> {

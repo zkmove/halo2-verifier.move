@@ -59,7 +59,7 @@ module halo2_verifier::multivariate_poly {
         while (i < term_len) {
             let term = vector::borrow(terms, i);
             let var: &Scalar = var_access(variable_index(term));
-            result = scalar::mul(&result, &scalar::pow(var, power(term)));
+            result = scalar::mul(&result, &scalar::from_element(scalar::pow(scalar::inner(var), power(term))));
             i = i+1;
         };
         scalar::mul(coff(term), &result)
