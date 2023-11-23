@@ -30,6 +30,14 @@ module halo2_verifier::rotation {
             next: false
         }
     }
+
+    public fun reverse(r: &Rotation): Rotation {
+        Rotation {
+            rotation: r.rotation,
+            next: !r.next
+        }
+    }
+
     public fun get_next(self: &Rotation): Rotation {
         if (self.next) {
             Rotation {
@@ -48,6 +56,20 @@ module halo2_verifier::rotation {
                     next: false
                 }
             }
+        }
+    }
+
+    public fun gt(a: &Rotation, b: &Rotation): bool {
+        if (a.next) {
+            if (b.next) {
+                if (a.rotation > b.rotation) true
+                else false
+            } else false
+        } else {
+            if (!b.next) {
+                if (a.rotation < b.rotation) true
+                else false
+            } else false
         }
     }
 }
