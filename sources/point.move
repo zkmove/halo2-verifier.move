@@ -37,16 +37,16 @@ module halo2_verifier::point {
     }
 
     public fun multi_scalar_mul<G>(points: &vector<Point<G>>, scalars: &vector<Scalar>): Point<G> {
-        let _points = vector::map_ref(points, |p| {
+        let points = vector::map_ref(points, |p| {
             let p: &Point<G> = p;
             p.e
         });
-        let _scalars = vector::map_ref(scalars, |p| {
+        let scalars = vector::map_ref(scalars, |p| {
             let p: &Scalar = p;
             scalar::inner(p)
         });
 
-        Point<G> { e: crypto_algebra::multi_scalar_mul<G, Fr>(&_points, &_scalars) }
+        Point<G> { e: crypto_algebra::multi_scalar_mul<G, Fr>(&points, &scalars) }
     }
 
     public fun double<G>(a: &Point<G>): Point<G> {
