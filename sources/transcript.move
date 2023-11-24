@@ -3,7 +3,7 @@ module halo2_verifier::transcript {
 
     use halo2_verifier::bn254_types::{FormatFrLsb, G1};
     use halo2_verifier::challenge255;
-    use halo2_verifier::keccak256::{Self, Keccak256};
+    use halo2_verifier::hasher::{Self, Hasher};
     use halo2_verifier::point::{Self, Point};
     use halo2_verifier::scalar::{Self, Scalar};
 
@@ -25,15 +25,14 @@ module halo2_verifier::transcript {
         offset: u64,
     }
     struct Transcript has copy, drop {
-        state: Keccak256,
+        state: Hasher,
         reader: Read,
     }
 
     /// Initialize a transcript given an input buffer.
     public fun init(input: vector<u8>): Transcript {
-        // Fixme. keccak init need to proof or randam seed?
-        let state = keccak256::new();
-        keccak256::update(&mut state, b"Halo2-Transcript");
+        let state = hasher::new();
+        hasher::update(&mut state, b"Halo2-Transcript");
         Transcript {
             state,
             reader: Read {
@@ -48,9 +47,9 @@ module halo2_verifier::transcript {
     public fun common_scalar(self: &mut Transcript, s: Scalar) {
         let v = vector::empty();
         vector::push_back(&mut v, KECCAK256_PREFIX_SCALAR);
-        keccak256::update(&mut self.state, v);
+        hasher::update(&mut self.state, v);
 
-        keccak256::update(&mut self.state, scalar::to_repr(&s));
+        hasher::update(&mut self.state, scalar::to_repr(&s));
     }
 
     /// Writing the point to the transcript without writing it to the proof,
@@ -58,11 +57,14 @@ module halo2_verifier::transcript {
     public fun common_point(self: &mut Transcript, point: Point<G1>) {
         let v = vector::empty();
         vector::push_back(&mut v, KECCAK256_PREFIX_POINT);
-        keccak256::update(&mut self.state, v);
+        hasher::update(&mut self.state, v);
 
         // Fixme. here need write coordinate x and y seperately?
         let p = point::to_bytes<G1, FormatFrLsb>(&point);
-        keccak256::update(&mut self.state, p)
+        hasher::update(&mut self.state, p)
+        // let (x, y) = point::coordinates(&point);
+        // hasher::update(&mut self.state, x);
+        // hasher::update(&mut self.state, y);
     }
 
     fun read_exact(read: &mut Read, len: u64): vector<u8> {
@@ -77,14 +79,13 @@ module halo2_verifier::transcript {
         };
         // update offset within Read
         read.offset = offset;
-
         res
     }
 
     /// Read a curve scalar from the prover.
     public fun read_scalar(self: &mut Transcript): Scalar {
-        // Todo. how many bytes read from buf?
-        let buf = read_exact(&mut self.reader, 32);
+        let len = vector::length(&scalar::to_repr(&scalar::zero()));
+        let buf = read_exact(&mut self.reader, len);
         let scalar = scalar::from_repr(buf);
         common_scalar(self, scalar);
         scalar
@@ -100,8 +101,8 @@ module halo2_verifier::transcript {
 
     /// Read a curve point from the prover.
     public fun read_point(self: &mut Transcript): Point<G1> {
-        // Todo. how many bytes read from buf?
-        let buf = read_exact(&mut self.reader, 32);
+        let len = vector::length(&point::to_bytes<G1, FormatFrLsb>(&point::zero()));
+        let buf = read_exact(&mut self.reader, len);
         let point = point::from_bytes<G1, FormatFrLsb>(buf);
         common_point(self, point);
         point 
@@ -120,11 +121,11 @@ module halo2_verifier::transcript {
     public fun squeeze_challenge(self:  &mut Transcript) : Scalar {
         let v = vector::empty();
         vector::push_back(&mut v, KECCAK256_PREFIX_CHALLENGE);
-        keccak256::update(&mut self.state, v);
+        hasher::update(&mut self.state, v);
         let state = self.state;
         // Scalar used here.
-        challenge255::new(keccak256::finalize(&state))
-        // let challenge = challenge255::new(keccak256::finalize(&state));
+        challenge255::new(hasher::finalize(&state))
+        // let challenge = challenge255::new(hasher::finalize(&state));
         // challenge255::get_scalar(&challenge)
     }
     public fun squeeze_n_challenges(transcript: &mut Transcript, n:u64): vector<Scalar> {
