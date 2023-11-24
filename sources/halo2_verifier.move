@@ -1,5 +1,5 @@
 module halo2_verifier::halo2_verifier {
-    use std::vector::{Self, map_ref, map, enumerate_ref};
+    use std::vector::{Self, map_ref, map, enumerate_ref, fold};
 
     use aptos_std::crypto_algebra;
 
@@ -11,10 +11,10 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
-    use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
-    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
+    use halo2_verifier::point::{Self, Point};
+    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
+    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::scalar::{Self, Scalar, inner, from_element};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
@@ -162,7 +162,68 @@ module halo2_verifier::halo2_verifier {
             result
         } else {
             // TODO: calculate instances eval
-            vector::empty()
+            let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
+            let instance_queries = instance_queries(protocol);
+            let min_rotation = rotation::cur();
+            let max_rotation = rotation::cur();
+
+            vector::for_each_ref(instance_queries, |q| {
+                let q: &InstanceQuery = q;
+                let (column, rotation) = protocol::from_instance_query(q);
+                if(rotation::gt(&min_rotation, rotation)) {
+                    min_rotation = *rotation;
+                }
+                else if(rotation::gt(rotation, &max_rotation)) {
+                    max_rotation = *rotation;
+                }
+            });
+
+            let instance_lengths = vector::empty();
+            vector::for_each_ref(&instances, |i| {
+                vector::for_each_ref(i, |r| {
+                    let length = vector::length(r);
+                    vector::push_back(&mut instance_lengths, length);
+                })
+            });
+            let max_instance_len = fold(instance_lengths, 0, |max_len, len| {
+                if (len > max_len) len
+                else max_len
+            });
+
+            let l_i_s = domain::l_i_range(
+                protocol::domain(protocol),
+                inner(&z),
+                &z_n,
+                rotation::reverse(&max_rotation),
+                rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
+            );
+
+            let result = vector::empty();
+            vector::map_ref(&instances, |instances| {
+                vector::map_ref(instance_queries, |q| {
+                    let q: &InstanceQuery = q;
+                    let (column, rotation) = protocol::from_instance_query(q);
+                    let column_index = (column::column_index(column) as u64);
+                    let instances = vector::borrow(instances, column_index);
+                    let instances_len = vector::length(instances);
+                    let offset = ((rotation::value(&max_rotation) - rotation::value(rotation)) as u64);
+                    let l_i_s_sub = vector::empty();
+                    let i = 0;
+                    while (i < instances_len) {
+                        let l = scalar::from_element(*vector::borrow(&l_i_s, offset + i));
+                        vector::push_back(&mut l_i_s_sub, l);
+                        i = i + 1;
+                    };
+                    
+                    let acc = scalar::zero();
+                    vector::zip_ref(instances, &l_i_s_sub, |i, l| {
+                        acc = scalar::add(&acc, &scalar::mul(i, l));
+                    });
+
+                    acc
+                })
+            });
+            result
         };
 
         let advice_evals = {
