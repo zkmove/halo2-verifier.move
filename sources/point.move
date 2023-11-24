@@ -5,7 +5,11 @@ module halo2_verifier::point {
     use halo2_verifier::bn254_types::Fr;
     use halo2_verifier::scalar::{Self, Scalar};
 
-    struct Point<G> has copy, drop { e: Element<G> }
+    struct Point<phantom G> has copy, drop { e: Element<G> }
+
+    public fun underlying<G>(self: &Point<G>): &Element<G> {
+        &self.e
+    }
 
     public fun default<G>(): Point<G> {
         abort 100
