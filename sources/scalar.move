@@ -5,8 +5,11 @@ module halo2_verifier::scalar {
 
     struct Scalar has copy, drop{ e: Element<Fr> }
 
-    public fun inner(self: &Scalar): Element<Fr> {
-        self.e
+    public fun inner(self: &Scalar): &Element<Fr> {
+        &self.e
+    }
+    public fun from_element(e: Element<Fr>): Scalar {
+        Scalar {e}
     }
 
     public fun from_repr(repr: vector<u8>): Scalar {
@@ -54,7 +57,7 @@ module halo2_verifier::scalar {
         Scalar { e: crypto_algebra::neg<Fr>(&a.e) }
     }
 
-    public fun pow(a: &Scalar, p: u64): Scalar {
+    public fun pow<S>(self: &Element<S>, p: u64): Element<S> {
         abort 100
     }
 }

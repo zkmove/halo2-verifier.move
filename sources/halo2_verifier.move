@@ -1,19 +1,21 @@
 module halo2_verifier::halo2_verifier {
     use std::vector::{Self, map_ref, map, enumerate_ref};
 
+    use aptos_std::crypto_algebra;
+
     use halo2_verifier::bn254_types::G1;
     use halo2_verifier::column;
-    use halo2_verifier::common_evaluations;
     use halo2_verifier::domain;
     use halo2_verifier::expression;
-    use halo2_verifier::lookup::{Self, PermutationCommitments};
-    use halo2_verifier::params::{Self, Params};
     use halo2_verifier::gwc;
+    use halo2_verifier::lookup::{Self, PermutationCommitments};
+    use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup};
+    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::scalar::{Self, Scalar};
+    use halo2_verifier::rotation;
+    use halo2_verifier::scalar::{Self, Scalar, inner, from_element};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
@@ -194,9 +196,30 @@ module halo2_verifier::halo2_verifier {
             }
         );
 
-
+        let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
         let vanishing = {
-            let commons = common_evaluations::new(params::k(params), z);
+            // -(blinding_factor+1)..=0
+            let blinding_factors = blinding_factors(protocol);
+            let l_evals = domain::l_i_range(
+                protocol::domain(protocol),
+                inner(&z),
+                &z_n,
+                rotation::prev((blinding_factors as u32) + 1),
+                rotation::next(1)
+            );
+            // todo: assert len(l_evals) = blinding_factor+2
+            let l_last = scalar::from_element(*vector::borrow(&l_evals, 0));
+            let l_0 = scalar::from_element(*vector::borrow(&l_evals, blinding_factors + 1));
+            let l_blind = {
+                let i = 1;
+                let len = blinding_factors + 2;
+                let result = crypto_algebra::zero();
+                while (i < len) {
+                    result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                };
+                scalar::from_element(result)
+            };
+
             let expressions = vector::empty();
             let i = 0;
             while (i < num_proof) {
@@ -207,9 +230,6 @@ module halo2_verifier::halo2_verifier {
                     vector::borrow(&instance_evals, i),
                     &challenges,
                 );
-                let l_0 = &common_evaluations::l_0(&commons);
-                let l_last = &common_evaluations::l_last(&commons);
-                let l_blind = &common_evaluations::l_blind(&commons);
 
                 let permutation_expressions = permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
@@ -218,7 +238,7 @@ module halo2_verifier::halo2_verifier {
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
-                    l_0, l_last, l_blind,
+                    &l_0, &l_last, &l_blind,
                     &beta,
                     &gamma,
                     &z,
@@ -231,7 +251,7 @@ module halo2_verifier::halo2_verifier {
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
                     &challenges,
-                    l_0, l_last, l_blind,
+                    &l_0, &l_last, &l_blind,
                     &theta, &beta, &gamma
                 );
                 // TODO: optimize the vector
@@ -240,9 +260,8 @@ module halo2_verifier::halo2_verifier {
                 vector::append(&mut expressions, lookup_expressions);
                 i = i + 1;
             };
-            let xn = common_evaluations::xn(&commons);
 
-            vanishing::h_eval(vanishing, &expressions, &y, &xn)
+            vanishing::h_eval(vanishing, &expressions, &y, &from_element(z_n))
         };
 
 
