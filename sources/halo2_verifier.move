@@ -1,18 +1,21 @@
-module halo2_verifier::plonk_proof {
+module halo2_verifier::halo2_verifier {
     use std::vector::{Self, map_ref, map, enumerate_ref};
+
+    use aptos_std::crypto_algebra;
 
     use halo2_verifier::bn254_types::G1;
     use halo2_verifier::column;
-    use halo2_verifier::common_evaluations;
     use halo2_verifier::domain;
+    use halo2_verifier::expression;
+    use halo2_verifier::gwc;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
-    use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::pcs::{Self, Proof};
+    use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges};
+    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::scalar::{Self, Scalar};
+    use halo2_verifier::rotation;
+    use halo2_verifier::scalar::{Self, Scalar, inner, from_element};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
@@ -20,30 +23,24 @@ module halo2_verifier::plonk_proof {
 
     const INVALID_INSTANCES: u64 = 100;
 
-    struct PlonkProof has copy, drop {
-        //commitments: vector<Point<G1>>,
-        challenges: vector<Scalar>,
-        //quotients: vector<Point<G1>>,
-
-        instance_evals: vector<vector<Scalar>>,
-        advice_evals: vector<vector<Scalar>>,
-        fixed_evals: vector<Scalar>,
-        random_poly_eval: Scalar,
-        //permutations_common: vector<Scalar>,
-        //permutations_evaluated: vector<vector<PermutationEvaluatedSet>>,
-        //lookups_evaluated: vector<vector<LookupEvaluated>>,
-        z: Scalar,
-        pcs: Proof,
+    public fun verify(
+        params: &Params,
+        vk: &VerifyingKey,
+        protocol: &Protocol,
+        instances: vector<vector<vector<Scalar>>>,
+        proof: vector<u8>
+    ): bool {
+        let transcript = transcript::read(proof);
+        verify_inner(params, vk, protocol, instances, transcript)
     }
 
-
-    public fun read(
+    fun verify_inner(
         params: &Params,
         vk: &VerifyingKey,
         protocol: &Protocol,
         instances: vector<vector<vector<Scalar>>>,
         transcript: Transcript
-    ): PlonkProof {
+    ): bool {
         // check_instances(&instances, protocol::num_instance(protocol));
         let instance_commitments: vector<vector<Point<G1>>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
@@ -179,7 +176,6 @@ module halo2_verifier::plonk_proof {
             result
         };
         let fixed_evals = transcript::read_n_scalar(&mut transcript, vector::length(protocol::fixed_queries(protocol)));
-        let random_poly_eval = transcript::read_scalar(&mut transcript);
         let vanishing = vanishing::evaluate_after_x(vanishing, &mut transcript);
         let permutations_common = permutation::evalute_common(
             &mut transcript,
@@ -200,14 +196,41 @@ module halo2_verifier::plonk_proof {
             }
         );
 
-
+        let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
         let vanishing = {
-            let commons = common_evaluations::new(params::k(params), z);
+            // -(blinding_factor+1)..=0
+            let blinding_factors = blinding_factors(protocol);
+            let l_evals = domain::l_i_range(
+                protocol::domain(protocol),
+                inner(&z),
+                &z_n,
+                rotation::prev((blinding_factors as u32) + 1),
+                rotation::next(1)
+            );
+            // todo: assert len(l_evals) = blinding_factor+2
+            let l_last = scalar::from_element(*vector::borrow(&l_evals, 0));
+            let l_0 = scalar::from_element(*vector::borrow(&l_evals, blinding_factors + 1));
+            let l_blind = {
+                let i = 1;
+                let len = blinding_factors + 2;
+                let result = crypto_algebra::zero();
+                while (i < len) {
+                    result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                };
+                scalar::from_element(result)
+            };
+
             let expressions = vector::empty();
             let i = 0;
             while (i < num_proof) {
-                // todo: calculate gates' evals result
-                let gate_expressions = vector::empty();
+                let gate_expressions = evaluate_gates(
+                    protocol::gates(protocol),
+                    vector::borrow(&advice_evals, i),
+                    &fixed_evals,
+                    vector::borrow(&instance_evals, i),
+                    &challenges,
+                );
+
                 let permutation_expressions = permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
                     protocol,
@@ -215,24 +238,30 @@ module halo2_verifier::plonk_proof {
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
-                    &common_evaluations::l_0(&commons),
-                    &common_evaluations::l_last(&commons),
-                    &common_evaluations::l_blind(&commons),
+                    &l_0, &l_last, &l_blind,
                     &beta,
                     &gamma,
                     &z,
                 );
-                // todo: lookup polys evals
-                let lookup_expressions: vector<Scalar> = vector::empty();
-
+                let lookup_expressions: vector<Scalar> = evaluate_lookups(
+                    vector::borrow(&lookups_evaluated, i),
+                    protocol::lookups(protocol),
+                    protocol,
+                    vector::borrow(&advice_evals, i),
+                    &fixed_evals,
+                    vector::borrow(&instance_evals, i),
+                    &challenges,
+                    &l_0, &l_last, &l_blind,
+                    &theta, &beta, &gamma
+                );
+                // TODO: optimize the vector
                 vector::append(&mut expressions, gate_expressions);
                 vector::append(&mut expressions, permutation_expressions);
                 vector::append(&mut expressions, lookup_expressions);
                 i = i + 1;
             };
-            let xn = common_evaluations::xn(&commons);
 
-            vanishing::h_eval(vanishing, &expressions, &y, &xn)
+            vanishing::h_eval(vanishing, &expressions, &y, &from_element(z_n))
         };
 
 
@@ -281,21 +310,7 @@ module halo2_verifier::plonk_proof {
         //let evaluation_len = evaluations_len(protocol, num_proof);
         // read evaluations of polys at z.
         //let evaluations = transcript::read_n_scalar(&mut transcript, evaluation_len);
-        let proof = pcs::read_proof(params, protocol, &mut transcript);
-        PlonkProof {
-            //commitments: witness_commitments,
-            challenges,
-            //quotients,
-            z,
-            instance_evals: vector::empty(),
-            advice_evals,
-            fixed_evals,
-            random_poly_eval,
-            //permutations_common,
-            //permutations_evaluated,
-            //lookups_evaluated,
-            pcs: proof
-        }
+        gwc::verify(params, &mut transcript, &queries)
     }
 
 
@@ -408,5 +423,61 @@ module halo2_verifier::plonk_proof {
 
         permutation::queries(permutation, queries, protocol, x);
         lookup::queries(&lookups, queries, protocol, x);
+    }
+
+    fun evaluate_gates(gates: &vector<Gate>,
+                       advice_evals: &vector<Scalar>,
+                       fixed_evals: &vector<Scalar>,
+                       instance_evals: &vector<Scalar>, challenges: &vector<Scalar>): vector<Scalar> {
+        let result = vector::empty();
+        let gate_len = vector::length(gates);
+        let i = 0;
+        while (i < gate_len) {
+            let gate = vector::borrow(gates, i);
+            let gate_polys = protocol::polys(gate);
+            let polys_len = vector::length(gate_polys);
+            let j = 0;
+            while (j < polys_len) {
+                let poly = vector::borrow(gate_polys, j);
+                let poly_eval = expression::evaluate(poly, advice_evals, fixed_evals, instance_evals, challenges);
+                vector::push_back(&mut result, poly_eval);
+                j = j + 1;
+            };
+            i = i + 1;
+        };
+
+        result
+    }
+
+    fun evaluate_lookups(
+        lookup_evaluates: &vector<lookup::Evaluated>,
+        lookup: &vector<Lookup>,
+        protocol: &Protocol,
+        advice_evals: &vector<Scalar>,
+        fixed_evals: &vector<Scalar>,
+        instance_evals: &vector<Scalar>,
+        challenges: &vector<Scalar>,
+        l_0: &Scalar,
+        l_last: &Scalar,
+        l_blind: &Scalar,
+        theta: &Scalar,
+        beta: &Scalar,
+        gamma: &Scalar,
+    ): vector<Scalar> {
+        let result = vector::empty();
+        let i = 0;
+        let lookup_len = vector::length(lookup_evaluates);
+        while (i < lookup_len) {
+            i = i + 1;
+            vector::append(&mut result,
+                lookup::expression(
+                    vector::borrow(lookup_evaluates, i),
+                    vector::borrow(lookup, i),
+                    advice_evals,
+                    fixed_evals,
+                    instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma
+                ));
+        };
+        result
     }
 }

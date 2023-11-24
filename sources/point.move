@@ -1,10 +1,15 @@
 module halo2_verifier::point {
+    use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_types::Fr;
     use halo2_verifier::scalar::{Self, Scalar};
 
-    struct Point<G> has copy, drop { e: Element<G> }
+    struct Point<phantom G> has copy, drop { e: Element<G> }
+
+    public fun underlying<G>(self: &Point<G>): &Element<G> {
+        &self.e
+    }
 
     public fun default<G>(): Point<G> {
         abort 100
@@ -32,11 +37,20 @@ module halo2_verifier::point {
     }
 
     public fun scalar_mul<G>(point: &Point<G>, scalar: &Scalar): Point<G> {
-        Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, &scalar::inner(scalar)) }
+        Point<G> { e: crypto_algebra::scalar_mul<G, Fr>(&point.e, scalar::inner(scalar)) }
     }
 
-    public fun multi_scalar_mul<G>(point: &vector<Point<G>>, scalar: &vector<Scalar>): Point<G> {
-        abort 100
+    public fun multi_scalar_mul<G>(points: &vector<Point<G>>, scalars: &vector<Scalar>): Point<G> {
+        let points = vector::map_ref(points, |p| {
+            let p: &Point<G> = p;
+            p.e
+        });
+        let scalars = vector::map_ref(scalars, |p| {
+            let p: &Scalar = p;
+            scalar::inner(p)
+        });
+
+        Point<G> { e: crypto_algebra::multi_scalar_mul<G, Fr>(&points, &scalars) }
     }
 
     public fun double<G>(a: &Point<G>): Point<G> {

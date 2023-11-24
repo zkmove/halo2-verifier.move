@@ -3,6 +3,9 @@
 
 module halo2_verifier::bn254_types {
 
+    use aptos_std::crypto_algebra::Element;
+    use aptos_std::crypto_algebra;
+
     struct Fr {}
 
     /// A serialization format for `Fr` elements,
@@ -19,4 +22,23 @@ module halo2_verifier::bn254_types {
     struct G2 {}
 
     struct Gt {}
+
+    const FR_S: u32 = 28;
+
+    public fun S_FR(): u32 {
+        FR_S
+    }
+    fun ROOT_OF_UNITY_FR(): Element<Fr> {
+        abort 100
+    }
+
+    public fun root_of_unity(k: u32): Element<Fr> {
+        let times = FR_S - k;
+        let i = 0;
+        let result = ROOT_OF_UNITY_FR();
+        while (i < times) {
+            result = crypto_algebra::sqr(&result);
+        };
+        result
+    }
 }

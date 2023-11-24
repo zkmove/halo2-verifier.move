@@ -3,10 +3,13 @@ module halo2_verifier::scalar {
 
     use halo2_verifier::bn254_types::{Fr, FormatFrLsb};
 
-    struct Scalar has copy, drop { e: Element<Fr> }
+    struct Scalar has copy, drop{ e: Element<Fr> }
 
-    public fun inner(self: &Scalar): Element<Fr> {
-        self.e
+    public fun inner(self: &Scalar): &Element<Fr> {
+        &self.e
+    }
+    public fun from_element(e: Element<Fr>): Scalar {
+        Scalar {e}
     }
 
     public fun from_repr(repr: vector<u8>): Scalar {
@@ -54,7 +57,7 @@ module halo2_verifier::scalar {
         Scalar { e: crypto_algebra::neg<Fr>(&a.e) }
     }
 
-    public fun pow(a: &Scalar, p: u64): Scalar {
+    public fun pow<S>(self: &Element<S>, p: u64): Element<S> {
         abort 100
     }
 }
