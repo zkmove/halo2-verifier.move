@@ -30,7 +30,7 @@ module halo2_verifier::halo2_verifier {
         instances: vector<vector<vector<Scalar>>>,
         proof: vector<u8>
     ): bool {
-        let transcript = transcript::read(proof);
+        let transcript = transcript::init(proof);
         verify_inner(params, vk, protocol, instances, transcript)
     }
 
