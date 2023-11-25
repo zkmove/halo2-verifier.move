@@ -123,10 +123,16 @@ module halo2_verifier::transcript {
         vector::push_back(&mut v, KECCAK256_PREFIX_CHALLENGE);
         hasher::update(&mut self.state, v);
         let state = self.state;
-        // Scalar used here.
-        challenge255::new(hasher::finalize(&state))
-        // let challenge = challenge255::new(hasher::finalize(&state));
-        // challenge255::get_scalar(&challenge)
+        
+        let output = vector::empty<u8>();
+        let i = 0;
+        // keccak output lenght is fixed.
+        while (i < 32) {
+            vector::push_back(&mut output, 0);
+            i = i + 1;
+        };
+        hasher::finalize(&mut state, &mut output);
+        challenge255::new(output)
     }
     public fun squeeze_n_challenges(transcript: &mut Transcript, n:u64): vector<Scalar> {
         let res = vector::empty();

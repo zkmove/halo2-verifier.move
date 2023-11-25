@@ -6,6 +6,7 @@
 /// rate = 200 - bits / 4;
 module halo2_verifier::hasher {
     use std::vector;
+    use std::debug::print;
 
     use halo2_verifier::keccakstate::{Self, KeccakState};
 
@@ -26,16 +27,28 @@ module halo2_verifier::hasher {
         keccakstate::update(&mut self.state, input);
     }
 
-    public fun finalize(self: &Hasher): vector<u8> {
+    public fun finalize(self: &mut Hasher, output: &mut vector<u8>) {
+        keccakstate::finalize(&mut self.state, output);
+    }
+
+    #[test]
+    public fun test() {
+        let keccak = new();
         let output = vector::empty<u8>();
+        let expected = b"\x64\x4b\xcc\x7e\x56\x43\x73\x04\x09\x99\xaa\xc8\x9e\x76\x22\xf3\xca\x71\xfb\xa1\xd9\x72\xfd\x94\xa3\x1c\x3b\xfb\xf2\x4e\x39\x38";
+
         let i = 0;
-        // keccak output lenght is fixed.
         while (i < 32) {
             vector::push_back(&mut output, 0);
             i = i + 1;
         };
-        keccakstate::finalize(self.state, &mut output);
-        output
+        update(&mut keccak, b"hello");
+        update(&mut keccak, b" ");
+        update(&mut keccak, b"world");
+        finalize(&mut keccak, &mut output);
+        print(&output);
+        print(&expected);
+        // assert!(output == expected, 101);
     }
 }
 
@@ -135,8 +148,8 @@ module halo2_verifier::keccakstate {
         self.offset = offset + l;
     }
 
-    public fun finalize(self: KeccakState, output: &mut vector<u8>) {
-        squeeze(&mut self, output);
+    public fun finalize(self: &mut KeccakState, output: &mut vector<u8>) {
+        squeeze(self, output);
     }
 
     public fun reset(self: &mut KeccakState) {
@@ -144,7 +157,6 @@ module halo2_verifier::keccakstate {
         self.offset = 0;
         self.mode = ABSORBING;
     }
-
 }
 
 module halo2_verifier::keccakbuffer {
@@ -196,7 +208,6 @@ module halo2_verifier::keccakbuffer {
     }
 
     public fun setout(self: &Buffer, dst: &mut vector<u8>, dst_offset: u64, offset: u64, len: u64) {
-
         let ip : u64 = offset;
         let op : u64 = dst_offset;
         let l : u64 = len;
@@ -206,42 +217,43 @@ module halo2_verifier::keccakbuffer {
             let unaligned_len = 8 - ip % 8;
             let v: u64 = *vector::borrow(&self.buf, ip / 8);
             let data : vector<u8> = bcs::to_bytes<u64>(&v);
-            let len = min(l, unaligned_len);
+            vector::reverse(&mut data);
             let i = 0;
-            while (i < len) {
+            while (i < min(l, unaligned_len)) {
                *vector::borrow_mut(dst, op + i) =   *vector::borrow(&data, (ip % 8) + i);
                i = i + 1;
             };
 
-            ip = ip + len;
-            op = op + len;
-            l = l - len;
+            ip = ip + i;
+            op = op + i;
+            l = l - i;
         };
 
         let i = 0;
-        while(i < l / 8) {
+        while(i < (l / 8)) {
             let v: u64 = *vector::borrow(&self.buf, ip / 8);
             let data : vector<u8> = bcs::to_bytes<u64>(&v);
+            vector::reverse(&mut data);
             let j = 0;
             while (j < 8) {
                *vector::borrow_mut(dst, op + j) =   *vector::borrow(&data, j);
                j = j + 1;
             };
-
-            ip = ip + 8;
+            ip = ip + 8; 
             op = op + 8;
-            l = l - 8;
 
             i = i + 1;
         };
+        l = l - 8 * i;
 
         // end(ip + len) is not 8 bytes align
-        if(l > 0) {
+        if(l > 0) { 
             let v: u64 = *vector::borrow(&self.buf, ip / 8);
             let data = bcs::to_bytes<u64>(&v);
+            vector::reverse(&mut data);
             let i = 0;
             while (i < l) {
-                *vector::borrow_mut(dst, op + i) =   *vector::borrow(&data, i);
+                *vector::borrow_mut(dst, op + i) = *vector::borrow(&data, i);
                 i = i + 1;
             };
         };
@@ -259,7 +271,7 @@ module halo2_verifier::keccakbuffer {
 
             // read from buf
             let data : vector<u8> = bcs::to_bytes<u64>(vector::borrow(&self.buf, start / 8));
-
+            vector::reverse(&mut data);
             let i = 0;
             let length = min(unaligned_len, l);
             while (i < length) {
@@ -278,53 +290,54 @@ module halo2_verifier::keccakbuffer {
         };
 
         let i = 0;
-        while(i < l / 8) {
-            // read from buf
-            let v: u64 = *vector::borrow(&self.buf, start / 8);
+        while(i < (l / 8)) {
             // read 8 bytes from src
-            let data = vector::empty();
+            let data = vector::empty<u8>();
             let j = 0;
             while (j < 8) {
                 vector::push_back(&mut data, *vector::borrow(src, ip + j));
                 j = j + 1;
             };
             let tmp : u64 = vector::fold(data, 0u64, |acc, v| acc * 256 + (v as u64));
-            // write back into buf
-            *vector::borrow_mut(&mut self.buf, start / 8) = v ^ tmp;
-
+            // change value in buf
+            let value: u64 = *vector::borrow(&self.buf, start / 8);
+            *vector::borrow_mut(&mut self.buf, start / 8) = value ^ tmp;
             start = start + 8;
             ip = ip + 8;
-            l = l - 8;
 
             i = i + 1;
         };
+        l = l - 8 * i;
 
         // end is not 8 bytes align
         if(l > 0) {
             // src offset
             // read from buf
             let data : vector<u8> = bcs::to_bytes<u64>(vector::borrow(&self.buf, start / 8));
+            vector::reverse(&mut data);
             let i = 0;
             while (i < l) {
-                let input = *vector::borrow(src, ip);
-                let tmp = *vector::borrow(&data, start + i) ^ input;
-                *vector::borrow_mut(&mut data, start + i) = tmp;
+                let tmp :u8 = *vector::borrow(&data, i) ^ *vector::borrow(src, ip + i);
+                *vector::borrow_mut(&mut data, i) = tmp;
                 i = i + 1;
             };
-            // write back
-            *vector::borrow_mut(&mut self.buf, start / 8) = vector::fold(data, 0u64, |acc, v| acc * 256 + (v as u64));
-        }
+            // write into buf 
+            let tmp : u64 = vector::fold(data, 0u64, |acc, v| acc * 256 + (v as u64));
+            *vector::borrow_mut(&mut self.buf, start / 8) = tmp;
+        };
     }
 
     public fun pad(self: &mut Buffer, offset: u64, delim: u8, rate: u64) {
         // self.execute(offset, 1, |buff| buff[0] ^= delim);
         let data : vector<u8> = bcs::to_bytes<u64>(vector::borrow<u64>(&self.buf, offset / 8));
+        vector::reverse(&mut data);
         *vector::borrow_mut<u8>(&mut data, offset % 8) = *vector::borrow<u8>(&data, offset % 8) ^ delim;
         let tmp : u64 = vector::fold(data, 0u64, |acc, v| acc * 256 + (v as u64));
         *vector::borrow_mut<u64>(&mut self.buf, offset / 8) = tmp;
 
         // self.execute(rate - 1, 1, |buff| buff[0] ^= 0x80);
         let data : vector<u8> = bcs::to_bytes<u64>(vector::borrow<u64>(&self.buf, (rate - 1) / 8));
+        vector::reverse(&mut data);
         *vector::borrow_mut<u8>(&mut data, (rate - 1) % 8) = *vector::borrow<u8>(&data, (rate - 1) % 8) ^ 0x80;
         let tmp : u64 = vector::fold(data, 0u64, |acc, v| acc * 256u64 + (v as u64));
         *vector::borrow_mut<u64>(&mut self.buf, (rate - 1) / 8) = tmp;
@@ -339,7 +352,8 @@ module halo2_verifier::keccakbuffer {
             let array = vector::empty<u64>();
             let idx = 0;
             while (idx < 5) {
-                vector::push_back(&mut array, 0);    
+                vector::push_back(&mut array, 0);
+                idx = idx + 1;  
             };
 
             // Theta
@@ -410,7 +424,8 @@ module halo2_verifier::keccakbuffer {
 
             // Iota
             // a[0] ^= $rc[i];
-            *vector::borrow_mut(&mut self.buf, 0) = *vector::borrow(&mut self.buf, 0) ^ *vector::borrow(&mut RC, (i as u64));
+            let rc : u64 = *vector::borrow<u64>(&mut RC, (i as u64));
+            *vector::borrow_mut<u64>(&mut self.buf, 0) = *vector::borrow<u64>(&mut self.buf, 0) ^ rc;
 
             i = i + 1;
         };
