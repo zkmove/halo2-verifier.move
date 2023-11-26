@@ -1,5 +1,5 @@
 module halo2_verifier::halo2_verifier {
-    use std::vector::{Self, map_ref, map, enumerate_ref};
+    use std::vector::{Self, map_ref, map, enumerate_ref, fold};
 
     use aptos_std::crypto_algebra;
 
@@ -11,10 +11,10 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
-    use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::protocol::{Self, Protocol, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
-    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
+    use halo2_verifier::point::{Self, Point};
+    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
+    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::scalar::{Self, Scalar, inner, from_element};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
@@ -150,6 +150,7 @@ module halo2_verifier::halo2_verifier {
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
+        let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
 
         let instance_evals = if (query_instance(protocol)) {
             let len = vector::length(instance_queries(protocol));
@@ -162,7 +163,62 @@ module halo2_verifier::halo2_verifier {
             result
         } else {
             // TODO: calculate instances eval
-            vector::empty()
+            let instance_queries = instance_queries(protocol);
+            let min_rotation = rotation::cur();
+            let max_rotation = rotation::cur();
+
+            vector::for_each_ref(instance_queries, |q| {
+                let q: &InstanceQuery = q;
+                let (column, rotation) = protocol::from_instance_query(q);
+                if(rotation::gt(&min_rotation, rotation)) {
+                    min_rotation = *rotation;
+                }
+                else if(rotation::gt(rotation, &max_rotation)) {
+                    max_rotation = *rotation;
+                }
+            });
+
+            let max_instance_len = 0;
+            vector::for_each_ref(&instances, |i| {
+                vector::for_each_ref(i, |r| {
+                    let length = vector::length(r);
+                    if(length > max_instance_len) {
+                        max_instance_len = length;
+                    }
+                })
+            });
+
+            let l_i_s = domain::l_i_range(
+                protocol::domain(protocol),
+                inner(&z),
+                &z_n,
+                rotation::reverse(&max_rotation),
+                rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
+            );
+
+            let result = vector::empty();
+            vector::map_ref(&instances, |instances| {
+                vector::map_ref(instance_queries, |q| {
+                    let q: &InstanceQuery = q;
+                    let (column, rotation) = protocol::from_instance_query(q);
+                    let column_index = (column::column_index(column) as u64);
+                    let instances = vector::borrow(instances, column_index);
+                    let instances_len = vector::length(instances);
+                    let offset = (rotation::value(&rotation::sub(&max_rotation, rotation)) as u64);
+                    
+                    let i = 0;
+                    let acc = scalar::zero();
+                    while (i < instances_len) {
+                        let val = vector::borrow(instances, i);
+                        let l = scalar::from_element(*vector::borrow(&l_i_s, offset + i));
+                        acc = scalar::add(&acc, &scalar::mul(val, &l));
+                        i = i + 1;
+                    };
+
+                    acc
+                })
+            });
+            result
         };
 
         let advice_evals = {
@@ -196,7 +252,6 @@ module halo2_verifier::halo2_verifier {
             }
         );
 
-        let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
         let vanishing = {
             // -(blinding_factor+1)..=0
             let blinding_factors = blinding_factors(protocol);

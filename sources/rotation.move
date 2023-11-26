@@ -30,6 +30,14 @@ module halo2_verifier::rotation {
             next: false
         }
     }
+
+    public fun reverse(r: &Rotation): Rotation {
+        Rotation {
+            rotation: r.rotation,
+            next: !r.next
+        }
+    }
+    
     public fun get_next(self: &Rotation): Rotation {
         if (self.next) {
             Rotation {
@@ -48,6 +56,106 @@ module halo2_verifier::rotation {
                     next: false
                 }
             }
+        }
+    }
+
+    public fun add(a: &Rotation, b: &Rotation): Rotation {
+        if (a.next && b.next) {
+            Rotation {
+                rotation: a.rotation + b.rotation,
+                next: true
+            }
+        } 
+        else if (a.next && !b.next) {
+            if(a.rotation >= b.rotation) {
+                Rotation {
+                    rotation: a.rotation - b.rotation,
+                    next: true
+                }
+            }
+            else {
+                Rotation {
+                    rotation: b.rotation - a.rotation,
+                    next: false
+                }
+            }
+        }
+        else if (!a.next && b.next) {
+            if(b.rotation >= a.rotation) {
+                Rotation {
+                    rotation: b.rotation - a.rotation,
+                    next: true
+                }
+            }
+            else {
+                Rotation {
+                    rotation: a.rotation - b.rotation,
+                    next: false
+                }
+            }
+        }
+        else {
+            Rotation {
+                rotation: a.rotation + b.rotation,
+                next: false
+            }
+        }
+    }
+
+    public fun sub(a: &Rotation, b: &Rotation): Rotation {
+        if (a.next && b.next) {
+            if(a.rotation >= b.rotation) {
+                Rotation {
+                    rotation: a.rotation - b.rotation,
+                    next: true
+                }
+            }
+            else {
+                Rotation {
+                    rotation: b.rotation - a.rotation,
+                    next: false
+                }
+            }
+        } 
+        else if (a.next && !b.next) {
+            Rotation {
+                rotation: a.rotation + b.rotation,
+                next: true
+            }
+        }
+        else if (!a.next && b.next) {
+            Rotation {
+                rotation: a.rotation + b.rotation,
+                next: false
+            }
+        }
+        else {
+            if(b.rotation >= a.rotation) {
+                Rotation {
+                    rotation: b.rotation - a.rotation,
+                    next: true
+                }
+            }
+            else {
+                Rotation {
+                    rotation: a.rotation - b.rotation,
+                    next: false
+                }
+            }
+        }
+    }
+
+    public fun gt(a: &Rotation, b: &Rotation): bool {
+        if (a.next) {
+            if (b.next) {
+                if (a.rotation > b.rotation) true
+                else false
+            } else false
+        } else {
+            if (!b.next) {
+                if (a.rotation < b.rotation) true
+                else false
+            } else false
         }
     }
 }

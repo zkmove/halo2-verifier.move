@@ -47,7 +47,7 @@ module halo2_verifier::point {
         });
         let scalars = vector::map_ref(scalars, |p| {
             let p: &Scalar = p;
-            scalar::inner(p)
+            *scalar::inner(p)
         });
 
         Point<G> { e: crypto_algebra::multi_scalar_mul<G, Fr>(&points, &scalars) }
