@@ -3,6 +3,7 @@
 
 module halo2_verifier::bn254_types {
 
+    use std::option::Option;
     use aptos_std::crypto_algebra::{Self, Element};
 
     struct Fr {}
@@ -39,5 +40,32 @@ module halo2_verifier::bn254_types {
             result = crypto_algebra::sqr(&result);
         };
         result
+    }
+
+    // TODO: fix the format, once we got aptos part done.
+    public fun serialize_fr(e: &Element<Fr>): vector<u8>{
+        // FIXME: update the format
+        crypto_algebra::serialize<Fr, FormatFrLsb>(e)
+    }
+    public fun deserialize_fr(e: &vector<u8>): Option<Element<Fr>>{
+        // FIXME: update the format
+        crypto_algebra::deserialize<Fr, FormatFrLsb>(e)
+    }
+
+    public fun serialize_g1(e: &Element<G1>): vector<u8>{
+        // FIXME: update the format
+        crypto_algebra::serialize<G1, FormatFrLsb>(e)
+    }
+    public fun deserialize_g1(e: &vector<u8>): Option<Element<G1>>{
+        // FIXME: update the format
+        crypto_algebra::deserialize<G1, FormatFrLsb>(e)
+    }
+    public fun serialize_g2(e: &Element<G2>): vector<u8>{
+        // FIXME: update the format
+        crypto_algebra::serialize<G2, FormatFrLsb>(e)
+    }
+    public fun deserialize_g2(e: &vector<u8>): Option<Element<G2>>{
+        // FIXME: update the format
+        crypto_algebra::deserialize<G2, FormatFrLsb>(e)
     }
 }
