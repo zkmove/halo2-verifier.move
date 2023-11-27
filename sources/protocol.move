@@ -21,9 +21,9 @@ module halo2_verifier::protocol {
         cs_degree: u64,
 
         num_fixed_columns: u64,
-        //num_instance_columns: u64,
+        num_instance_columns: u64,
 
-        num_instance: vector<u64>,
+        //num_instance: vector<u64>,
 
         /// Number of witness polynomials in each phase.
         // num_advice_in_phase: vector<u64>,
@@ -193,9 +193,9 @@ module halo2_verifier::protocol {
     }
 
     /// return the number of rows of each instance columns
-    public fun num_instance(protocol: &Protocol): &vector<u64> {
-        &protocol.num_instance
-    }
+    // public fun num_instance(protocol: &Protocol): &vector<u64> {
+    //     &protocol.num_instance
+    // }
 
 
 
