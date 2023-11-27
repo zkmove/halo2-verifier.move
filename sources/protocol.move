@@ -184,7 +184,7 @@ module halo2_verifier::protocol {
 
     /// return the num of instance columns
     public fun num_instance_columns(protocol: &Protocol): u64 {
-        vector::length(&protocol.num_instance)
+        protocol.num_instance_columns
     }
 
     /// return the num of advice columns
