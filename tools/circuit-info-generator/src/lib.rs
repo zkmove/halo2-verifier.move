@@ -8,6 +8,7 @@ use halo2_proofs::poly::commitment::{Params};
 
 pub struct CircuitInfo<F : Field> {
     query_instance: bool,
+    k:u32,
     cs_degree: u64,
     num_fixed_columns: u64,
     num_instance_columns: u64,
@@ -91,6 +92,7 @@ pub fn generate_circuit_info<'params, C, P, ConcreteCircuit>(
     let cs = vk.cs();
     let info = CircuitInfo {
         query_instance: false,
+        k: params.k(),
         cs_degree: cs.degree() as u64,
         num_fixed_columns: cs.num_fixed_columns() as u64,
         num_instance_columns: cs.num_instance_columns() as u64,
