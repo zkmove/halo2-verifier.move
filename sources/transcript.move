@@ -1,44 +1,43 @@
 module halo2_verifier::transcript {
-    use halo2_verifier::bn254_types::G1;
-    use halo2_verifier::point::Point;
-    use halo2_verifier::scalar::Scalar;
+    use aptos_std::crypto_algebra::{Element};
+    use halo2_verifier::bn254_types::{G1, Fr};
 
     struct Transcript has copy, drop {}
 
     /// create a transcript_read
-    public fun read(bytes: vector<u8>): Transcript {
+    public fun read(_bytes: vector<u8>): Transcript {
         abort 100
     }
 
-    public fun common_scalar(transcript: &mut Transcript, scalar: Scalar) {
+    public fun common_scalar(_transcript: &mut Transcript, _scalar: Element<Fr>) {
         abort 100
     }
 
-    public fun common_point(transcript: &mut Transcript, point: Point<G1>) {
+    public fun common_point(_transcript: &mut Transcript, _point: Element<G1>) {
         abort 100
     }
 
-    public fun read_point(transcript: &mut Transcript): Point<G1> {
+    public fun read_point(_transcript: &mut Transcript): Element<G1> {
         abort 100
     }
 
-    public fun read_n_point(transcript: &mut Transcript, n: u64): vector<Point<G1>> {
+    public fun read_n_point(_transcript: &mut Transcript, _n: u64): vector<Element<G1>> {
         abort 100
     }
 
-    public fun read_scalar(transcript: &mut Transcript): Scalar {
+    public fun read_scalar(_transcript: &mut Transcript): Element<Fr> {
         abort 100
     }
 
-    public fun read_n_scalar(transcript: &mut Transcript, n: u64): vector<Scalar> {
+    public fun read_n_scalar(_transcript: &mut Transcript, _n: u64): vector<Element<Fr>> {
         abort 100
     }
 
-    public fun squeeze_challenge(transcript: &mut Transcript): Scalar {
+    public fun squeeze_challenge(_transcript: &mut Transcript): Element<Fr> {
         abort 100
     }
 
-    public fun squeeze_n_challenges(transcript: &mut Transcript, n: u64): vector<Scalar> {
+    public fun squeeze_n_challenges(_transcript: &mut Transcript, _n: u64): vector<Element<Fr>> {
         abort 100
     }
 }

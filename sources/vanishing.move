@@ -1,32 +1,32 @@
 module halo2_verifier::vanishing {
     use std::vector;
+    use aptos_std::crypto_algebra::{Element};
 
-    use halo2_verifier::bn254_types::G1;
+    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_types::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
-    use halo2_verifier::point::Point;
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
 
     struct Constructed has drop {
-        random_poly_commitment: Point<G1>,
-        h_commitments: vector<Point<G1>>,
+        random_poly_commitment: Element<G1>,
+        h_commitments: vector<Element<G1>>,
     }
 
     struct PartialEvaluated has drop {
-        random_poly_commitment: Point<G1>,
-        h_commitments: vector<Point<G1>>,
-        random_eval: Scalar,
+        random_poly_commitment: Element<G1>,
+        h_commitments: vector<Element<G1>>,
+        random_eval: Element<Fr>,
     }
 
     struct EvaluatedH has drop {
-        expected_h_eval: Scalar,
-        random_eval: Scalar,
+        expected_h_eval: Element<Fr>,
+        random_eval: Element<Fr>,
         h_commitment: MSM,
-        random_poly_commitment: Point<G1>,
+        random_poly_commitment: Element<G1>,
     }
 
-    public fun h_commitments(c: &Constructed): &vector<Point<G1>> {
+    public fun h_commitments(c: &Constructed): &vector<Element<G1>> {
         &c.h_commitments
     }
 
@@ -60,20 +60,20 @@ module halo2_verifier::vanishing {
 
     public fun h_eval(
         self: PartialEvaluated,
-        expressions: &vector<Scalar>,
-        y: &Scalar,
-        xn: &Scalar
+        expressions: &vector<Element<Fr>>,
+        y: &Element<Fr>,
+        xn: &Element<Fr>
     ): EvaluatedH {
         let PartialEvaluated { h_commitments, random_eval, random_poly_commitment } = self;
         let i = 0;
         let len = vector::length(expressions);
-        let h_eval = scalar::zero();
+        let h_eval = arithmetic::zero();
         while (i < len) {
             let v = vector::borrow(expressions, i);
-            h_eval = scalar::add(&scalar::mul(&h_eval, y), v);
+            h_eval = arithmetic::add(&arithmetic::mul(&h_eval, y), v);
             i = i + 1;
         };
-        h_eval = scalar::mul(&h_eval, &scalar::invert(&scalar::sub(xn, &scalar::one())));
+        h_eval = arithmetic::mul(&h_eval, &arithmetic::invert(&arithmetic::sub(xn, &arithmetic::one())));
 
         let msm = msm::empty_msm();
         let i = vector::length(&h_commitments);
@@ -81,7 +81,7 @@ module halo2_verifier::vanishing {
             i = i - 1;
             let commitment = vector::pop_back(&mut h_commitments);
             msm::scale(&mut msm, xn);
-            msm::append_term(&mut msm, scalar::one(), commitment);
+            msm::append_term(&mut msm, arithmetic::one(), commitment);
         };
         EvaluatedH {
             expected_h_eval: h_eval,
@@ -91,7 +91,7 @@ module halo2_verifier::vanishing {
         }
     }
 
-    public fun queries(self: EvaluatedH, queries: &mut vector<VerifierQuery>, x: &Scalar) {
+    public fun queries(self: EvaluatedH, queries: &mut vector<VerifierQuery>, x: &Element<Fr>) {
         vector::push_back(queries, query::new_msm(self.h_commitment, *x, self.expected_h_eval));
         vector::push_back(queries, query::new_commitment(self.random_poly_commitment, *x, self.random_eval));
     }

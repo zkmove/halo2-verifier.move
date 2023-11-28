@@ -1,14 +1,13 @@
 module halo2_verifier::gwc {
     use std::vector;
 
-    use aptos_std::crypto_algebra;
+    use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_types::{G1, G2, Gt};
+    use halo2_verifier::bn254_types::{G1, G2, Gt, Fr};
     use halo2_verifier::msm::{Self, MSM};
     use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::point;
+    use halo2_verifier::arithmetic;
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::scalar::{Self, Scalar};
     use halo2_verifier::transcript::{Self, Transcript};
 
     public fun verify(
@@ -25,7 +24,7 @@ module halo2_verifier::gwc {
         // commitment_multi = C(0)+ u * C(1) + u^2 * C(2) + .. + u^n * C(n)
         let commitment_multi = msm::empty_msm();
         // eval_multi = E(0)+ u * E(1) + u^2 * E(2) + .. + u^n * E(n)
-        let eval_multi = scalar::zero();
+        let eval_multi = arithmetic::zero<Fr>();
         // witness = u^0 * w_0 + u^1 * w_1 + u^2 * w_2 + .. u^n * w_n
         let witness = msm::empty_msm();
         // witness_with_aux = u^0 * z_0 * w_0 + u^1 * z_1 * w_1 + u^2 * z_2 * w_2 + .. u^n * z_n * w_n
@@ -33,7 +32,7 @@ module halo2_verifier::gwc {
 
 
         let i = 0;
-        let power_of_u = scalar::one();
+        let power_of_u = arithmetic::one<Fr>();
 
         while (i < set_len) {
             let commitment_at_a_point = vector::borrow(&sets, i);
@@ -43,29 +42,29 @@ module halo2_verifier::gwc {
             // C(i) = sum_j(v^(j-1) * cm(j))
             let commitment_acc = msm::empty_msm();
             // E(i) = sum_j(v^(j-1) * s(j))
-            let eval_acc = scalar::zero();
+            let eval_acc = arithmetic::zero<Fr>();
             {
                 let j = 0;
                 let query_len = vector::length(commitment_at_a_point);
-                let power_of_v = scalar::one();
+                let power_of_v = arithmetic::one<Fr>();
                 while (j < query_len) {
                     let q = vector::borrow(commitment_at_a_point, j);
                     let c = query::multiply(query::commitment(q), &power_of_v);
-                    let eval = scalar::mul(&power_of_v, query::eval(q));
+                    let eval = arithmetic::mul<Fr>(&power_of_v, query::eval(q));
                     msm::add_msm(&mut commitment_acc, &c);
-                    eval_acc = scalar::add(&eval_acc, &eval);
+                    eval_acc = arithmetic::add<Fr>(&eval_acc, &eval);
 
-                    power_of_v = scalar::mul(&power_of_v, &v);
+                    power_of_v = arithmetic::mul<Fr>(&power_of_v, &v);
                     j = j + 1;
                 };
             };
             msm::scale(&mut commitment_acc, &power_of_u);
             msm::add_msm(&mut commitment_multi, &commitment_acc);
-            eval_multi = scalar::add(&eval_multi, &scalar::mul(&power_of_u, &eval_acc));
-            msm::append_term(&mut witness_with_aux, scalar::mul(&power_of_u, z), *w_i);
+            eval_multi = arithmetic::add<Fr>(&eval_multi, &arithmetic::mul<Fr>(&power_of_u, &eval_acc));
+            msm::append_term(&mut witness_with_aux, arithmetic::mul<Fr>(&power_of_u, z), *w_i);
             msm::append_term(&mut witness, power_of_u, *w_i);
 
-            power_of_u = scalar::mul(&power_of_u, &u);
+            power_of_u = arithmetic::mul(&power_of_u, &u);
             i = i + 1;
         };
 
@@ -79,21 +78,21 @@ module halo2_verifier::gwc {
         params: &Params,
         witness: MSM,
         commitment_multi: MSM,
-        eval_multi: Scalar,
+        eval_multi: Element<Fr>,
         witness_with_aux: MSM
     ): bool {
         msm::add_msm(&mut commitment_multi, &witness_with_aux);
-        msm::append_term(&mut commitment_multi, eval_multi, point::neg(params::g(params)));
+        msm::append_term(&mut commitment_multi, eval_multi, arithmetic::neg(params::g(params)));
         let right = msm::eval(&commitment_multi);
         let left = msm::eval(&witness);
 
         let left_pairing = crypto_algebra::pairing<G1, G2, Gt>(
-            point::underlying(&left),
-            point::underlying(params::s_g2(params))
+            &left,
+            params::s_g2(params)
         );
         let right_pairing = crypto_algebra::pairing<G1, G2, Gt>(
-            point::underlying(&right),
-            point::underlying(params::g2(params))
+            &right,
+            params::g2(params)
         );
         crypto_algebra::eq(&left_pairing, &right_pairing)
     }
