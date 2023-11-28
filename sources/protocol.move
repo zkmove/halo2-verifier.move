@@ -1,13 +1,13 @@
 module halo2_verifier::protocol {
-    use std::vector::{Self, map_ref, length, fold};
+    use std::error;
+    // use std::vector::{Self, map_ref, length, fold};
+    use std::vector;
+    use aptos_std::math64::max;
 
     use halo2_verifier::column::{Self, Column};
-    use halo2_verifier::domain::Domain;
-    use halo2_verifier::rotation::{Self, Rotation};
-    use halo2_verifier::scalar::Scalar;
-    use aptos_std::math64::max;
-    use halo2_verifier::domain;
-    use std::error;
+    use halo2_verifier::domain::{Self, Domain};
+    // use halo2_verifier::rotation;
+    use halo2_verifier::rotation::Rotation;
     use halo2_verifier::expression::Expression;
 
     const QUERY_NOT_FOUND: u64 = 1;

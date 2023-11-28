@@ -5,7 +5,6 @@
 /// n_r = 12 + 2L = 12 + 2*6 = 24
 /// rate = 200 - bits / 4;
 module halo2_verifier::hasher {
-    #[test_only] 
     use std::vector;
 
     use halo2_verifier::keccakstate::{Self, KeccakState};
@@ -27,39 +26,34 @@ module halo2_verifier::hasher {
         keccakstate::update(&mut self.state, input);
     }
 
-    public fun finalize(self: &mut Hasher, output: &mut vector<u8>) {
-        keccakstate::finalize(&mut self.state, output);
+    public fun finalize(self: &mut Hasher) : vector<u8> {
+        let output = vector::empty();
+        let i = 0;
+        while(i < 32) {
+            vector::push_back(&mut output, 0);
+            i = i + 1;
+        };
+        keccakstate::finalize(&mut self.state, &mut output);
+        output
     }
 
     #[test]
     public fun test_keccak() {
         let keccak = new();
-        let output = vector::empty<u8>();
         let expected = b"\x47\x17\x32\x85\xa8\xd7\x34\x1e\x5e\x97\x2f\xc6\x77\x28\x63\x84\xf8\x02\xf8\xef\x42\xa5\xec\x5f\x03\xbb\xfa\x25\x4c\xb0\x1f\xad";
-        let i = 0;
-        while (i < 32) {
-            vector::push_back(&mut output, 0);
-            i = i + 1;
-        };
         update(&mut keccak, b"hello");
         update(&mut keccak, b" ");
         update(&mut keccak, b"world");
-        finalize(&mut keccak, &mut output);
+        let output = finalize(&mut keccak);
         assert!(output == expected, 101);
     }   
 
     #[test]
     public fun empty_keccak() {
         let keccak = new();
-        let output = vector::empty<u8>();
         let expected = b"\xc5\xd2\x46\x01\x86\xf7\x23\x3c\x92\x7e\x7d\xb2\xdc\xc7\x03\xc0\xe5\x00\xb6\x53\xca\x82\x27\x3b\x7b\xfa\xd8\x04\x5d\x85\xa4\x70";
 
-        let i = 0;
-        while (i < 32) {
-            vector::push_back(&mut output, 0);
-            i = i + 1;
-        };
-        finalize(&mut keccak, &mut output);
+        let output = finalize(&mut keccak);
         assert!(output == expected, 102);
     }
 }

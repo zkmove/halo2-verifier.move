@@ -6,7 +6,7 @@ module halo2_verifier::domain {
 
     use halo2_verifier::bn254_types::{Fr, root_of_unity};
     use halo2_verifier::rotation::{Self, Rotation};
-    use halo2_verifier::scalar::{Self, Scalar, inner};
+    use halo2_verifier::bn254_arithmetic;
 
     struct Domain has copy, drop {
         k: u32,
@@ -42,15 +42,15 @@ module halo2_verifier::domain {
         ((domain.j - 1) as u64)
     }
 
-    public fun rotate_omega(domain: &Domain, x: &Scalar, rotation: &Rotation): Scalar {
+    public fun rotate_omega(domain: &Domain, x: &Element<Fr>, rotation: &Rotation): Element<Fr> {
         let rotation_value = rotation::value(rotation);
         // todo(optimize): we can pre-calculate some of them, and if not found, then calculate.
         let multiple = if (rotation::is_neg(rotation)) {
-            scalar::pow(&domain.omega_inv, (rotation_value as u64))
+            bn254_arithmetic::pow<Fr>(&domain.omega_inv, (rotation_value as u64))
         } else {
-            scalar::pow(&domain.omega, (rotation_value as u64))
+            bn254_arithmetic::pow<Fr>(&domain.omega, (rotation_value as u64))
         };
-        scalar::from_element(crypto_algebra::mul(scalar::inner(x), &multiple))
+        crypto_algebra::mul<Fr>(x, &multiple)
     }
 
     /// Computes evaluations (at the point `x`, where `xn = x^n`) of Lagrange
@@ -71,10 +71,10 @@ module halo2_verifier::domain {
         while (cur != until) {
             let rotation = &cur;
             // x - w^i
-            let r = crypto_algebra::sub(x, inner(&rotate_omega(self, &scalar::one(), rotation)));
+            let r = crypto_algebra::sub(x, &rotate_omega(self, &crypto_algebra::one<Fr>(), rotation));
             // todo(optimize): batch invert them?
             r = option::destroy_some(crypto_algebra::inv(&r));
-            r = *inner(&rotate_omega(self, &scalar::from_element(crypto_algebra::mul(&r, &common)), rotation));
+            r = rotate_omega(self, &crypto_algebra::mul(&r, &common), rotation);
             vector::push_back(&mut result, r);
             cur = rotation::get_next(&cur);
         };

@@ -3,8 +3,7 @@
 
 module halo2_verifier::bn254_types {
 
-    use aptos_std::crypto_algebra::Element;
-    use aptos_std::crypto_algebra;
+    use aptos_std::crypto_algebra::{Self, Element};
 
     struct Fr {}
 

@@ -1,8 +1,9 @@
 module halo2_verifier::expression {
-    use halo2_verifier::multivariate_poly::MultiVariatePoly;
-    use halo2_verifier::scalar::Scalar;
-    use halo2_verifier::multivariate_poly;
     use std::vector;
+    use aptos_std::crypto_algebra::{Element};
+    
+    use halo2_verifier::bn254_types::{Fr};
+    use halo2_verifier::multivariate_poly::{Self, MultiVariatePoly};
 
     struct Expression {
         poly: MultiVariatePoly,
@@ -10,12 +11,12 @@ module halo2_verifier::expression {
 
     public fun evaluate(
         self: &Expression,
-        advice_evals: &vector<Scalar>,
+        advice_evals: &vector<Element<Fr>>,
 
-        fixed_evals: &vector<Scalar>,
-        instance_evals: &vector<Scalar>,
-        challenges: &vector<Scalar>
-    ): Scalar {
+        fixed_evals: &vector<Element<Fr>>,
+        instance_evals: &vector<Element<Fr>>,
+        challenges: &vector<Element<Fr>>
+    ): Element<Fr> {
         let advice_len = vector::length(advice_evals);
         let fixed_len = vector::length(fixed_evals);
         let instance_len = vector::length(instance_evals);
