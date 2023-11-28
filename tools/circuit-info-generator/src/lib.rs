@@ -128,3 +128,13 @@ pub fn generate_circuit_info<'params, C, P, ConcreteCircuit>(
     };
      Ok(info)
 }
+
+// todo
+struct MultiVariatePoly {}
+/// basicly, we treat every queries and challenges as a variable, so there will be `advice_queries_len+fixed_queries_len+instance_queries_len+challenges_len` variables.
+/// and the orders should be the same as that in `expression.move`.
+fn expression_transform<F: Field>(expr: &Expression<F>, advice_queries_len: u64,fixed_queries_len: u64, instance_queries_len: u64,  challenges_len: u64)->MultiVariatePoly {
+    // TODO: use evaluate function of expr to construct the poly.
+    // expr.evaluate();
+    unimplemented!()
+}
