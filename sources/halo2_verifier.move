@@ -1,9 +1,10 @@
 module halo2_verifier::halo2_verifier {
-    use std::vector::{Self, map_ref, map, enumerate_ref, fold};
+    use std::vector::{Self, map_ref, map, enumerate_ref};
 
-    use aptos_std::crypto_algebra;
+    use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_types::G1;
+    use halo2_verifier::bn254_arithmetic;
+    use halo2_verifier::bn254_types::{G1, Fr};
     use halo2_verifier::column;
     use halo2_verifier::domain;
     use halo2_verifier::expression;
@@ -12,10 +13,8 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::rotation;
-    use halo2_verifier::point::{Self, Point};
     use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::scalar::{Self, Scalar, inner, from_element};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
@@ -27,7 +26,7 @@ module halo2_verifier::halo2_verifier {
         params: &Params,
         vk: &VerifyingKey,
         protocol: &Protocol,
-        instances: vector<vector<vector<Scalar>>>,
+        instances: vector<vector<vector<Element<Fr>>>>,
         proof: vector<u8>
     ): bool {
         let transcript = transcript::read(proof);
@@ -38,11 +37,11 @@ module halo2_verifier::halo2_verifier {
         params: &Params,
         vk: &VerifyingKey,
         protocol: &Protocol,
-        instances: vector<vector<vector<Scalar>>>,
+        instances: vector<vector<vector<Element<Fr>>>>,
         transcript: Transcript
     ): bool {
         // check_instances(&instances, protocol::num_instance(protocol));
-        let instance_commitments: vector<vector<Point<G1>>> = if (protocol::query_instance(protocol)) {
+        let instance_commitments: vector<vector<Element<G1>>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
             abort 100
         } else {
@@ -77,7 +76,7 @@ module halo2_verifier::halo2_verifier {
 
             // in aptos, we can use for_each_ref
             // for_each_ref(&instances, |instance| {
-            //     let instance: vector<vector<Scalar>> = instance;
+            //     let instance: vector<vector<Element<Fr>>> = instance;
             //     for_each_ref(instance, |ic| {
             //         for_each_ref(ic, |i| {
             //             transcript::common_scalar(&mut transcript, *i);
@@ -88,10 +87,10 @@ module halo2_verifier::halo2_verifier {
 
         // read advice commitments and challenges
         let advice_commitments = repeat(
-            repeat(point::default(), protocol::num_advice_columns(protocol)),
+            repeat(bn254_arithmetic::default(), protocol::num_advice_columns(protocol)),
             num_proof
         );
-        let challenges = repeat(scalar::zero(), num_challenges(protocol));
+        let challenges = repeat(crypto_algebra::zero(), num_challenges(protocol));
         {
             let num_phase = protocol::num_phase(protocol);
             let i = 0;
@@ -150,7 +149,7 @@ module halo2_verifier::halo2_verifier {
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
-        let z_n = scalar::pow(inner(&z), domain::n(protocol::domain(protocol)));
+        let z_n = bn254_arithmetic::pow(&z, domain::n(protocol::domain(protocol)));
 
         let instance_evals = if (query_instance(protocol)) {
             let len = vector::length(instance_queries(protocol));
@@ -169,7 +168,7 @@ module halo2_verifier::halo2_verifier {
 
             vector::for_each_ref(instance_queries, |q| {
                 let q: &InstanceQuery = q;
-                let (column, rotation) = protocol::from_instance_query(q);
+                let (_column, rotation) = protocol::from_instance_query(q);
                 if(rotation::gt(&min_rotation, rotation)) {
                     min_rotation = *rotation;
                 }
@@ -190,7 +189,7 @@ module halo2_verifier::halo2_verifier {
 
             let l_i_s = domain::l_i_range(
                 protocol::domain(protocol),
-                inner(&z),
+                &z,
                 &z_n,
                 rotation::reverse(&max_rotation),
                 rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
@@ -207,11 +206,11 @@ module halo2_verifier::halo2_verifier {
                     let offset = (rotation::value(&rotation::sub(&max_rotation, rotation)) as u64);
                     
                     let i = 0;
-                    let acc = scalar::zero();
+                    let acc = crypto_algebra::zero();
                     while (i < instances_len) {
                         let val = vector::borrow(instances, i);
-                        let l = scalar::from_element(*vector::borrow(&l_i_s, offset + i));
-                        acc = scalar::add(&acc, &scalar::mul(val, &l));
+                        let l = *vector::borrow(&l_i_s, offset + i);
+                        acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
                         i = i + 1;
                     };
 
@@ -257,14 +256,14 @@ module halo2_verifier::halo2_verifier {
             let blinding_factors = blinding_factors(protocol);
             let l_evals = domain::l_i_range(
                 protocol::domain(protocol),
-                inner(&z),
+                &z,
                 &z_n,
                 rotation::prev((blinding_factors as u32) + 1),
                 rotation::next(1)
             );
             // todo: assert len(l_evals) = blinding_factor+2
-            let l_last = scalar::from_element(*vector::borrow(&l_evals, 0));
-            let l_0 = scalar::from_element(*vector::borrow(&l_evals, blinding_factors + 1));
+            let l_last = *vector::borrow(&l_evals, 0);
+            let l_0 = *vector::borrow(&l_evals, blinding_factors + 1);
             let l_blind = {
                 let i = 1;
                 let len = blinding_factors + 2;
@@ -272,7 +271,7 @@ module halo2_verifier::halo2_verifier {
                 while (i < len) {
                     result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
                 };
-                scalar::from_element(result)
+                result
             };
 
             let expressions = vector::empty();
@@ -298,7 +297,7 @@ module halo2_verifier::halo2_verifier {
                     &gamma,
                     &z,
                 );
-                let lookup_expressions: vector<Scalar> = evaluate_lookups(
+                let lookup_expressions: vector<Element<Fr>> = evaluate_lookups(
                     vector::borrow(&lookups_evaluated, i),
                     protocol::lookups(protocol),
                     protocol,
@@ -316,7 +315,7 @@ module halo2_verifier::halo2_verifier {
                 i = i + 1;
             };
 
-            vanishing::h_eval(vanishing, &expressions, &y, &from_element(z_n))
+            vanishing::h_eval(vanishing, &expressions, &y, &z_n)
         };
 
 
@@ -369,7 +368,7 @@ module halo2_verifier::halo2_verifier {
     }
 
 
-    fun check_instances(instances: &vector<vector<Scalar>>, num: u64) {
+    fun check_instances(instances: &vector<vector<Element<Fr>>>, num: u64) {
         let i = 0;
         let len = vector::length(instances);
         while (i < len) {
@@ -383,7 +382,7 @@ module halo2_verifier::halo2_verifier {
     //     transcript: &mut Transcript,
     //     num_in_phase: &vector<u64>,
     //     num_challenge_in_phase: &vector<u64>,
-    // ): (vector<Point<G1>>, vector<Scalar>) {
+    // ): (vector<Element<G1>>, vector<Element<Fr>>) {
     //     let phase_len = vector::length(num_in_phase);
     //     let i = 0;
     //     let commitments = vector[];
@@ -444,11 +443,11 @@ module halo2_verifier::halo2_verifier {
     fun queries(
         protocol: &Protocol,
         queries: &mut vector<VerifierQuery>,
-        x: &Scalar,
-        instance_commitments: &vector<Point<G1>>,
-        instance_evals: &vector<Scalar>,
-        advice_commitments: &vector<Point<G1>>,
-        advice_evals: &vector<Scalar>,
+        x: &Element<Fr>,
+        instance_commitments: &vector<Element<G1>>,
+        instance_evals: &vector<Element<Fr>>,
+        advice_commitments: &vector<Element<G1>>,
+        advice_evals: &vector<Element<Fr>>,
         permutation: permutation::Evaluted,
         lookups: vector<lookup::Evaluated>
     ) {
@@ -481,9 +480,9 @@ module halo2_verifier::halo2_verifier {
     }
 
     fun evaluate_gates(gates: &vector<Gate>,
-                       advice_evals: &vector<Scalar>,
-                       fixed_evals: &vector<Scalar>,
-                       instance_evals: &vector<Scalar>, challenges: &vector<Scalar>): vector<Scalar> {
+                       advice_evals: &vector<Element<Fr>>,
+                       fixed_evals: &vector<Element<Fr>>,
+                       instance_evals: &vector<Element<Fr>>, challenges: &vector<Element<Fr>>): vector<Element<Fr>> {
         let result = vector::empty();
         let gate_len = vector::length(gates);
         let i = 0;
@@ -507,18 +506,18 @@ module halo2_verifier::halo2_verifier {
     fun evaluate_lookups(
         lookup_evaluates: &vector<lookup::Evaluated>,
         lookup: &vector<Lookup>,
-        protocol: &Protocol,
-        advice_evals: &vector<Scalar>,
-        fixed_evals: &vector<Scalar>,
-        instance_evals: &vector<Scalar>,
-        challenges: &vector<Scalar>,
-        l_0: &Scalar,
-        l_last: &Scalar,
-        l_blind: &Scalar,
-        theta: &Scalar,
-        beta: &Scalar,
-        gamma: &Scalar,
-    ): vector<Scalar> {
+        _protocol: &Protocol,
+        advice_evals: &vector<Element<Fr>>,
+        fixed_evals: &vector<Element<Fr>>,
+        instance_evals: &vector<Element<Fr>>,
+        challenges: &vector<Element<Fr>>,
+        l_0: &Element<Fr>,
+        l_last: &Element<Fr>,
+        l_blind: &Element<Fr>,
+        theta: &Element<Fr>,
+        beta: &Element<Fr>,
+        gamma: &Element<Fr>,
+    ): vector<Element<Fr>> {
         let result = vector::empty();
         let i = 0;
         let lookup_len = vector::length(lookup_evaluates);

@@ -1,13 +1,12 @@
 module halo2_verifier::msm {
     use std::vector;
+    use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_types::G1;
-    use halo2_verifier::point::{Self, Point};
-    use halo2_verifier::scalar::{Self, Scalar};
+    use halo2_verifier::bn254_types::{G1, Fr};
 
     struct MSM has copy, drop {
-        scalars: vector<Scalar>,
-        bases: vector<Point<G1>>,
+        scalars: vector<Element<Fr>>,
+        bases: vector<Element<G1>>,
     }
 
     public fun empty_msm(): MSM {
@@ -17,17 +16,17 @@ module halo2_verifier::msm {
         }
     }
 
-    public fun scale(msm: &mut MSM, factor: &Scalar) {
+    public fun scale(msm: &mut MSM, factor: &Element<Fr>) {
         let length = vector::length(&msm.scalars);
         if (length > 0) {
             vector::for_each_mut(&mut msm.scalars, |p| {
-                let p: &mut Scalar = p;
-                *p = scalar::mul(p, factor);
+                let p: &mut Element<Fr> = p;
+                *p = crypto_algebra::mul(p, factor);
             });
         };
     }
 
-    public fun append_term(msm: &mut MSM, scalar: Scalar, point: Point<G1>) {
+    public fun append_term(msm: &mut MSM, scalar: Element<Fr>, point: Element<G1>) {
         vector::push_back(&mut msm.scalars, scalar);
         vector::push_back(&mut msm.bases, point);
     }
@@ -37,7 +36,7 @@ module halo2_verifier::msm {
         vector::append(&mut msm.bases, other.bases);
     }
 
-    public fun eval(msm: &MSM): Point<G1> {
-        point::multi_scalar_mul(&msm.bases, &msm.scalars)
+    public fun eval(msm: &MSM): Element<G1> {
+        crypto_algebra::multi_scalar_mul(&msm.bases, &msm.scalars)
     }
 }
