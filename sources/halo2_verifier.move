@@ -3,7 +3,7 @@ module halo2_verifier::halo2_verifier {
 
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_arithmetic;
     use halo2_verifier::bn254_types::{G1, Fr};
     use halo2_verifier::column;
     use halo2_verifier::domain;
@@ -87,10 +87,10 @@ module halo2_verifier::halo2_verifier {
 
         // read advice commitments and challenges
         let advice_commitments = repeat(
-            repeat(arithmetic::default(), protocol::num_advice_columns(protocol)),
+            repeat(bn254_arithmetic::default(), protocol::num_advice_columns(protocol)),
             num_proof
         );
-        let challenges = repeat(arithmetic::zero(), num_challenges(protocol));
+        let challenges = repeat(crypto_algebra::zero(), num_challenges(protocol));
         {
             let num_phase = protocol::num_phase(protocol);
             let i = 0;
@@ -149,7 +149,7 @@ module halo2_verifier::halo2_verifier {
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
-        let z_n = arithmetic::pow(&z, domain::n(protocol::domain(protocol)));
+        let z_n = bn254_arithmetic::pow(&z, domain::n(protocol::domain(protocol)));
 
         let instance_evals = if (query_instance(protocol)) {
             let len = vector::length(instance_queries(protocol));
@@ -206,11 +206,11 @@ module halo2_verifier::halo2_verifier {
                     let offset = (rotation::value(&rotation::sub(&max_rotation, rotation)) as u64);
                     
                     let i = 0;
-                    let acc = arithmetic::zero();
+                    let acc = crypto_algebra::zero();
                     while (i < instances_len) {
                         let val = vector::borrow(instances, i);
                         let l = *vector::borrow(&l_i_s, offset + i);
-                        acc = arithmetic::add(&acc, &arithmetic::mul(val, &l));
+                        acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
                         i = i + 1;
                     };
 

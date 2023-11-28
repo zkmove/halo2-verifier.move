@@ -1,8 +1,8 @@
 module halo2_verifier::vanishing {
     use std::vector;
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_arithmetic;
     use halo2_verifier::bn254_types::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
     use halo2_verifier::query::{Self, VerifierQuery};
@@ -67,13 +67,13 @@ module halo2_verifier::vanishing {
         let PartialEvaluated { h_commitments, random_eval, random_poly_commitment } = self;
         let i = 0;
         let len = vector::length(expressions);
-        let h_eval = arithmetic::zero();
+        let h_eval = crypto_algebra::zero();
         while (i < len) {
             let v = vector::borrow(expressions, i);
-            h_eval = arithmetic::add(&arithmetic::mul(&h_eval, y), v);
+            h_eval = crypto_algebra::add(&crypto_algebra::mul(&h_eval, y), v);
             i = i + 1;
         };
-        h_eval = arithmetic::mul(&h_eval, &arithmetic::invert(&arithmetic::sub(xn, &arithmetic::one())));
+        h_eval = crypto_algebra::mul(&h_eval, &bn254_arithmetic::invert(&crypto_algebra::sub(xn, &crypto_algebra::one())));
 
         let msm = msm::empty_msm();
         let i = vector::length(&h_commitments);
@@ -81,7 +81,7 @@ module halo2_verifier::vanishing {
             i = i - 1;
             let commitment = vector::pop_back(&mut h_commitments);
             msm::scale(&mut msm, xn);
-            msm::append_term(&mut msm, arithmetic::one(), commitment);
+            msm::append_term(&mut msm, crypto_algebra::one(), commitment);
         };
         EvaluatedH {
             expected_h_eval: h_eval,

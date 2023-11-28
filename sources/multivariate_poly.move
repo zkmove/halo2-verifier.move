@@ -1,9 +1,9 @@
 module halo2_verifier::multivariate_poly {
     use std::vector;
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
     
     use halo2_verifier::bn254_types::{Fr};
-    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_arithmetic;
 
     /// TODO: we cannot make the poly `store`, as Scalar cannot be store.
     /// it's something like: coff1 * x1^1 * x2^2 + coff2 * x2^3 * x5^4 + coff3
@@ -44,11 +44,11 @@ module halo2_verifier::multivariate_poly {
         let i = 0;
         let terms = terms(self);
         let term_len = vector::length(terms);
-        let result = arithmetic::zero<Fr>();
+        let result = crypto_algebra::zero<Fr>();
         while (i < term_len) {
             let r = eval(vector::borrow(terms, i), |i| var_access(i));
             i = i+1;
-            result = arithmetic::add<Fr>(&result, &r);
+            result = crypto_algebra::add<Fr>(&result, &r);
         };
         result
     }
@@ -57,13 +57,13 @@ module halo2_verifier::multivariate_poly {
         let i = 0;
         let terms = sparse_terms(term);
         let term_len = vector::length(terms);
-        let result = arithmetic::one<Fr>();
+        let result = crypto_algebra::one<Fr>();
         while (i < term_len) {
             let term = vector::borrow(terms, i);
             let var: &Element<Fr> = var_access(variable_index(term));
-            result = arithmetic::mul<Fr>(&result, &arithmetic::pow<Fr>(var, power(term)));
+            result = crypto_algebra::mul<Fr>(&result, &bn254_arithmetic::pow<Fr>(var, power(term)));
             i = i+1;
         };
-        arithmetic::mul<Fr>(coff(term), &result)
+        crypto_algebra::mul<Fr>(coff(term), &result)
     }
 }

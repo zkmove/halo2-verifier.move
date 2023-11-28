@@ -1,10 +1,10 @@
 module halo2_verifier::permutation {
     use std::option::{Self, Option};
     use std::vector::{Self, zip, for_each_ref, for_each_reverse};
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_types::{G1, Fr};
-    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_arithmetic;
     use halo2_verifier::column;
     use halo2_verifier::domain;
     use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
@@ -100,15 +100,15 @@ module halo2_verifier::permutation {
         let first_set = vector::borrow(evaluted, 0);
         vector::push_back(
             &mut results,
-            arithmetic::mul(l_0, &arithmetic::sub(&arithmetic::one(), &first_set.permutation_product_eval))
+            crypto_algebra::mul(l_0, &crypto_algebra::sub(&crypto_algebra::one(), &first_set.permutation_product_eval))
         );
         // l_last(X)*(z_l(X)^2 - z_l(X)) = 0
         let last_set = vector::borrow(evaluted, sets_len - 1);
         vector::push_back(&mut results,
-            arithmetic::mul(
+            crypto_algebra::mul(
                 l_last,
-                &arithmetic::sub(
-                    &arithmetic::square(&last_set.permutation_product_eval),
+                &crypto_algebra::sub(
+                    &crypto_algebra::sqr(&last_set.permutation_product_eval),
                     &last_set.permutation_product_eval
                 )
             ));
@@ -121,9 +121,9 @@ module halo2_verifier::permutation {
                 let cur = vector::borrow(evaluted, i);
                 vector::push_back(
                     &mut results,
-                    arithmetic::mul(
+                    crypto_algebra::mul(
                         l_0,
-                        &arithmetic::sub(
+                        &crypto_algebra::sub(
                             &cur.permutation_product_eval,
                             option::borrow(&prev.permutation_product_last_eval)
                         )
@@ -150,7 +150,7 @@ module halo2_verifier::permutation {
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
                 let right = set.permutation_product_eval;
                 // cur_delta = beta * x * delta^(i*chunk_len)
-                let current_delta = arithmetic::mul(&arithmetic::mul(beta, x), &arithmetic::pow(&arithmetic::delta<Fr>(), i * chunk_len));
+                let current_delta = crypto_algebra::mul(&crypto_algebra::mul(beta, x), &bn254_arithmetic::pow(&bn254_arithmetic::delta<Fr>(), i * chunk_len));
                 let j = i * chunk_len;
                 while (j < (i + 1) * chunk_len && j < permutation_columns_len) {
                     let permutation_eval = vector::borrow(&permutations_common.permutation_evals, j);
@@ -165,21 +165,21 @@ module halo2_verifier::permutation {
                         let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
                         vector::borrow(advice_evals, query_index)
                     };
-                    left = arithmetic::mul(
+                    left = crypto_algebra::mul(
                         &left,
-                        &arithmetic::add(&arithmetic::add(eval, gamma), &arithmetic::mul(beta, permutation_eval))
+                        &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &crypto_algebra::mul(beta, permutation_eval))
                     );
-                    right = arithmetic::mul(&right, &arithmetic::add(&arithmetic::add(eval, gamma), &current_delta));
-                    current_delta = arithmetic::mul(&current_delta, &arithmetic::delta());
+                    right = crypto_algebra::mul(&right, &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &current_delta));
+                    current_delta = crypto_algebra::mul(&current_delta, &bn254_arithmetic::delta());
                     j = j + 1;
                 };
 
                 // (1-(l_last(X) + l_blind(X))) * (left - right)
                 vector::push_back(
                     &mut results,
-                    arithmetic::mul(
-                        &arithmetic::sub(&left, &right),
-                        &arithmetic::sub(&arithmetic::one(), &arithmetic::add(l_last, l_blind))
+                    crypto_algebra::mul(
+                        &crypto_algebra::sub(&left, &right),
+                        &crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind))
                     )
                 );
                 i = i + 1;

@@ -6,7 +6,7 @@ module halo2_verifier::domain {
 
     use halo2_verifier::bn254_types::{Fr, root_of_unity};
     use halo2_verifier::rotation::{Self, Rotation};
-    use halo2_verifier::arithmetic;
+    use halo2_verifier::bn254_arithmetic;
 
     struct Domain has copy, drop {
         k: u32,
@@ -46,9 +46,9 @@ module halo2_verifier::domain {
         let rotation_value = rotation::value(rotation);
         // todo(optimize): we can pre-calculate some of them, and if not found, then calculate.
         let multiple = if (rotation::is_neg(rotation)) {
-            arithmetic::pow<Fr>(&domain.omega_inv, (rotation_value as u64))
+            bn254_arithmetic::pow<Fr>(&domain.omega_inv, (rotation_value as u64))
         } else {
-            arithmetic::pow<Fr>(&domain.omega, (rotation_value as u64))
+            bn254_arithmetic::pow<Fr>(&domain.omega, (rotation_value as u64))
         };
         crypto_algebra::mul<Fr>(x, &multiple)
     }

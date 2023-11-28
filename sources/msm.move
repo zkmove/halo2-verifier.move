@@ -1,9 +1,8 @@
 module halo2_verifier::msm {
     use std::vector;
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_types::{G1, Fr};
-    use halo2_verifier::arithmetic::{Self};
 
     struct MSM has copy, drop {
         scalars: vector<Element<Fr>>,
@@ -22,7 +21,7 @@ module halo2_verifier::msm {
         if (length > 0) {
             vector::for_each_mut(&mut msm.scalars, |p| {
                 let p: &mut Element<Fr> = p;
-                *p = arithmetic::mul(p, factor);
+                *p = crypto_algebra::mul(p, factor);
             });
         };
     }
@@ -38,6 +37,6 @@ module halo2_verifier::msm {
     }
 
     public fun eval(msm: &MSM): Element<G1> {
-        arithmetic::multi_scalar_mul(&msm.bases, &msm.scalars)
+        crypto_algebra::multi_scalar_mul(&msm.bases, &msm.scalars)
     }
 }

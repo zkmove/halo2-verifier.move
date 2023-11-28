@@ -1,11 +1,10 @@
 module halo2_verifier::lookup {
     use std::vector::{Self, for_each_ref};
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_types::{G1, Fr};
     use halo2_verifier::domain;
     use halo2_verifier::expression::{Self, Expression};
-    use halo2_verifier::arithmetic;
     use halo2_verifier::protocol::{Self, Protocol, Lookup};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
@@ -74,21 +73,21 @@ module halo2_verifier::lookup {
         beta: &Element<Fr>,
         gamma: &Element<Fr>,
     ): vector<Element<Fr>> {
-        let active_rows = arithmetic::sub(&arithmetic::one(), &arithmetic::add(l_last, l_blind));
+        let active_rows = crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind));
 
         // z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
         // - z(X) (\theta^{m-1} a_0(X) + ... + a_{m-1}(X) + \beta) (\theta^{m-1} s_0(X) + ... + s_{m-1}(X) + \gamma)
         let product_expression = {
-            let left = arithmetic::mul(
+            let left = crypto_algebra::mul(
                 &self.product_next_eval,
-                &arithmetic::mul(
-                    &arithmetic::add(&self.permuted_input_eval, beta),
-                    &arithmetic::add(&self.permuted_table_eval, gamma)
+                &crypto_algebra::mul(
+                    &crypto_algebra::add(&self.permuted_input_eval, beta),
+                    &crypto_algebra::add(&self.permuted_table_eval, gamma)
                 ));
-            let right = arithmetic::mul(
+            let right = crypto_algebra::mul(
                 &self.product_eval,
-                &arithmetic::mul(
-                    &arithmetic::add(
+                &crypto_algebra::mul(
+                    &crypto_algebra::add(
                         &compress_expressions(
                             protocol::input_exprs(lookup),
                             advice_evals,
@@ -99,7 +98,7 @@ module halo2_verifier::lookup {
                         ),
                         beta
                     ),
-                    &arithmetic::add(
+                    &crypto_algebra::add(
                         &compress_expressions(
                             protocol::table_exprs(lookup),
                             advice_evals,
@@ -111,16 +110,16 @@ module halo2_verifier::lookup {
                 )
             );
 
-            arithmetic::mul(&active_rows, &arithmetic::sub(&left, &right))
+            crypto_algebra::mul(&active_rows, &crypto_algebra::sub(&left, &right))
         };
 
         let result = vector::empty();
         // l_0(X) * (1 - z'(X)) = 0
-        vector::push_back(&mut result, arithmetic::mul(l_0, &arithmetic::sub(&arithmetic::one(), &self.product_eval)));
+        vector::push_back(&mut result, crypto_algebra::mul(l_0, &crypto_algebra::sub(&crypto_algebra::one(), &self.product_eval)));
         // l_last(X) * (z(X)^2 - z(X)) = 0
         vector::push_back(
             &mut result,
-            arithmetic::mul(l_last, &arithmetic::sub(&arithmetic::square(&self.product_eval), &self.product_eval))
+            crypto_algebra::mul(l_last, &crypto_algebra::sub(&crypto_algebra::sqr(&self.product_eval), &self.product_eval))
         );
         // (1 - (l_last(X) + l_blind(X))) * (
         //   z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
@@ -131,14 +130,14 @@ module halo2_verifier::lookup {
         // l_0(X) * (a'(X) - s'(X)) = 0
         vector::push_back(
             &mut result,
-            arithmetic::mul(l_0, &arithmetic::sub(&self.permuted_input_eval, &self.permuted_table_eval))
+            crypto_algebra::mul(l_0, &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_table_eval))
         );
         // (1 - (l_last(X) + l_blind(X))) * (a'(X) - s'(X))*(a'(X) - a'(\omega^{-1} X)) = 0
         vector::push_back(&mut result,
-            arithmetic::mul(&active_rows,
-                &arithmetic::mul(
-                    &arithmetic::sub(&self.permuted_input_eval, &self.permuted_table_eval),
-                    &arithmetic::sub(&self.permuted_input_eval, &self.permuted_input_inv_eval)),
+            crypto_algebra::mul(&active_rows,
+                &crypto_algebra::mul(
+                    &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_table_eval),
+                    &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_input_inv_eval)),
             ));
 
         result
@@ -151,7 +150,7 @@ module halo2_verifier::lookup {
                              challenges: &vector<Element<Fr>>,
                              theta: &Element<Fr>
     ): Element<Fr> {
-        let acc = arithmetic::zero();
+        let acc = crypto_algebra::zero();
         let i = 0;
         let len = vector::length(exprs);
         while (i < len) {
@@ -162,7 +161,7 @@ module halo2_verifier::lookup {
                 instance_evals,
                 challenges
             );
-            acc = arithmetic::add(&arithmetic::mul(theta, &acc), &eval);
+            acc = crypto_algebra::add(&crypto_algebra::mul(theta, &acc), &eval);
             i = i + 1;
         };
         acc
