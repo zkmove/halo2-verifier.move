@@ -129,8 +129,7 @@ module halo2_verifier::transcript {
         let result = vector::empty();
         vector::append(&mut result, result_lo);
         vector::append(&mut result, result_hi);
-        // FIXME: fr::from_u512
-        option::destroy_some( bn254_utils::deserialize_fr(&result))
+        bn254_utils::fr_from_u512_le(&result_lo, &result_hi)
     }
     public fun squeeze_n_challenges(transcript: &mut Transcript, n:u64): vector<Element<Fr>> {
         let res = vector::empty();
