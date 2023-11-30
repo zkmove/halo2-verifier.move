@@ -2,9 +2,10 @@ module halo2_verifier::transcript {
     use std::vector;
     use aptos_std::crypto_algebra::Element;
 
-    use halo2_verifier::bn254_arithmetic;
-    use halo2_verifier::bn254_types::{FormatG1Compr, Fr, G1};
+    use halo2_verifier::bn254_utils;
+    use aptos_std::bn254_algebra::{Fr, G1};
     use halo2_verifier::hasher::{Self, Hasher};
+    use std::option;
 
     /// Prefix to a prover's message soliciting a challenge
     const KECCAK256_PREFIX_CHALLENGE: u8 = 0;
@@ -45,7 +46,7 @@ module halo2_verifier::transcript {
     /// treating it as a common input.
     public fun common_scalar(self: &mut Transcript, s: Element<Fr>) {
         hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_SCALAR));
-        hasher::update(&mut self.state, bn254_arithmetic::to_repr(&s));
+        hasher::update(&mut self.state, bn254_utils::serialize_fr(&s));
     }
 
     /// Writing the point to the transcript without writing it to the proof,
@@ -54,7 +55,7 @@ module halo2_verifier::transcript {
         hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_POINT));
 
         // Fixme. here need write coordinate x and y seperately?
-        let p = bn254_arithmetic::to_bytes<G1, FormatG1Compr>(&point);
+        let p = bn254_utils::serialize_g1(&point);
         hasher::update(&mut self.state, p)
         // let (x, y) = point::coordinates(&point);
         // hasher::update(&mut self.state, x);
@@ -83,7 +84,7 @@ module halo2_verifier::transcript {
         // let len = vector::length(&bn254_arithmetic::to_repr(&crypto_algebra::zero()));
         let len = 32;
         let buf = read_exact(&mut self.reader, len);
-        let scalar = bn254_arithmetic::from_repr(buf);
+        let scalar = option::destroy_some( bn254_utils::deserialize_fr(&buf));
         common_scalar(self, scalar);
         scalar
     }
@@ -103,7 +104,7 @@ module halo2_verifier::transcript {
         // let len = vector::length(&bn254_arithmetic::to_bytes<G1, FormatG1Compr>(&crypto_algebra::zero()));
         let len = 32;
         let buf = read_exact(&mut self.reader, len);
-        let point = bn254_arithmetic::from_bytes<G1, FormatG1Compr>(buf);
+        let point = option::destroy_some(bn254_utils::deserialize_g1(&buf));
         common_point(self, point);
         point 
     }
@@ -131,7 +132,7 @@ module halo2_verifier::transcript {
         let result = vector::empty();
         vector::append(&mut result, result_lo);
         vector::append(&mut result, result_hi);
-        bn254_arithmetic::from_repr(result)
+        option::destroy_some( bn254_utils::deserialize_fr(&result))
     }
     public fun squeeze_n_challenges(transcript: &mut Transcript, n:u64): vector<Element<Fr>> {
         let res = vector::empty();

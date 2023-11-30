@@ -2,7 +2,7 @@ module halo2_verifier::query {
     use std::option::{Self, Option};
     use aptos_std::crypto_algebra::{Element};
 
-    use halo2_verifier::bn254_types::{G1, Fr};
+    use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
 
     struct VerifierQuery has copy, drop {

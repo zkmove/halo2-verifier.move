@@ -3,7 +3,7 @@ module halo2_verifier::gwc {
 
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_types::{G1, G2, Gt, Fr};
+    use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
     use halo2_verifier::msm::{Self, MSM};
     use halo2_verifier::params::{Self, Params};
     use halo2_verifier::query::{Self, VerifierQuery};

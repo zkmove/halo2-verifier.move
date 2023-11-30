@@ -1,9 +1,9 @@
 module halo2_verifier::multivariate_poly {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
-    
-    use halo2_verifier::bn254_types::{Fr};
-    use halo2_verifier::bn254_arithmetic;
+
+    use aptos_std::bn254_algebra::{Fr};
+    use halo2_verifier::bn254_utils;
 
     /// TODO: we cannot make the poly `store`, as Scalar cannot be store.
     /// it's something like: coff1 * x1^1 * x2^2 + coff2 * x2^3 * x5^4 + coff3
@@ -61,7 +61,7 @@ module halo2_verifier::multivariate_poly {
         while (i < term_len) {
             let term = vector::borrow(terms, i);
             let var: &Element<Fr> = var_access(variable_index(term));
-            result = crypto_algebra::mul<Fr>(&result, &bn254_arithmetic::pow<Fr>(var, power(term)));
+            result = crypto_algebra::mul<Fr>(&result, &bn254_utils::pow<Fr>(var, power(term)));
             i = i+1;
         };
         crypto_algebra::mul<Fr>(coff(term), &result)

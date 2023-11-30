@@ -1,8 +1,7 @@
 module halo2_verifier::expression {
     use std::vector;
     use aptos_std::crypto_algebra::{Element};
-    
-    use halo2_verifier::bn254_types::{Fr};
+    use aptos_std::bn254_algebra::{Fr};
     use halo2_verifier::multivariate_poly::{Self, MultiVariatePoly};
 
     struct Expression {

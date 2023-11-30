@@ -1,6 +1,6 @@
 module halo2_verifier::verify_key {
-    use aptos_std::crypto_algebra::{Element};
-    use halo2_verifier::bn254_types::{G1, Fr};
+    use aptos_std::bn254_algebra::{G1, Fr};
+    use aptos_std::crypto_algebra::Element;
 
     struct VerifyingKey {
         k: u32,
@@ -16,6 +16,7 @@ module halo2_verifier::verify_key {
     public fun permutation_commitments(self: &VerifyingKey): &vector<Element<G1>> {
         &self.permutation_commitments
     }
+
     public fun transcript_repr(_self: &VerifyingKey): Element<Fr> {
         abort 100
     }
