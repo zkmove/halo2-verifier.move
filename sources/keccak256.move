@@ -10,6 +10,11 @@ module halo2_verifier::hasher {
     const DELIM: u8 = 0x01;
     const RATE: u64 = 136;
 
+    const DEFAULT_HASH: vector<u8> = vector<u8>[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
     struct Hasher has copy, drop {
         state: KeccakState,
     }
@@ -25,10 +30,7 @@ module halo2_verifier::hasher {
     }
 
     public fun finalize(self: &mut Hasher) : vector<u8> {
-        let output = vector<u8>[
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ];
+        let output = DEFAULT_HASH;
         keccakstate::finalize(&mut self.state, &mut output);
         output
     }
@@ -203,8 +205,13 @@ module halo2_verifier::keccakbuffer {
         0x8000000080008008u64,
     ];
 
+    const BUF_DEFAULT: vector<u64> = vector<u64>[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
     // error definition
-    const INVALID_PARAMETER : u64 = 1;
+    const INVALID_PARAMETER: u64 = 1;
 
     struct Buffer has copy, drop {
         // [u64; WORDS]
@@ -215,10 +222,7 @@ module halo2_verifier::keccakbuffer {
     }
 
     public fun default() : Buffer {
-        let buf = vector<u64>[
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ];
+        let buf = BUF_DEFAULT;
         Buffer{buf}
     }
 
