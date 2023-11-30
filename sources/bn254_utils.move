@@ -1,9 +1,19 @@
 module halo2_verifier::bn254_utils {
     use aptos_std::crypto_algebra::{Self, Element};
-    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr};
+    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr};
     use std::option::Option;
 
+    const FR_SERIALIZED_LEN: u64 = 32;
+    const G_COMPRESSED_LEN: u64 = 32;
     const FR_S: u32 = 28;
+
+
+    public inline fun g_compressed_len(): u64 {
+        G_COMPRESSED_LEN
+    }
+    public inline fun fr_serialized_len(): u64 {
+        FR_SERIALIZED_LEN
+    }
 
     public fun S_FR(): u32 {
         FR_S
@@ -44,6 +54,9 @@ module halo2_verifier::bn254_utils {
     public fun serialize_g1(e: &Element<G1>): vector<u8>{
         crypto_algebra::serialize<G1, FormatG1Compr>(e)
     }
+    public fun serialize_g1_uncompressed(e: &Element<G1>): vector<u8>{
+        crypto_algebra::serialize<G1, FormatG1Uncompr>(e)
+    }
     public fun deserialize_g1(e: &vector<u8>): Option<Element<G1>>{
         crypto_algebra::deserialize<G1, FormatG1Compr>(e)
     }
@@ -55,4 +68,5 @@ module halo2_verifier::bn254_utils {
     public fun deserialize_g2(e: &vector<u8>): Option<Element<G2>>{
         crypto_algebra::deserialize<G2, FormatG2Compr>(e)
     }
+
 }
