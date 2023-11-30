@@ -2,8 +2,8 @@ module halo2_verifier::vanishing {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_arithmetic;
-    use halo2_verifier::bn254_types::{G1, Fr};
+    use halo2_verifier::bn254_utils;
+    use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
@@ -73,7 +73,7 @@ module halo2_verifier::vanishing {
             h_eval = crypto_algebra::add(&crypto_algebra::mul(&h_eval, y), v);
             i = i + 1;
         };
-        h_eval = crypto_algebra::mul(&h_eval, &bn254_arithmetic::invert(&crypto_algebra::sub(xn, &crypto_algebra::one())));
+        h_eval = crypto_algebra::mul(&h_eval, &bn254_utils::invert(&crypto_algebra::sub(xn, &crypto_algebra::one())));
 
         let msm = msm::empty_msm();
         let i = vector::length(&h_commitments);

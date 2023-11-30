@@ -2,7 +2,7 @@ module halo2_verifier::msm {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_types::{G1, Fr};
+    use aptos_std::bn254_algebra::{G1, Fr};
 
     struct MSM has copy, drop {
         scalars: vector<Element<Fr>>,

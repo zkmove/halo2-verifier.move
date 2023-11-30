@@ -1,8 +1,8 @@
 module halo2_verifier::params {
     use aptos_std::crypto_algebra::Element;
-    use halo2_verifier::bn254_types::{G1, G2};
-    use halo2_verifier::bn254_types;
+    use aptos_std::bn254_algebra::{G1, G2};
     use std::option;
+    use halo2_verifier::bn254_utils;
 
     /// params in stored form.
     /// because element cannot be stored, we have to serialize the elements to bytes to store them.
@@ -19,9 +19,9 @@ module halo2_verifier::params {
 
     public fun from_stored(params: &StoredParams): Params {
         Params {
-            g1: option::destroy_some(bn254_types::deserialize_g1(&params.g1)),
-            g2: option::destroy_some(bn254_types::deserialize_g2(&params.g2)),
-            s_g2: option::destroy_some(bn254_types::deserialize_g2(&params.s_g2)),
+            g1: option::destroy_some(bn254_utils::deserialize_g1(&params.g1)),
+            g2: option::destroy_some(bn254_utils::deserialize_g2(&params.g2)),
+            s_g2: option::destroy_some(bn254_utils::deserialize_g2(&params.s_g2)),
         }
     }
 
