@@ -5,12 +5,15 @@
 /// n_r = 12 + 2L = 12 + 2*6 = 24
 /// rate = 200 - bits / 4;
 module halo2_verifier::hasher {
-    use std::vector;
-
     use halo2_verifier::keccakstate::{Self, KeccakState};
 
     const DELIM: u8 = 0x01;
     const RATE: u64 = 136;
+
+    const DEFAULT_HASH: vector<u8> = vector<u8>[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
 
     struct Hasher has copy, drop {
         state: KeccakState,
@@ -27,12 +30,7 @@ module halo2_verifier::hasher {
     }
 
     public fun finalize(self: &mut Hasher) : vector<u8> {
-        let output = vector::empty();
-        let i = 0;
-        while(i < 32) {
-            vector::push_back(&mut output, 0);
-            i = i + 1;
-        };
+        let output = DEFAULT_HASH;
         keccakstate::finalize(&mut self.state, &mut output);
         output
     }
@@ -207,8 +205,13 @@ module halo2_verifier::keccakbuffer {
         0x8000000080008008u64,
     ];
 
+    const BUF_DEFAULT: vector<u64> = vector<u64>[
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+
     // error definition
-    const INVALID_PARAMETER : u64 = 1;
+    const INVALID_PARAMETER: u64 = 1;
 
     struct Buffer has copy, drop {
         // [u64; WORDS]
@@ -219,12 +222,7 @@ module halo2_verifier::keccakbuffer {
     }
 
     public fun default() : Buffer {
-        let buf = vector::empty<u64>();
-        let i = 0;
-        while (i < WORDS) {
-            vector::push_back(&mut buf, 0u64);    
-            i = i + 1;
-        };
+        let buf = BUF_DEFAULT;
         Buffer{buf}
     }
 
@@ -371,12 +369,7 @@ module halo2_verifier::keccakbuffer {
         let i = 0;
         while (i < ROUNDS) {
             // array: [u64; 5] = [0; 5];
-            let array = vector::empty<u64>();
-            let idx = 0;
-            while (idx < 5) {
-                vector::push_back(&mut array, 0);
-                idx = idx + 1;  
-            };
+            let array = vector<u64>[0, 0, 0, 0, 0];
 
             // Theta
             let x = 0;
