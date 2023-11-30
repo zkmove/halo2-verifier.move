@@ -5,8 +5,6 @@
 /// n_r = 12 + 2L = 12 + 2*6 = 24
 /// rate = 200 - bits / 4;
 module halo2_verifier::hasher {
-    use std::vector;
-
     use halo2_verifier::keccakstate::{Self, KeccakState};
 
     const DELIM: u8 = 0x01;
@@ -27,12 +25,10 @@ module halo2_verifier::hasher {
     }
 
     public fun finalize(self: &mut Hasher) : vector<u8> {
-        let output = vector::empty();
-        let i = 0;
-        while(i < 32) {
-            vector::push_back(&mut output, 0);
-            i = i + 1;
-        };
+        let output = vector<u8>[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         keccakstate::finalize(&mut self.state, &mut output);
         output
     }
@@ -219,12 +215,10 @@ module halo2_verifier::keccakbuffer {
     }
 
     public fun default() : Buffer {
-        let buf = vector::empty<u64>();
-        let i = 0;
-        while (i < WORDS) {
-            vector::push_back(&mut buf, 0u64);    
-            i = i + 1;
-        };
+        let buf = vector<u64>[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
         Buffer{buf}
     }
 
@@ -371,12 +365,7 @@ module halo2_verifier::keccakbuffer {
         let i = 0;
         while (i < ROUNDS) {
             // array: [u64; 5] = [0; 5];
-            let array = vector::empty<u64>();
-            let idx = 0;
-            while (idx < 5) {
-                vector::push_back(&mut array, 0);
-                idx = idx + 1;  
-            };
+            let array = vector<u64>[0, 0, 0, 0, 0];
 
             // Theta
             let x = 0;
