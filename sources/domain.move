@@ -10,32 +10,32 @@ module halo2_verifier::domain {
     use halo2_verifier::bn254_utils::root_of_unity;
 
     struct Domain has copy, drop {
-        k: u32,
+        k: u8,
         j: u32,
-        n: u64,
+        n: u32,
         n_inv: Element<Fr>,
         omega: Element<Fr>,
         omega_inv: Element<Fr>,
     }
 
-    public fun new(j: u32, k: u32): Domain {
+    public fun new(j: u32, k: u8): Domain {
         let omega = root_of_unity(k);
-        let n = 1u64 << (k as u8);
+        let n = 1u32 << (k);
 
         Domain {
             k, j,
             n,
-            n_inv: crypto_algebra::from_u64(n),
+            n_inv: option::destroy_some( crypto_algebra::inv(&crypto_algebra::from_u64((n as u64)))),
             omega_inv: option::destroy_some(crypto_algebra::inv(&omega)),
             omega
         }
     }
 
-    public fun k(self: &Domain): u32 {
+    public fun k(self: &Domain): u8 {
         self.k
     }
 
-    public fun n(self: &Domain): u64 {
+    public fun n(self: &Domain): u32 {
         self.n
     }
 
@@ -47,9 +47,9 @@ module halo2_verifier::domain {
         let rotation_value = rotation::value(rotation);
         // todo(optimize): we can pre-calculate some of them, and if not found, then calculate.
         let multiple = if (rotation::is_neg(rotation)) {
-            bn254_utils::pow<Fr>(&domain.omega_inv, (rotation_value as u64))
+            bn254_utils::pow_u32<Fr>(&domain.omega_inv, rotation_value)
         } else {
-            bn254_utils::pow<Fr>(&domain.omega, (rotation_value as u64))
+            bn254_utils::pow_u32<Fr>(&domain.omega, rotation_value)
         };
         crypto_algebra::mul<Fr>(x, &multiple)
     }

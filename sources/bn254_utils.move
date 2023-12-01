@@ -8,7 +8,7 @@ module halo2_verifier::bn254_utils {
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
 
-    const FR_S: u32 = 28;
+    const S_OF_FR: u8 = 28;
 
     /// the following R, R2, R3 are derived from these of https://github.com/privacy-scaling-explorations/halo2curves/blob/a3f15e4106c8ba999ac958ff95aa543eb76adfba/src/bn256/fr.rs.
     /// `R = 2^256 mod r`
@@ -21,30 +21,49 @@ module halo2_verifier::bn254_utils {
     /// `0xcf8594b7fcc657c893cc664a19fcfed2a489cbe1cfbb6b85e94d8e1b4bf0040`
     const R3: vector<u8> = x"a76d21ae45e6b81be3595ce3b13afe538580bb533d83498ca5444e7fb1d01602";
 
-    public fun S_FR(): u32 {
-        FR_S
-    }
+    /// GENERATOR^t where t * 2^s + 1 = r
+    /// with t odd. In other words, this
+    /// is a 2^s root of unity.
+    const ROOT_OF_UNITY_OF_FR: vector<u8> = x"9c7cc360d91e4fd3c82993d36dcf1532741fd33da95e8698b7186d16f5b9dd03";
+    /// GENERATOR^{2^s} where t * 2^s + 1 = r with t odd. In other words, this is a t root of unity.
+    const DELTA_OF_FR: vector<u8> = x"a2e933e5bb560e87253f965e8e895f5b716ec8d4aa26ec64caf0c6226e6b2209";
 
-    public fun root_of_unity(k: u32): Element<Fr> {
-        let times = FR_S - k;
+    /// get the 2^{k}'th root of unity (i.e. n'th root of unity)
+    public fun root_of_unity(k: u8): Element<Fr> {
+        let times = S_OF_FR - k;
         let i = 0;
-        let result = ROOT_OF_UNITY_FR();
+        let result = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(& ROOT_OF_UNITY_OF_FR));
         while (i < times) {
             result = crypto_algebra::sqr(&result);
+            i = i+1;
         };
         result
     }
 
-    fun ROOT_OF_UNITY_FR(): Element<Fr> {
-        abort 100
+    public fun delta_of_fr(): Element<Fr> {
+        option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(& DELTA_OF_FR))
     }
 
-    public fun delta<G>(): Element<G> {
-        abort 100
-    }
+    public fun pow_u32<F>(self: &Element<F>, num: u32): Element<F> {
+        let result = crypto_algebra::one<F>();
+        let i = 32u8;
+        // if we never meet bit with 1, don't bother to sqr.
+        let meet_one = false;
+        loop {
+            i = i-1;
+            if(meet_one) {
+                result = crypto_algebra::sqr(&result);
+            };
+            // the i bit is 1
+            if(((num >> i) & 1) == 1) {
+                result = crypto_algebra::mul(&result, self);
+                meet_one = true;
+            };
 
-    public fun pow<G>(_e: &Element<G>, _num: u64): Element<G> {
-        abort 100
+            if (i == 0) {
+                return result
+            }
+        }
     }
 
     public fun fr_from_u512_le(bytes_lo: &vector<u8>, bytes_hi: &vector<u8>): Element<Fr> {
@@ -131,5 +150,20 @@ module halo2_verifier::bn254_utils {
             ) == x"7041af4f6757e4eeb972641893ed9c8c7293d18118f87392c803b0ede9d38606",
             100
         );
+    }
+
+    #[test(s = @std)]
+    fun test_pow_u64(s: &signer) {
+        enable_cryptography_algebra_natives(s);
+        let f = crypto_algebra::from_u64<Fr>(3);
+        let i = 1;
+        let previous_pow_i = crypto_algebra::one<Fr>();
+        while (i < 1000) {
+            let pow_i = pow_u32(&f, i);
+
+            assert!(crypto_algebra::eq(&pow_i, &crypto_algebra::mul(&previous_pow_i, &f)), (i as u64));
+            previous_pow_i = pow_i;
+            i = i+1;
+        }
     }
 }

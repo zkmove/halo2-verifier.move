@@ -150,7 +150,7 @@ module halo2_verifier::permutation {
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
                 let right = set.permutation_product_eval;
                 // cur_delta = beta * x * delta^(i*chunk_len)
-                let current_delta = crypto_algebra::mul(&crypto_algebra::mul(beta, x), &bn254_utils::pow(&bn254_utils::delta<Fr>(), i * chunk_len));
+                let current_delta = crypto_algebra::mul(&crypto_algebra::mul(beta, x), &bn254_utils::pow_u32(&bn254_utils::delta_of_fr(), (i * chunk_len as u32)));
                 let j = i * chunk_len;
                 while (j < (i + 1) * chunk_len && j < permutation_columns_len) {
                     let permutation_eval = vector::borrow(&permutations_common.permutation_evals, j);
@@ -170,7 +170,7 @@ module halo2_verifier::permutation {
                         &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &crypto_algebra::mul(beta, permutation_eval))
                     );
                     right = crypto_algebra::mul(&right, &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &current_delta));
-                    current_delta = crypto_algebra::mul(&current_delta, &bn254_utils::delta());
+                    current_delta = crypto_algebra::mul(&current_delta, &bn254_utils::delta_of_fr());
                     j = j + 1;
                 };
 

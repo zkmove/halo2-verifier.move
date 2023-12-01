@@ -28,6 +28,7 @@ module halo2_verifier::expression {
 
 
         multivariate_poly::evaluate(&self.poly, |idx| {
+            let idx = (idx as u64);
             if (idx < advice_range) {
                 vector::borrow(advice_evals, idx)
             } else if (idx < fixed_range) {
