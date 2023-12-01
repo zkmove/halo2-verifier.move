@@ -9,6 +9,8 @@ module halo2_verifier::bn254_utils {
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
 
     const FR_S: u32 = 28;
+
+    /// the following R, R2, R3 are derived from these of https://github.com/privacy-scaling-explorations/halo2curves/blob/a3f15e4106c8ba999ac958ff95aa543eb76adfba/src/bn256/fr.rs.
     /// `R = 2^256 mod r`
     /// `0xe0a77c19a07df2f666ea36f7879462e36fc76959f60cd29ac96341c4ffffffb`
     const R: vector<u8> = x"0100000000000000000000000000000000000000000000000000000000000000";
@@ -53,6 +55,8 @@ module halo2_verifier::bn254_utils {
         from_u512_le<Fq>(bytes_lo, bytes_hi)
     }
 
+    /// create a Field from u512 bytes in little endian.
+    /// refer `Field::from_u512` of https://github.com/privacy-scaling-explorations/halo2curves/blob/a3f15e4106c8ba999ac958ff95aa543eb76adfba/src/derive/field.rs
     fun from_u512_le<F>(bytes_lo: &vector<u8>, bytes_hi: &vector<u8>): Element<F> {
         let len = vector::length(bytes_lo);
         assert!(len == 32, 100);
