@@ -1,15 +1,13 @@
 module halo2_verifier::bn254_utils {
     use aptos_std::crypto_algebra::{Self, Element};
-    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr};
+    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr};
     use std::option::Option;
 
     const FR_S: u32 = 28;
 
+
     public fun S_FR(): u32 {
         FR_S
-    }
-    fun ROOT_OF_UNITY_FR(): Element<Fr> {
-        abort 100
     }
 
     public fun root_of_unity(k: u32): Element<Fr> {
@@ -20,6 +18,10 @@ module halo2_verifier::bn254_utils {
             result = crypto_algebra::sqr(&result);
         };
         result
+    }
+
+    fun ROOT_OF_UNITY_FR(): Element<Fr> {
+        abort 100
     }
 
     public fun delta<G>(): Element<G> {
@@ -44,6 +46,9 @@ module halo2_verifier::bn254_utils {
     public fun serialize_g1(e: &Element<G1>): vector<u8>{
         crypto_algebra::serialize<G1, FormatG1Compr>(e)
     }
+    public fun serialize_g1_uncompressed(e: &Element<G1>): vector<u8>{
+        crypto_algebra::serialize<G1, FormatG1Uncompr>(e)
+    }
     public fun deserialize_g1(e: &vector<u8>): Option<Element<G1>>{
         crypto_algebra::deserialize<G1, FormatG1Compr>(e)
     }
@@ -55,4 +60,5 @@ module halo2_verifier::bn254_utils {
     public fun deserialize_g2(e: &vector<u8>): Option<Element<G2>>{
         crypto_algebra::deserialize<G2, FormatG2Compr>(e)
     }
+
 }

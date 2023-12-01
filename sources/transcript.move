@@ -7,6 +7,9 @@ module halo2_verifier::transcript {
     use halo2_verifier::hasher::{Self, Hasher};
     use std::option;
 
+    const U256_BYTE_LEN: u64 = 32;
+
+
     /// Prefix to a prover's message soliciting a challenge
     const KECCAK256_PREFIX_CHALLENGE: u8 = 0;
     /// First prefix to a prover's message soliciting a challenge
@@ -53,13 +56,13 @@ module halo2_verifier::transcript {
     /// treating it as a common input.
     public fun common_point(self: &mut Transcript, point: Element<G1>) {
         hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_POINT));
-
-        // Fixme. here need write coordinate x and y seperately?
-        let p = bn254_utils::serialize_g1(&point);
-        hasher::update(&mut self.state, p)
-        // let (x, y) = point::coordinates(&point);
-        // hasher::update(&mut self.state, x);
-        // hasher::update(&mut self.state, y);
+        // because uncompressed serialize of g1 are [x.repr, y.repr_with_flag]
+        // we can just erase the last 2 bits flags.
+        let le_repr = bn254_utils::serialize_g1_uncompressed(&point);
+        let bits = vector::pop_back(&mut le_repr);
+        let flag_erased_bits = (bits << 2) >> 2;
+        vector::push_back(&mut le_repr, flag_erased_bits);
+        hasher::update(&mut self.state, le_repr);
     }
 
     fun read_exact(read: &mut Read, len: u64) : vector<u8> {
@@ -80,10 +83,7 @@ module halo2_verifier::transcript {
 
     /// Read a curve scalar from the prover.
     public fun read_scalar(self: &mut Transcript): Element<Fr> {
-        // Fixme. assumed len fixed. defined instant here and change in future.
-        // let len = vector::length(&bn254_arithmetic::to_repr(&crypto_algebra::zero()));
-        let len = 32;
-        let buf = read_exact(&mut self.reader, len);
+        let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
         let scalar = option::destroy_some( bn254_utils::deserialize_fr(&buf));
         common_scalar(self, scalar);
         scalar
@@ -100,10 +100,7 @@ module halo2_verifier::transcript {
 
     /// Read a curve point from the prover.
     public fun read_point(self: &mut Transcript): Element<G1> {
-        // Fixme. assumed len fixed. defined instant here and change in future.
-        // let len = vector::length(&bn254_arithmetic::to_bytes<G1, FormatG1Compr>(&crypto_algebra::zero()));
-        let len = 32;
-        let buf = read_exact(&mut self.reader, len);
+        let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
         let point = option::destroy_some(bn254_utils::deserialize_g1(&buf));
         common_point(self, point);
         point 
@@ -132,6 +129,7 @@ module halo2_verifier::transcript {
         let result = vector::empty();
         vector::append(&mut result, result_lo);
         vector::append(&mut result, result_hi);
+        // FIXME: fr::from_u512
         option::destroy_some( bn254_utils::deserialize_fr(&result))
     }
     public fun squeeze_n_challenges(transcript: &mut Transcript, n:u64): vector<Element<Fr>> {
