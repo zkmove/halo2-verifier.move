@@ -3,23 +3,11 @@ module halo2_verifier::bn254_utils {
     use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr};
     use std::option::Option;
 
-    const FR_SERIALIZED_LEN: u64 = 32;
-    const G_COMPRESSED_LEN: u64 = 32;
     const FR_S: u32 = 28;
 
 
-    public inline fun g_compressed_len(): u64 {
-        G_COMPRESSED_LEN
-    }
-    public inline fun fr_serialized_len(): u64 {
-        FR_SERIALIZED_LEN
-    }
-
     public fun S_FR(): u32 {
         FR_S
-    }
-    fun ROOT_OF_UNITY_FR(): Element<Fr> {
-        abort 100
     }
 
     public fun root_of_unity(k: u32): Element<Fr> {
@@ -30,6 +18,10 @@ module halo2_verifier::bn254_utils {
             result = crypto_algebra::sqr(&result);
         };
         result
+    }
+
+    fun ROOT_OF_UNITY_FR(): Element<Fr> {
+        abort 100
     }
 
     public fun delta<G>(): Element<G> {

@@ -7,8 +7,7 @@ module halo2_verifier::transcript {
     use halo2_verifier::hasher::{Self, Hasher};
     use std::option;
 
-    const FR_SERIALIZED_LEN: u64 = 32;
-    const G_COMPRESSED_LEN: u64 = 32;
+    const U256_BYTE_LEN: u64 = 32;
 
 
     /// Prefix to a prover's message soliciting a challenge
@@ -84,7 +83,7 @@ module halo2_verifier::transcript {
 
     /// Read a curve scalar from the prover.
     public fun read_scalar(self: &mut Transcript): Element<Fr> {
-        let buf = read_exact(&mut self.reader, FR_SERIALIZED_LEN);
+        let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
         let scalar = option::destroy_some( bn254_utils::deserialize_fr(&buf));
         common_scalar(self, scalar);
         scalar
@@ -101,7 +100,7 @@ module halo2_verifier::transcript {
 
     /// Read a curve point from the prover.
     public fun read_point(self: &mut Transcript): Element<G1> {
-        let buf = read_exact(&mut self.reader, G_COMPRESSED_LEN);
+        let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
         let point = option::destroy_some(bn254_utils::deserialize_g1(&buf));
         common_point(self, point);
         point 
