@@ -150,7 +150,7 @@ module halo2_verifier::halo2_verifier {
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
-        let z_n = bn254_utils::pow(&z, domain::n(protocol::domain(protocol)));
+        let z_n = bn254_utils::pow_u32(&z, domain::n(protocol::domain(protocol)));
 
         let instance_evals = if (query_instance(protocol)) {
             let len = vector::length(instance_queries(protocol));

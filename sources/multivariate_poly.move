@@ -19,8 +19,8 @@ module halo2_verifier::multivariate_poly {
     }
     /// for x2^3, sparse term is: (2, 3)
     struct SparseTerm has drop {
-        variable_index: u64,
-        power: u64
+        variable_index: u32,
+        power: u32
     }
 
     public fun terms(self: &MultiVariatePoly): &vector<Term> {
@@ -32,15 +32,15 @@ module halo2_verifier::multivariate_poly {
     public fun coff(term: &Term): &Element<Fr> {
         &term.coff
     }
-    public fun variable_index(term: &SparseTerm): u64 {
+    public fun variable_index(term: &SparseTerm): u32 {
         term.variable_index
     }
-    public fun power(term: &SparseTerm): u64 {
+    public fun power(term: &SparseTerm): u32 {
         term.power
     }
 
     /// evalute the poly given access to the variable value by it's index.
-    public inline fun evaluate(self: &MultiVariatePoly, var_access: |u64| &Element<Fr>): Element<Fr> {
+    public inline fun evaluate(self: &MultiVariatePoly, var_access: |u32| &Element<Fr>): Element<Fr> {
         let i = 0;
         let terms = terms(self);
         let term_len = vector::length(terms);
@@ -53,7 +53,7 @@ module halo2_verifier::multivariate_poly {
         result
     }
 
-    inline fun eval(term: &Term, var_access: |u64| &Element<Fr>): Element<Fr> {
+    inline fun eval(term: &Term, var_access: |u32| &Element<Fr>): Element<Fr> {
         let i = 0;
         let terms = sparse_terms(term);
         let term_len = vector::length(terms);
@@ -61,7 +61,7 @@ module halo2_verifier::multivariate_poly {
         while (i < term_len) {
             let term = vector::borrow(terms, i);
             let var: &Element<Fr> = var_access(variable_index(term));
-            result = crypto_algebra::mul<Fr>(&result, &bn254_utils::pow<Fr>(var, power(term)));
+            result = crypto_algebra::mul<Fr>(&result, &bn254_utils::pow_u32<Fr>(var, power(term)));
             i = i+1;
         };
         crypto_algebra::mul<Fr>(coff(term), &result)
