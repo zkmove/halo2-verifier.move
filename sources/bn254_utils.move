@@ -116,6 +116,27 @@ module halo2_verifier::bn254_utils {
         crypto_algebra::deserialize<G1, FormatG1Compr>(e)
     }
 
+    /// as halo2 use different serialzation for curve point, we need to handle that.
+    public fun deserialize_g1_from_halo2(e: vector<u8>): Option<Element<G1>> {
+        let last_u8 = vector::pop_back(&mut e);
+        last_u8 = swap_bit(last_u8, 6, 7);
+        vector::push_back(&mut e, last_u8);
+        crypto_algebra::deserialize<G1, FormatG1Compr>(&e)
+    }
+
+    inline fun swap_bit(x: u8, i: u8, j: u8): u8 {
+        // Move i'th to rightmost side
+        let i_bit = (x>>i) & 1;
+        // Move j'th to rightmost side
+        let j_bit = (x>>j) & 1;
+        // XOR the two bits
+        let n = i_bit ^ j_bit;
+        // Put the xor bit back to their original positions
+        n = (n << i) | (n << j);
+        // XOR 'x' with the original number so that the two sets are swapped
+        x ^ n
+    }
+
     public fun serialize_g2(e: &Element<G2>): vector<u8> {
         crypto_algebra::serialize<G2, FormatG2Compr>(e)
     }
@@ -165,5 +186,10 @@ module halo2_verifier::bn254_utils {
             previous_pow_i = pow_i;
             i = i+1;
         }
+    }
+    #[test]
+    fun test_swap_bit() {
+        // 0b1100_0000
+        assert!(swap_bit(0xc0, 7,5) == 0x60,1);
     }
 }

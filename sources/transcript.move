@@ -1,3 +1,5 @@
+/// Transcript with keecak256 hash.
+/// Had to deal with the different serialization of curve point between halo2 and arkworks.
 module halo2_verifier::transcript {
     use std::vector;
     use aptos_std::crypto_algebra::Element;
@@ -48,8 +50,11 @@ module halo2_verifier::transcript {
     /// Writing the scalar to the transcript without writing it to the proof,
     /// treating it as a common input.
     public fun common_scalar(self: &mut Transcript, s: Element<Fr>) {
+        common_scalar_serialized(self, bn254_utils::serialize_fr(&s));
+    }
+    fun common_scalar_serialized(self: &mut Transcript, bytes: vector<u8>) {
         hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_SCALAR));
-        hasher::update(&mut self.state, bn254_utils::serialize_fr(&s));
+        hasher::update(&mut self.state,bytes);
     }
 
     /// Writing the point to the transcript without writing it to the proof,
@@ -85,7 +90,8 @@ module halo2_verifier::transcript {
     public fun read_scalar(self: &mut Transcript): Element<Fr> {
         let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
         let scalar = option::destroy_some( bn254_utils::deserialize_fr(&buf));
-        common_scalar(self, scalar);
+        // use serialzied bytes directly to save on op of serialization.
+        common_scalar_serialized(self, buf);
         scalar
     }
     public fun read_n_scalar(transcript: &mut Transcript, n:u64): vector<Element<Fr>> {
@@ -98,10 +104,11 @@ module halo2_verifier::transcript {
         res
     }
 
-    /// Read a curve point from the prover.
+    /// Read a curve point from the proof.
+    /// need to handle the difference of halo2 and arkworks
     public fun read_point(self: &mut Transcript): Element<G1> {
         let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
-        let point = option::destroy_some(bn254_utils::deserialize_g1(&buf));
+        let point = option::destroy_some(bn254_utils::deserialize_g1_from_halo2(buf));
         common_point(self, point);
         point 
     }
