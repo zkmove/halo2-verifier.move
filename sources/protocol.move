@@ -9,6 +9,7 @@ module halo2_verifier::protocol {
     // use halo2_verifier::rotation;
     use halo2_verifier::rotation::Rotation;
     use halo2_verifier::expression::Expression;
+    use aptos_std::from_bcs;
 
     const QUERY_NOT_FOUND: u64 = 1;
 
@@ -16,9 +17,11 @@ module halo2_verifier::protocol {
         query_instance: bool,
         // for ipa, true; for kzg, false
         domain: Domain,
+        /// it's `advice_queries.count_by(|q| q.column).max`
+        max_num_query_of_advice_column: u32,
 
         /// it's constraint_system's degree()
-        cs_degree: u64,
+        cs_degree: u32,
 
         num_fixed_columns: u64,
         num_instance_columns: u64,
@@ -37,16 +40,14 @@ module halo2_verifier::protocol {
         advice_column_phase: vector<u8>,
         challenge_phase: vector<u8>,
 
-        gates: vector<Gate>,
 
         advice_queries: vector<AdviceQuery>,
         instance_queries: vector<InstanceQuery>,
         fixed_queries: vector<FixQuery>,
 
         permutation_columns: vector<Column>,
+        gates: vector<Gate>,
         lookups: vector<Lookup>,
-        /// it's `advice_queries.count_by(|q| q.column).max`
-        max_num_query_of_advice_column: u32,
     }
 
     struct Gate  {
@@ -73,6 +74,39 @@ module halo2_verifier::protocol {
     struct ColumnQuery  has store{
         column: Column,
         rotation: Rotation,
+    }
+
+    public fun from_bytes(
+        general_info: vector<vector<u8>>,
+        advice_queries:vector<vector<u8>>,
+        instance_queries:vector<vector<u8>>,
+        fixed_queries:vector<vector<u8>>,
+        permutation_columns:vector<vector<u8>>,
+        gates:vector<vector<u8>>,
+        lookups_input_exprs:vector<vector<u8>>,
+        lookups_table_exprs:vector<vector<u8>>,
+    ): Protocol {
+
+        let challenge_phase = vector::pop_back(&mut general_info);
+        let advice_column_phase = vector::pop_back(&mut general_info);
+        let num_instance_columns = from_bcs::to_u64(vector::pop_back(&mut general_info));
+        let num_fixed_columns = from_bcs::to_u64(vector::pop_back(&mut general_info));
+        let cs_degree = from_bcs::to_u32(vector::pop_back(&mut general_info));
+        let max_num_query_of_advice_column = from_bcs::to_u32(vector::pop_back(&mut general_info));
+        let k = from_bcs::to_u8(vector::pop_back(&mut general_info));
+        let query_instance = from_bcs::to_bool(vector::pop_back(&mut general_info));
+        // TODO: deserilize other data.
+        // Protocol {
+        //     query_instance,
+        //     domain: domain::new(cs_degree, k),
+        //     max_num_query_of_advice_column,
+        //     cs_degree,
+        //     num_fixed_columns,
+        //     num_instance_columns,
+        //     advice_column_phase,
+        //     challenge_phase,
+        // };
+        abort 100
     }
 
     public fun domain(p: &Protocol): &Domain {
@@ -213,12 +247,12 @@ module halo2_verifier::protocol {
         vector::length(&protocol.lookups)
     }
 
-    public fun permutation_chunk_size(protocol: &Protocol): u64 {
+    public fun permutation_chunk_size(protocol: &Protocol): u32 {
         protocol.cs_degree - 2
     }
 
     public fun num_permutation_z(protocol: &Protocol): u64 {
-        let chunk_size = permutation_chunk_size(protocol);
+        let chunk_size = (permutation_chunk_size(protocol) as u64);
         let permutation_columns_len = vector::length(&protocol.permutation_columns);
         let chunk = permutation_columns_len / chunk_size;
         if (permutation_columns_len % chunk_size != 0) {

@@ -1,7 +1,9 @@
+pub mod serialize;
+
 use std::collections::BTreeMap;
 
 use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::FromUniformBytes;
+use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::plonk::{keygen_vk, Any, Circuit, Error, Expression};
 use halo2_proofs::poly::commitment::Params;
 
@@ -10,8 +12,9 @@ use multipoly::DenseMVPolynomial;
 
 pub struct CircuitInfo<F: Field> {
     query_instance: bool,
-    k: u32,
-    cs_degree: u64,
+    k: u8,
+    max_num_query_of_advice_column: u32,
+    cs_degree: u32,
     num_fixed_columns: u64,
     num_instance_columns: u64,
     advice_column_phase: Vec<u8>,
@@ -23,7 +26,6 @@ pub struct CircuitInfo<F: Field> {
     fixed_queries: Vec<ColumnQuery>,
     permutation_columns: Vec<Column>,
     lookups: Vec<Lookup<F>>,
-    max_num_query_of_advice_column: u32,
 }
 
 pub struct ColumnQuery {
@@ -93,8 +95,8 @@ where
     let cs = vk.cs();
     let info = CircuitInfo {
         query_instance: false,
-        k: params.k(),
-        cs_degree: cs.degree() as u64,
+        k: (params.k() as u8), // we expect k would not be too large.
+        cs_degree: cs.degree() as u32,
         num_fixed_columns: cs.num_fixed_columns() as u64,
         num_instance_columns: cs.num_instance_columns() as u64,
         advice_column_phase: cs.advice_column_phase(),

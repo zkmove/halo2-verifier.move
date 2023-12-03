@@ -139,7 +139,7 @@ module halo2_verifier::permutation {
         // - z_i(X) \prod (p(X) + \delta^i \beta X + \gamma)
         // )
         {
-            let chunk_len = protocol::permutation_chunk_size(protocol);
+            let chunk_len = (protocol::permutation_chunk_size(protocol) as u64);
             let permutation_columns = permutation_columns(protocol);
             let permutation_columns_len = vector::length(permutation_columns);
             let i = 0;
