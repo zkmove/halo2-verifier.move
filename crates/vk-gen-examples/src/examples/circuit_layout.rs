@@ -1,10 +1,12 @@
-use halo2_proofs::halo2curves::ff::Field;
+use halo2_proofs::halo2curves::ff::{Field, PrimeField};
 use halo2_proofs::{
     circuit::{Cell, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{Advice, Assigned, Circuit, Column, ConstraintSystem, Error, Fixed, TableColumn},
     poly::Rotation,
 };
 
+
+use rand_core::OsRng;
 use std::marker::PhantomData;
 
 /// This represents an advice column at a certain row in the ConstraintSystem
@@ -12,7 +14,7 @@ use std::marker::PhantomData;
 pub struct Variable(Column<Advice>, usize);
 
 #[derive(Clone)]
-struct PlonkConfig {
+pub struct PlonkConfig {
     a: Column<Advice>,
     b: Column<Advice>,
     c: Column<Advice>,
@@ -37,12 +39,12 @@ trait StandardCs<FF: Field> {
     fn lookup_table(&self, layouter: &mut impl Layouter<FF>, values: &[FF]) -> Result<(), Error>;
 }
 
-struct MyCircuit<F: Field> {
-    a: Value<F>,
-    lookup_table: Vec<F>,
+pub struct MyCircuit<F: Field> {
+    pub a: Value<F>,
+    pub lookup_table: Vec<F>,
 }
 
-struct StandardPlonk<F: Field> {
+pub struct StandardPlonk<F: Field> {
     config: PlonkConfig,
     _marker: PhantomData<F>,
 }
@@ -267,6 +269,18 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         cs.lookup_table(&mut layouter, &self.lookup_table)?;
 
         Ok(())
+    }
+}
+
+pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
+    // Prepare the circuit you want to render.
+    // You don't need to include any witness variables.
+    let a = F::random(OsRng);
+    let instance = F::ONE + F::ONE;
+    let lookup_table = vec![instance, a, a, F::ZERO];
+    MyCircuit {
+        a: Value::known(a),
+        lookup_table,
     }
 }
 

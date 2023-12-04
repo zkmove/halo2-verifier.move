@@ -1,9 +1,9 @@
+use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::{
     arithmetic::{CurveAffine, Field},
     circuit::{floor_planner::V1, Layouter, Value},
     dev::{metadata, FailureLocation, MockProver, VerifyFailure},
     halo2curves::ff::{BatchInvert, FromUniformBytes},
-    halo2curves::pasta::EqAffine,
     plonk::*,
     poly::{
         commitment::ParamsProver,
@@ -42,7 +42,7 @@ fn shuffled<F: Field, R: RngCore, const W: usize, const H: usize>(
 }
 
 #[derive(Clone)]
-struct MyConfig<const W: usize> {
+pub struct MyConfig<const W: usize> {
     q_shuffle: Selector,
     q_first: Selector,
     q_last: Selector,
@@ -110,7 +110,7 @@ impl<const W: usize> MyConfig<W> {
 }
 
 #[derive(Clone, Default)]
-struct MyCircuit<F: Field, const W: usize, const H: usize> {
+pub struct MyCircuit<F: Field, const W: usize, const H: usize> {
     original: Value<[[F; H]; W]>,
     shuffled: Value<[[F; H]; W]>,
 }
@@ -319,39 +319,43 @@ fn test_prover<C: CurveAffine, const W: usize, const H: usize>(
     assert_eq!(accepted, expected);
 }
 
-fn main() {
-    const W: usize = 4;
-    const H: usize = 32;
-    const K: u32 = 8;
-
-    let circuit = &MyCircuit::<_, W, H>::rand(&mut OsRng);
-
-    {
-        test_mock_prover(K, circuit.clone(), Ok(()));
-        test_prover::<EqAffine, W, H>(K, circuit.clone(), true);
-    }
-
-    #[cfg(not(feature = "sanity-checks"))]
-    {
-        use std::ops::IndexMut;
-
-        let mut circuit = circuit.clone();
-        circuit.shuffled = circuit.shuffled.map(|mut shuffled| {
-            shuffled.index_mut(0).swap(0, 1);
-            shuffled
-        });
-
-        test_mock_prover(
-            K,
-            circuit.clone(),
-            Err(vec![(
-                ((1, "z should end with 1").into(), 0, "").into(),
-                FailureLocation::InRegion {
-                    region: (0, "Shuffle original into shuffled").into(),
-                    offset: 32,
-                },
-            )]),
-        );
-        test_prover::<EqAffine, W, H>(K, circuit, false);
-    }
+pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F, 4, 32> {
+    MyCircuit::<F, 4, 32>::rand(&mut OsRng)
 }
+
+// fn main() {
+//     const W: usize = 4;
+//     const H: usize = 32;
+//     const K: u32 = 8;
+//
+//     let circuit = &MyCircuit::<_, W, H>::rand(&mut OsRng);
+//
+//     {
+//         test_mock_prover(K, circuit.clone(), Ok(()));
+//         test_prover::<EqAffine, W, H>(K, circuit.clone(), true);
+//     }
+//
+//     #[cfg(not(feature = "sanity-checks"))]
+//     {
+//         use std::ops::IndexMut;
+//
+//         let mut circuit = circuit.clone();
+//         circuit.shuffled = circuit.shuffled.map(|mut shuffled| {
+//             shuffled.index_mut(0).swap(0, 1);
+//             shuffled
+//         });
+//
+//         test_mock_prover(
+//             K,
+//             circuit.clone(),
+//             Err(vec![(
+//                 ((1, "z should end with 1").into(), 0, "").into(),
+//                 FailureLocation::InRegion {
+//                     region: (0, "Shuffle original into shuffled").into(),
+//                     offset: 32,
+//                 },
+//             )]),
+//         );
+//         test_prover::<EqAffine, W, H>(K, circuit, false);
+//     }
+// }

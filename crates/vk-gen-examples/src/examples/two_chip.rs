@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
+use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::{
     arithmetic::Field,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Instance, Selector},
     poly::Rotation,
 };
+use rand_core::OsRng;
 
 // ANCHOR: field-instructions
 /// A variable representing a number.
@@ -76,7 +78,7 @@ trait MulInstructions<F: Field>: Chip<F> {
 // The top-level config that provides all necessary columns and permutations
 // for the other configs.
 #[derive(Clone, Debug)]
-struct FieldConfig {
+pub struct FieldConfig {
     /// For this chip, we will use two advice columns to implement our instructions.
     /// These are also the columns through which we communicate with other parts of
     /// the circuit.
@@ -92,7 +94,7 @@ struct FieldConfig {
 
 // ANCHOR: add-config
 #[derive(Clone, Debug)]
-struct AddConfig {
+pub struct AddConfig {
     advice: [Column<Advice>; 2],
     s_add: Selector,
 }
@@ -100,7 +102,7 @@ struct AddConfig {
 
 // ANCHOR: mul-config
 #[derive(Clone, Debug)]
-struct MulConfig {
+pub struct MulConfig {
     advice: [Column<Advice>; 2],
     s_mul: Selector,
 }
@@ -108,21 +110,21 @@ struct MulConfig {
 
 // ANCHOR: field-chip
 /// The top-level chip that will implement the `FieldInstructions`.
-struct FieldChip<F: Field> {
+pub struct FieldChip<F: Field> {
     config: FieldConfig,
     _marker: PhantomData<F>,
 }
 // ANCHOR_END: field-chip
 
 // ANCHOR: add-chip
-struct AddChip<F: Field> {
+pub struct AddChip<F: Field> {
     config: AddConfig,
     _marker: PhantomData<F>,
 }
 // ANCHOR END: add-chip
 
 // ANCHOR: mul-chip
-struct MulChip<F: Field> {
+pub struct MulChip<F: Field> {
     config: MulConfig,
     _marker: PhantomData<F>,
 }
@@ -448,7 +450,7 @@ impl<F: Field> FieldInstructions<F> for FieldChip<F> {
 /// they won't have any value during key generation. During proving, if any of these
 /// were `Value::unknown()` we would get an error.
 #[derive(Default)]
-struct MyCircuit<F: Field> {
+pub struct MyCircuit<F: Field> {
     a: Value<F>,
     b: Value<F>,
     c: Value<F>,
@@ -494,6 +496,23 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         field_chip.expose_public(layouter.namespace(|| "expose d"), d, 0)
     }
 }
+pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
+    // Prepare the private and public inputs to the circuit!
+    let rng = OsRng;
+    let a = F::random(rng);
+    let b = F::random(rng);
+    let c = F::random(rng);
+    let _d = (a + b) * c;
+
+    // Instantiate the circuit with the private inputs.
+    
+    MyCircuit {
+        a: Value::known(a),
+        b: Value::known(b),
+        c: Value::known(c),
+    }
+}
+
 // ANCHOR_END: circuit
 
 // #[allow(clippy::many_single_char_names)]

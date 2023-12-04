@@ -1,19 +1,15 @@
+use halo2_proofs::arithmetic::Field;
+
 use halo2_proofs::{
     circuit::{Layouter, SimpleFloorPlanner, Value},
-    halo2curves::bn256::{Fr},
-    plonk::{
-        Advice, Circuit, Column,
-        ConstraintSystem, Error, Fixed, Instance,
-    },
-    poly::{
-        Rotation,
-    },
+    halo2curves::bn256::Fr,
+    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance},
+    poly::Rotation,
 };
-
-
+use rand_core::OsRng;
 
 #[derive(Clone, Copy)]
-struct StandardPlonkConfig {
+pub struct StandardPlonkConfig {
     a: Column<Advice>,
     b: Column<Advice>,
     c: Column<Advice>,
@@ -67,7 +63,7 @@ impl StandardPlonkConfig {
 }
 
 #[derive(Clone, Default)]
-struct StandardPlonk(Fr);
+pub struct StandardPlonk(Fr);
 
 impl Circuit<Fr> for StandardPlonk {
     type Config = StandardPlonkConfig;
@@ -114,6 +110,9 @@ impl Circuit<Fr> for StandardPlonk {
     }
 }
 
+pub fn get_example_circuit() -> StandardPlonk {
+    StandardPlonk(Fr::random(OsRng))
+}
 // fn main() {
 //     let k = 4;
 //     let circuit = StandardPlonk(Fr::random(OsRng));
