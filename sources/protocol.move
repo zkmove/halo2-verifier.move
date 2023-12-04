@@ -16,7 +16,7 @@ module halo2_verifier::protocol {
     struct Protocol {
         query_instance: bool,
         // for ipa, true; for kzg, false
-        domain: Domain,
+        k: u8,
         /// it's `advice_queries.count_by(|q| q.column).max`
         max_num_query_of_advice_column: u32,
 
@@ -109,8 +109,8 @@ module halo2_verifier::protocol {
         abort 100
     }
 
-    public fun domain(p: &Protocol): &Domain {
-        &p.domain
+    public fun domain(p: &Protocol): Domain {
+        domain::new(p.cs_degree, p.k)
     }
 
     public fun query_instance(protocol: &Protocol): bool {
@@ -260,10 +260,6 @@ module halo2_verifier::protocol {
         } else {
             chunk
         }
-    }
-
-    public fun quotient_poly_degree(protocol: &Protocol): u64 {
-        domain::quotient_poly_degree(&protocol.domain)
     }
 
 
