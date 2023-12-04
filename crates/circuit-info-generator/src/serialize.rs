@@ -1,4 +1,4 @@
-use crate::{CircuitInfo, Column, ColumnQuery, Lookup, MultiVariatePolynomial};
+use crate::{CircuitInfo, Column, ColumnQuery, MultiVariatePolynomial};
 use halo2_proofs::halo2curves::ff::PrimeField;
 use multipoly::multivariate::SparseTerm;
 
@@ -54,7 +54,7 @@ impl<F: PrimeField> From<CircuitInfo<F>> for SerializableCircuitInfo<F> {
             fixed_queries,
             permutation_columns,
             gates: gates.into_iter().flatten().collect(),
-            lookups_input_exprs: lookups.into_iter().map(|l| l.input_exprs).collect(),
+            lookups_input_exprs: lookups.iter().map(|l| l.input_exprs.clone()).collect(),
             lookups_table_exprs: lookups.into_iter().map(|l| l.table_exprs).collect(),
         }
     }
@@ -83,17 +83,17 @@ pub fn serialize<F: PrimeField>(
     let advice_queries = circuit_info
         .advice_queries
         .iter()
-        .map(|q| serialize_column_query(q))
+        .map(serialize_column_query)
         .collect();
     let instance_queries = circuit_info
         .instance_queries
         .iter()
-        .map(|q| serialize_column_query(q))
+        .map(serialize_column_query)
         .collect();
     let fixed_queries = circuit_info
         .fixed_queries
         .iter()
-        .map(|q| serialize_column_query(q))
+        .map(serialize_column_query)
         .collect();
     let permutation_columns = circuit_info
         .permutation_columns
@@ -154,7 +154,7 @@ fn serialize_sparse_term(t: &SparseTerm) -> Vec<u8> {
     let mut bytes = vec![];
     let t_len = t.len() as u32;
     bytes.extend(t_len.to_le_bytes());
-    t.iter().map(|(var_idx, power)| {
+    t.iter().for_each(|(var_idx, power)| {
         bytes.extend((*var_idx as u32).to_le_bytes());
         bytes.extend((*power as u32).to_le_bytes());
     });
@@ -169,7 +169,7 @@ fn serialize_lookup_exprs<F: PrimeField>(
     bytes.extend(input_expr_len.to_le_bytes());
     lookup_input_exprs
         .iter()
-        .map(|e| serialize_multivaiate_poly(&e))
+        .map(|e| serialize_multivaiate_poly(e))
         .for_each(|mut p| {
             bytes.extend((p.len() as u32).to_le_bytes());
             bytes.append(&mut p);
