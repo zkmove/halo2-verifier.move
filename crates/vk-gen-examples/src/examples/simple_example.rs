@@ -305,7 +305,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 }
 // ANCHOR_END: circuit
 
-pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
     // Prepare the private and public inputs to the circuit!
     let constant = F::from(7);
     let a = F::from(2);
@@ -313,12 +313,15 @@ pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
     let _c = constant * a.square() * b.square();
 
     // Instantiate the circuit with the private inputs.
-    
-    MyCircuit {
-        constant,
-        a: Value::known(a),
-        b: Value::known(b),
-    }
+
+    (
+        MyCircuit {
+            constant,
+            a: Value::known(a),
+            b: Value::known(b),
+        },
+        vec![_c],
+    )
 }
 
 // fn main() {

@@ -5,7 +5,6 @@ module halo2_verifier::verify_key {
     use halo2_verifier::bn254_utils;
 
     struct VerifyingKey {
-        k: u32,
         fixed_commitments: vector<Element<G1>>,
         permutation_commitments: vector<Element<G1>>,
         selectors: vector<vector<bool>>,

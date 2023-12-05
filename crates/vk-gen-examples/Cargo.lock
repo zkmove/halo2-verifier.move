@@ -134,6 +134,7 @@ name = "circuit-info-generator"
 version = "0.1.0"
 dependencies = [
  "bcs",
+ "blake2b_simd",
  "halo2_proofs",
  "multipoly",
 ]
@@ -813,6 +814,7 @@ dependencies = [
  "clap",
  "halo2_proofs",
  "hex",
+ "rand",
  "rand_core",
  "serde",
  "serde_json",

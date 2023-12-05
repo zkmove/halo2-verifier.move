@@ -27,3 +27,12 @@ It will generate a json file in dir `vk_deployment`.
 ```shell
 aptos move run --json-file vk_deployment/VectorMul.json
 ```
+
+### generate verify-proof aptos txn
+
+
+Run the follow to generate example proof for circuit in `src/examples/vector-mul.rs`.
+replace the `verifier-module` and `verifier-address` with the actual verifier's address and name.
+``` shell
+cargo run --release -- -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-verify-proof-aptos-txn --example vector-mul -o proofs
+```

@@ -1,42 +1,38 @@
 module halo2_verifier::halo2_verifier {
     use std::vector::{Self, map_ref, map, enumerate_ref};
 
+    use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
 
     use halo2_verifier::bn254_utils;
-    use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::column;
-    use halo2_verifier::domain;
+    use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::gwc;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
-    use halo2_verifier::rotation;
-    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Lookup, blinding_factors};
+    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
+    use halo2_verifier::rotation;
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
-    use halo2_verifier::verify_key::{Self, VerifyingKey};
-    use halo2_verifier::domain::Domain;
 
     const INVALID_INSTANCES: u64 = 100;
 
     public fun verify(
         params: &Params,
-        vk: &VerifyingKey,
         protocol: &Protocol,
         instances: vector<vector<vector<Element<Fr>>>>,
         proof: vector<u8>
     ): bool {
         let transcript = transcript::init(proof);
-        verify_inner(params, vk, protocol, instances, transcript)
+        verify_inner(params, protocol, instances, transcript)
     }
 
     fun verify_inner(
         params: &Params,
-        vk: &VerifyingKey,
         protocol: &Protocol,
         instances: vector<vector<vector<Element<Fr>>>>,
         transcript: Transcript
@@ -50,7 +46,7 @@ module halo2_verifier::halo2_verifier {
             map_ref(&instances, |i| vector::empty())
         };
         let num_proof = vector::length(&instances);
-        transcript::common_scalar(&mut transcript, verify_key::transcript_repr(vk));
+        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
 
         if (protocol::query_instance(protocol)) {
             // TODO: impl for ipa
@@ -89,11 +85,19 @@ module halo2_verifier::halo2_verifier {
 
         // read advice commitments and challenges
 
-        let advice_commitments = repeat(
-            repeat(crypto_algebra::zero(), protocol::num_advice_columns(protocol)),
-            num_proof
-        );
-        let challenges = repeat(crypto_algebra::zero(), num_challenges(protocol));
+        let advice_commitments = if (num_advice_columns(protocol) == 0) {
+            vector::empty()
+        } else {
+            repeat(
+                repeat(crypto_algebra::zero(), protocol::num_advice_columns(protocol)),
+                num_proof
+            )
+        };
+        let challenges = if (num_challenges(protocol) == 0) {
+            vector::empty()
+        } else {
+            repeat(crypto_algebra::zero(), num_challenges(protocol))
+        };
         {
             let num_phase = protocol::num_phase(protocol);
             let i = 0;
@@ -172,10 +176,10 @@ module halo2_verifier::halo2_verifier {
             vector::for_each_ref(instance_queries, |q| {
                 let q: &InstanceQuery = q;
                 let (_column, rotation) = protocol::from_instance_query(q);
-                if(rotation::gt(&min_rotation, rotation)) {
+                if (rotation::gt(&min_rotation, rotation)) {
                     min_rotation = *rotation;
                 }
-                else if(rotation::gt(rotation, &max_rotation)) {
+                else if (rotation::gt(rotation, &max_rotation)) {
                     max_rotation = *rotation;
                 }
             });
@@ -184,7 +188,7 @@ module halo2_verifier::halo2_verifier {
             vector::for_each_ref(&instances, |i| {
                 vector::for_each_ref(i, |r| {
                     let length = vector::length(r);
-                    if(length > max_instance_len) {
+                    if (length > max_instance_len) {
                         max_instance_len = length;
                     }
                 })
@@ -207,7 +211,7 @@ module halo2_verifier::halo2_verifier {
                     let instances = vector::borrow(instances, column_index);
                     let instances_len = vector::length(instances);
                     let offset = (rotation::value(&rotation::sub(&max_rotation, rotation)) as u64);
-                    
+
                     let i = 0;
                     let acc = crypto_algebra::zero();
                     while (i < instances_len) {
@@ -344,7 +348,7 @@ module halo2_verifier::halo2_verifier {
             };
 
             // fixed queries
-            let fixed_commitments = verify_key::fixed_commitments(vk);
+            let fixed_commitments = protocol::fixed_commitments(protocol);
             enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
                 let (column, rotation) = protocol::from_fixed_query(query);
                 vector::push_back(&mut queries,
@@ -358,7 +362,7 @@ module halo2_verifier::halo2_verifier {
             permutation::common_queries(
                 permutations_common,
                 &mut queries,
-                *verify_key::permutation_commitments(vk),
+                *protocol::permutation_commitments(protocol),
                 &z
             );
             vanishing::queries(vanishing, &mut queries, &z);
@@ -480,8 +484,8 @@ module halo2_verifier::halo2_verifier {
                 ));
         });
 
-        permutation::queries(permutation, queries, protocol,domain, x);
-        lookup::queries(&lookups, queries, protocol,domain, x);
+        permutation::queries(permutation, queries, protocol, domain, x);
+        lookup::queries(&lookups, queries, protocol, domain, x);
     }
 
     fun evaluate_gates(gates: &vector<Expression>,

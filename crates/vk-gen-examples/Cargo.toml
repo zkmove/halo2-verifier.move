@@ -14,4 +14,5 @@ serde_json = { version = "1" }
 hex = { version = "0.4.3" }
 toml = { version = "0.8.8" }
 rand_core = { version = "0.6.4" }
+rand = { version = "0.8.5" }
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }

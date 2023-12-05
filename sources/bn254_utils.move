@@ -7,6 +7,8 @@ module halo2_verifier::bn254_utils {
 
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
+    use aptos_std::string_utils::debug_string;
+    use aptos_std::debug;
 
     const S_OF_FR: u8 = 28;
 
@@ -81,7 +83,7 @@ module halo2_verifier::bn254_utils {
         assert!(len == 32, 100);
         let len = vector::length(bytes_hi);
         assert!(len == 32, 100);
-
+        debug::print(&debug_string(bytes_hi));
         let lo = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(bytes_lo));
         let hi = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(bytes_hi));
         let r3 = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&R3));

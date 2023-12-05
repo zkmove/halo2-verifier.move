@@ -80,6 +80,7 @@ name = "circuit-info-generator"
 version = "0.1.0"
 dependencies = [
  "bcs",
+ "blake2b_simd",
  "halo2_proofs",
  "multipoly",
 ]

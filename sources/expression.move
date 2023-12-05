@@ -4,7 +4,7 @@ module halo2_verifier::expression {
     use aptos_std::bn254_algebra::{Fr};
     use halo2_verifier::multivariate_poly::{Self, MultiVariatePoly};
 
-    struct Expression {
+    struct Expression has  drop {
         poly: MultiVariatePoly,
     }
 
@@ -12,6 +12,10 @@ module halo2_verifier::expression {
         Expression {
             poly
         }
+    }
+
+    public fun poly(self: &Expression): &MultiVariatePoly {
+        &self.poly
     }
 
     public fun evaluate(

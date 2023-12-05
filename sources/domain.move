@@ -9,6 +9,8 @@ module halo2_verifier::domain {
     use halo2_verifier::bn254_utils;
     use halo2_verifier::bn254_utils::root_of_unity;
 
+    /// TODO(optimize): we can calculate the fields offchain, and store it in protocol.
+    /// so we can eliminate the computation cost of the root_of_unity.
     struct Domain has copy, drop {
         k: u8,
         j: u32,
