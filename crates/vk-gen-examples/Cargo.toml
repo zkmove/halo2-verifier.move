@@ -1,0 +1,17 @@
+[package]
+name = "vk-gen-examples"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+circuit-info-generator = {path = "../circuit-info-generator"}
+clap = { version = "4.4.10",features = ["derive"] }
+anyhow = { version = "1.0.75" }
+serde = { version = "1" }
+serde_json = { version = "1" }
+hex = { version = "0.4.3" }
+toml = { version = "0.8.8" }
+rand_core = { version = "0.6.4" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }

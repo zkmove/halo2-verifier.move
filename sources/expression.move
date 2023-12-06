@@ -8,6 +8,12 @@ module halo2_verifier::expression {
         poly: MultiVariatePoly,
     }
 
+    public fun new(poly: MultiVariatePoly): Expression {
+        Expression {
+            poly
+        }
+    }
+
     public fun evaluate(
         self: &Expression,
         advice_evals: &vector<Element<Fr>>,

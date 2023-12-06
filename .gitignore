@@ -3,3 +3,6 @@
 *.swp
 .aptos
 build
+
+**/target/*
+vk_deployment/

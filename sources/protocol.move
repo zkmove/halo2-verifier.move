@@ -2,28 +2,37 @@ module halo2_verifier::protocol {
     use std::error;
     // use std::vector::{Self, map_ref, length, fold};
     use std::vector;
+    use std::option;
+
     use aptos_std::math64::max;
+    use aptos_std::from_bcs;
 
     use halo2_verifier::column::{Self, Column};
     use halo2_verifier::domain::{Self, Domain};
-    // use halo2_verifier::rotation;
-    use halo2_verifier::rotation::Rotation;
-    use halo2_verifier::expression::Expression;
+    use halo2_verifier::rotation::{Self, Rotation};
+    use halo2_verifier::expression::{Self, Expression};
+    use halo2_verifier::multivariate_poly;
+    use halo2_verifier::bn254_utils::{Self};
+
+    #[test_only]
+    use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
 
     const QUERY_NOT_FOUND: u64 = 1;
 
     struct Protocol {
         query_instance: bool,
         // for ipa, true; for kzg, false
-        domain: Domain,
+        k: u8,
+        /// it's `advice_queries.count_by(|q| q.column).max`
+        max_num_query_of_advice_column: u32,
 
         /// it's constraint_system's degree()
-        cs_degree: u64,
+        cs_degree: u32,
 
         num_fixed_columns: u64,
-        //num_instance_columns: u64,
+        num_instance_columns: u64,
 
-        num_instance: vector<u64>,
+        //num_instance: vector<u64>,
 
         /// Number of witness polynomials in each phase.
         // num_advice_in_phase: vector<u64>,
@@ -37,20 +46,14 @@ module halo2_verifier::protocol {
         advice_column_phase: vector<u8>,
         challenge_phase: vector<u8>,
 
-        gates: vector<Gate>,
 
         advice_queries: vector<AdviceQuery>,
         instance_queries: vector<InstanceQuery>,
         fixed_queries: vector<FixQuery>,
 
         permutation_columns: vector<Column>,
+        gates: vector<Expression>,
         lookups: vector<Lookup>,
-        /// it's `advice_queries.count_by(|q| q.column).max`
-        max_num_query_of_advice_column: u32,
-    }
-
-    struct Gate  {
-        ploys: vector<Expression>,
     }
 
     struct Lookup {
@@ -75,8 +78,188 @@ module halo2_verifier::protocol {
         rotation: Rotation,
     }
 
-    public fun domain(p: &Protocol): &Domain {
-        &p.domain
+    public fun get_bytes(
+        source_bytes: &vector<u8>,
+        start_idx: u64,
+        end_idx: u64,
+    ): vector<u8> {
+        let i = start_idx;
+        let bytes = vector::empty();
+        loop {
+            if (i >= end_idx) {
+                break
+            };
+
+            let b = vector::borrow(source_bytes, i);
+            vector::push_back(&mut bytes, *b);
+
+            i = i + 1;
+        };
+
+        bytes
+    }
+
+    public fun deserialize_column_query(
+        q: &vector<u8>,
+    ): ColumnQuery {
+        let column_type = from_bcs::to_u8(get_bytes(q, 0, 1));
+        let index = from_bcs::to_u32(get_bytes(q, 1, 5));
+        let next = from_bcs::to_bool(get_bytes(q, 5, 6));
+        let rotation = from_bcs::to_u32(get_bytes(q, 6, 10));
+
+        ColumnQuery {
+            column: column::new(index, column_type),
+            rotation: rotation::new(next, rotation),
+        }
+    }
+
+    public fun deserialize_column(
+        q: &vector<u8>,
+    ): Column {
+        let column_type = from_bcs::to_u8(get_bytes(q, 0, 1));
+        let index = from_bcs::to_u32(get_bytes(q, 1, 5));
+        let column = column::new(index, column_type);
+        column
+    }
+
+    public fun deserialize_expression(
+        data: &vector<u8>,
+    ): Expression {
+        let terms = vector::empty();
+
+        let term_len = from_bcs::to_u32(get_bytes(data, 0, 4));
+        let i = 0;
+        let idx = 4;
+        loop {
+            if (i >= term_len) {
+                break
+            };
+            
+            let coff = option::destroy_some(bn254_utils::deserialize_fr(&get_bytes(data, idx, idx + 32)));
+            idx = idx + 32;
+            
+            let sparse_terms = vector::empty();
+            let sparse_term_len = from_bcs::to_u32(get_bytes(data, idx, idx + 4));
+            idx = idx + 4;
+            let i_t = 0;
+
+            loop {
+                if (i_t >= sparse_term_len) {
+                    break
+                };
+
+                let variable_index = from_bcs::to_u32(get_bytes(data, idx, idx + 4));
+                idx = idx + 4;
+
+                let power = from_bcs::to_u32(get_bytes(data, idx, idx + 4));
+                idx = idx + 4;
+
+                vector::push_back(&mut sparse_terms, multivariate_poly::new_sparse_term(variable_index, power));
+                i_t = i_t + 1;
+            };
+
+            vector::push_back(&mut terms, multivariate_poly::new_term(coff, sparse_terms));
+            i = i + 1;
+        };
+
+        expression::new(multivariate_poly::new_poly(terms))
+    }
+
+    public fun deserialize_lookup_exprs(
+        data: &vector<u8>,
+    ): vector<Expression> {
+        let expressions = vector::empty();
+
+        let expr_len = from_bcs::to_u32(get_bytes(data, 0, 4));
+        let i = 0;
+        let idx = 4;
+        loop {
+            if (i >= expr_len) {
+                break
+            };
+
+            let expr_bytes_len = (from_bcs::to_u32(get_bytes(data, idx, idx + 4)) as u64);
+            idx = idx + 4;
+            
+            vector::push_back(&mut expressions, deserialize_expression(&get_bytes(data, idx, idx + expr_bytes_len)));
+            idx = idx + expr_bytes_len;
+
+            i = i + 1;
+        };
+
+        expressions
+    }
+
+    public fun from_bytes(
+        general_info: vector<vector<u8>>,
+        advice_queries:vector<vector<u8>>,
+        instance_queries:vector<vector<u8>>,
+        fixed_queries:vector<vector<u8>>,
+        permutation_columns:vector<vector<u8>>,
+        gates:vector<vector<u8>>,
+        lookups_input_exprs:vector<vector<u8>>,
+        lookups_table_exprs:vector<vector<u8>>,
+    ): Protocol {
+        let challenge_phase = vector::pop_back(&mut general_info);
+        let advice_column_phase = vector::pop_back(&mut general_info);
+        let num_instance_columns = from_bcs::to_u64(vector::pop_back(&mut general_info));
+        let num_fixed_columns = from_bcs::to_u64(vector::pop_back(&mut general_info));
+        let cs_degree = from_bcs::to_u32(vector::pop_back(&mut general_info));
+        let max_num_query_of_advice_column = from_bcs::to_u32(vector::pop_back(&mut general_info));
+        let k = from_bcs::to_u8(vector::pop_back(&mut general_info));
+        let query_instance = from_bcs::to_bool(vector::pop_back(&mut general_info));
+
+        let advice_queries = vector::map_ref(&advice_queries, |q| {
+            AdviceQuery {
+                q: deserialize_column_query(q)
+            }
+        });
+        let instance_queries = vector::map_ref(&instance_queries, |q| {
+            InstanceQuery {
+                q: deserialize_column_query(q)
+            }
+        });
+        let fixed_queries = vector::map_ref(&fixed_queries, |q| {
+            FixQuery {
+                q: deserialize_column_query(q)
+            }
+        });
+
+        let permutation_columns = vector::map_ref(&permutation_columns, |q| deserialize_column(q));
+        let gates = vector::map_ref(&gates, |q| deserialize_expression(q));
+
+        let lookups = vector::empty();
+        let lookups_input_exprs = vector::map_ref(&lookups_input_exprs, |q| deserialize_lookup_exprs(q));
+        let lookups_table_exprs = vector::map_ref(&lookups_table_exprs, |q| deserialize_lookup_exprs(q));
+        vector::zip(lookups_input_exprs, lookups_table_exprs, |p, q| vector::push_back(&mut lookups, Lookup {
+                input_expressions: p,
+                table_expressions: q,
+        }));
+
+        // TODO: deserilize other data.
+        let protocol = Protocol {
+            query_instance,
+            k,
+            max_num_query_of_advice_column,
+            cs_degree,
+            num_fixed_columns,
+            num_instance_columns,
+            advice_column_phase,
+            challenge_phase,
+
+            advice_queries,
+            instance_queries,
+            fixed_queries,
+
+            permutation_columns,
+            gates,
+            lookups,
+        };
+        protocol
+    }
+
+    public fun domain(p: &Protocol): Domain {
+        domain::new(p.cs_degree, p.k)
     }
 
     public fun query_instance(protocol: &Protocol): bool {
@@ -98,11 +281,8 @@ module halo2_verifier::protocol {
     public fun lookups(protocol: &Protocol): &vector<Lookup> {
         &protocol.lookups
     }
-    public fun gates(protocol: &Protocol): &vector<Gate> {
+    public fun gates(protocol: &Protocol): &vector<Expression> {
         &protocol.gates
-    }
-    public fun polys(gate: &Gate): &vector<Expression> {
-        &gate.ploys
     }
     public fun input_exprs(self: &Lookup): &vector<Expression> {
         &self.input_expressions
@@ -131,7 +311,7 @@ module halo2_verifier::protocol {
         // h(x_3) is also not revealed; the verifier only learns a single
         // evaluation of a polynomial in x_1 which has h(x_3) and another random
         // polynomial evaluated at x_3 as coefficients -- this random polynomial
-        // is "random_poly" in the vanishing argument.
+        // is random_poly in the vanishing argument.
 
         // Add an additional blinding factor as a slight defense against
         // off-by-one errors.
@@ -184,7 +364,7 @@ module halo2_verifier::protocol {
 
     /// return the num of instance columns
     public fun num_instance_columns(protocol: &Protocol): u64 {
-        vector::length(&protocol.num_instance)
+        protocol.num_instance_columns
     }
 
     /// return the num of advice columns
@@ -193,9 +373,9 @@ module halo2_verifier::protocol {
     }
 
     /// return the number of rows of each instance columns
-    public fun num_instance(protocol: &Protocol): &vector<u64> {
-        &protocol.num_instance
-    }
+    // public fun num_instance(protocol: &Protocol): &vector<u64> {
+    //     &protocol.num_instance
+    // }
 
 
 
@@ -213,12 +393,12 @@ module halo2_verifier::protocol {
         vector::length(&protocol.lookups)
     }
 
-    public fun permutation_chunk_size(protocol: &Protocol): u64 {
+    public fun permutation_chunk_size(protocol: &Protocol): u32 {
         protocol.cs_degree - 2
     }
 
     public fun num_permutation_z(protocol: &Protocol): u64 {
-        let chunk_size = permutation_chunk_size(protocol);
+        let chunk_size = (permutation_chunk_size(protocol) as u64);
         let permutation_columns_len = vector::length(&protocol.permutation_columns);
         let chunk = permutation_columns_len / chunk_size;
         if (permutation_columns_len % chunk_size != 0) {
@@ -226,10 +406,6 @@ module halo2_verifier::protocol {
         } else {
             chunk
         }
-    }
-
-    public fun quotient_poly_degree(protocol: &Protocol): u64 {
-        domain::quotient_poly_degree(&protocol.domain)
     }
 
 
@@ -509,4 +685,72 @@ module halo2_verifier::protocol {
     // fun rotation_last(protocol: &Protocol): Rotation {
     //     rotation::prev(protocol.blinding_factors + 1)
     // }
+
+
+    #[test(s = @std)]
+    fun test_serialize(s: &signer): Protocol {
+        enable_cryptography_algebra_natives(s);
+        
+        let protocol: Protocol = from_bytes(
+            vector[ // general_info
+                x"00", // query instance
+                x"10", // k
+                x"01000000", // max_num_query_of_advice_column
+                x"04000000", // cs_degree
+                x"0600000000000000", // num_fixed_columns
+                x"0000000000000000", // num_instance_columns
+                x"000000", // advice_column_phase
+                x"00" // challenge_phase
+            ],
+            vector[ // advice_queries
+                x"00010000000100000000",
+                x"00020000000100000000",
+                x"00030000000100000000",
+                x"00040000000101000000",
+                x"00000000000001000000"
+            ],
+            vector[ // instance_queries
+            ],
+            vector[ // fix_queries
+                x"ff050000000100000000",
+                x"ff000000000100000000",
+                x"ff020000000100000000",
+                x"ff030000000100000000",
+                x"ff040000000100000000",
+                x"ff010000000100000000"
+            ],
+            vector[ // permutation_columns
+                x"0001000000",
+                x"0002000000",
+                x"0003000000"
+            ],
+            vector[ // gates
+                x"05000000000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e643002000000020000000100000009000000010000000100000000000000000000000000000000000000000000000000000000000000020000000100000001000000080000000100000001000000000000000000000000000000000000000000000000000000000000000200000000000000010000000700000001000000010000000000000000000000000000000000000000000000000000000000000003000000030000000100000004000000010000000600000001000000010000000000000000000000000000000000000000000000000000000000000003000000000000000100000001000000010000000a00000001000000"
+            ],
+            vector[
+                x"0100000030000000010000000100000000000000000000000000000000000000000000000000000000000000010000000000000001000000",
+            ],
+            vector[
+                x"0100000030000000010000000100000000000000000000000000000000000000000000000000000000000000010000000500000001000000",
+            ],
+        );
+
+        assert!(protocol.k == 0x10, 1);
+        assert!(protocol.num_fixed_columns == 0x06, 1);
+
+        let advice_query_len = vector::length(&protocol.advice_queries);
+        assert!(advice_query_len == 5, 1);
+
+        let advice_query = vector::borrow(&protocol.advice_queries, 3);
+        assert!(column::column_type(&advice_query.q.column) == 0, 1);
+        assert!(column::column_index(&advice_query.q.column) == 4, 1);
+        assert!(!rotation::is_neg(&advice_query.q.rotation), 1);
+        assert!(rotation::value(&advice_query.q.rotation) == 1, 1);
+
+        let permutation_column = vector::borrow(&protocol.permutation_columns, 2);
+        assert!(column::column_type(permutation_column) == 0, 1);
+        assert!(column::column_index(permutation_column) == 3, 1);
+
+        protocol
+    }
 }

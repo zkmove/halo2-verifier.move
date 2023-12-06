@@ -158,4 +158,11 @@ module halo2_verifier::rotation {
             } else false
         }
     }
+
+    public fun new(next: bool, rotation: u32): Rotation {
+        Rotation {
+            next,
+            rotation
+        }
+    }
 }

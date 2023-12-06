@@ -23,14 +23,33 @@ module halo2_verifier::multivariate_poly {
         power: u32
     }
 
+    public fun new_poly(terms: vector<Term>): MultiVariatePoly {
+        MultiVariatePoly {
+            terms
+        }
+    }
     public fun terms(self: &MultiVariatePoly): &vector<Term> {
         &self.terms
+    }
+
+    public fun new_term(coff: Element<Fr>, terms: vector<SparseTerm>): Term {
+        Term {
+            coff,
+            terms
+        }
+    }
+    public fun coff(term: &Term): &Element<Fr> {
+        &term.coff
     }
     public fun sparse_terms(term: &Term): &vector<SparseTerm> {
         &term.terms
     }
-    public fun coff(term: &Term): &Element<Fr> {
-        &term.coff
+
+    public fun new_sparse_term(variable_index: u32, power: u32): SparseTerm {
+        SparseTerm {
+            variable_index,
+            power
+        }
     }
     public fun variable_index(term: &SparseTerm): u32 {
         term.variable_index

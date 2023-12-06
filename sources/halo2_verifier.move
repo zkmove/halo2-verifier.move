@@ -7,18 +7,19 @@ module halo2_verifier::halo2_verifier {
     use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::column;
     use halo2_verifier::domain;
-    use halo2_verifier::expression;
+    use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::gwc;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::rotation;
-    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Gate, Lookup, blinding_factors};
+    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Lookup, blinding_factors};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
     use halo2_verifier::verify_key::{Self, VerifyingKey};
+    use halo2_verifier::domain::Domain;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -40,6 +41,7 @@ module halo2_verifier::halo2_verifier {
         instances: vector<vector<vector<Element<Fr>>>>,
         transcript: Transcript
     ): bool {
+        let domain = protocol::domain(protocol);
         // check_instances(&instances, protocol::num_instance(protocol));
         let instance_commitments: vector<vector<Element<G1>>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
@@ -146,11 +148,11 @@ module halo2_verifier::halo2_verifier {
         let vanishing = vanishing::read_commitments_after_y(
             vanishing,
             &mut transcript,
-            protocol::quotient_poly_degree(protocol)
+            domain::quotient_poly_degree(&domain)
         );
         // - eval at point: z
         let z = transcript::squeeze_challenge(&mut transcript);
-        let z_n = bn254_utils::pow_u32(&z, domain::n(protocol::domain(protocol)));
+        let z_n = bn254_utils::pow_u32(&z, domain::n(&domain));
 
         let instance_evals = if (query_instance(protocol)) {
             let len = vector::length(instance_queries(protocol));
@@ -189,7 +191,7 @@ module halo2_verifier::halo2_verifier {
             });
 
             let l_i_s = domain::l_i_range(
-                protocol::domain(protocol),
+                &domain,
                 &z,
                 &z_n,
                 rotation::reverse(&max_rotation),
@@ -256,7 +258,7 @@ module halo2_verifier::halo2_verifier {
             // -(blinding_factor+1)..=0
             let blinding_factors = blinding_factors(protocol);
             let l_evals = domain::l_i_range(
-                protocol::domain(protocol),
+                &domain,
                 &z,
                 &z_n,
                 rotation::prev((blinding_factors as u32) + 1),
@@ -328,6 +330,7 @@ module halo2_verifier::halo2_verifier {
             let i = 0;
             while (i < num_proof) {
                 queries(protocol,
+                    &domain,
                     &mut queries,
                     &z,
                     vector::borrow(&instance_commitments, i),
@@ -347,7 +350,7 @@ module halo2_verifier::halo2_verifier {
                 vector::push_back(&mut queries,
                     query::new_commitment(
                         *vector::borrow(fixed_commitments, (column::column_index(column) as u64)),
-                        domain::rotate_omega(protocol::domain(protocol), &z, rotation),
+                        domain::rotate_omega(&domain, &z, rotation),
                         *vector::borrow(&fixed_evals, query_index),
                     ));
             });
@@ -443,6 +446,7 @@ module halo2_verifier::halo2_verifier {
 
     fun queries(
         protocol: &Protocol,
+        domain: &Domain,
         queries: &mut vector<VerifierQuery>,
         x: &Element<Fr>,
         instance_commitments: &vector<Element<G1>>,
@@ -459,7 +463,7 @@ module halo2_verifier::halo2_verifier {
                 vector::push_back(queries,
                     query::new_commitment(
                         *vector::borrow(instance_commitments, (column::column_index(column) as u64)),
-                        domain::rotate_omega(protocol::domain(protocol), x, rotation),
+                        domain::rotate_omega(domain, x, rotation),
                         *vector::borrow(instance_evals, query_index),
                     ));
             });
@@ -471,16 +475,16 @@ module halo2_verifier::halo2_verifier {
             vector::push_back(queries,
                 query::new_commitment(
                     *vector::borrow(advice_commitments, (column::column_index(column) as u64)),
-                    domain::rotate_omega(protocol::domain(protocol), x, rotation),
+                    domain::rotate_omega(domain, x, rotation),
                     *vector::borrow(advice_evals, query_index),
                 ));
         });
 
-        permutation::queries(permutation, queries, protocol, x);
-        lookup::queries(&lookups, queries, protocol, x);
+        permutation::queries(permutation, queries, protocol,domain, x);
+        lookup::queries(&lookups, queries, protocol,domain, x);
     }
 
-    fun evaluate_gates(gates: &vector<Gate>,
+    fun evaluate_gates(gates: &vector<Expression>,
                        advice_evals: &vector<Element<Fr>>,
                        fixed_evals: &vector<Element<Fr>>,
                        instance_evals: &vector<Element<Fr>>, challenges: &vector<Element<Fr>>): vector<Element<Fr>> {
@@ -489,15 +493,9 @@ module halo2_verifier::halo2_verifier {
         let i = 0;
         while (i < gate_len) {
             let gate = vector::borrow(gates, i);
-            let gate_polys = protocol::polys(gate);
-            let polys_len = vector::length(gate_polys);
-            let j = 0;
-            while (j < polys_len) {
-                let poly = vector::borrow(gate_polys, j);
-                let poly_eval = expression::evaluate(poly, advice_evals, fixed_evals, instance_evals, challenges);
-                vector::push_back(&mut result, poly_eval);
-                j = j + 1;
-            };
+            let poly_eval = expression::evaluate(gate, advice_evals, fixed_evals, instance_evals, challenges);
+            vector::push_back(&mut result, poly_eval);
+
             i = i + 1;
         };
 

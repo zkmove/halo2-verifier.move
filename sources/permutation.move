@@ -11,6 +11,7 @@ module halo2_verifier::permutation {
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
     use halo2_verifier::transcript::{Self, Transcript};
+    use halo2_verifier::domain::Domain;
 
     struct Commited has drop {
         permutation_product_commitments: vector<Element<G1>>,
@@ -139,7 +140,7 @@ module halo2_verifier::permutation {
         // - z_i(X) \prod (p(X) + \delta^i \beta X + \gamma)
         // )
         {
-            let chunk_len = protocol::permutation_chunk_size(protocol);
+            let chunk_len = (protocol::permutation_chunk_size(protocol) as u64);
             let permutation_columns = permutation_columns(protocol);
             let permutation_columns_len = vector::length(permutation_columns);
             let i = 0;
@@ -190,9 +191,8 @@ module halo2_verifier::permutation {
         results
     }
 
-    public fun queries(self: Evaluted, queries: &mut vector<VerifierQuery>, protocol: &Protocol, x: &Element<Fr>) {
+    public fun queries(self: Evaluted, queries: &mut vector<VerifierQuery>, protocol: &Protocol,domain: &Domain, x: &Element<Fr>) {
         let blinding_factors = protocol::blinding_factors(protocol);
-        let domain = protocol::domain(protocol);
         let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
         let x_last = domain::rotate_omega(domain, x, &rotation::prev((blinding_factors as u32) + 1));
         // Open permutation product commitments at x and \omega^{-1} x
