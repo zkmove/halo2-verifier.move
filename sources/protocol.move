@@ -3,18 +3,16 @@ module halo2_verifier::protocol {
     // use std::vector::{Self, map_ref, length, fold};
     use std::vector;
     use std::option;
-    use std::debug::{Self};
-    use std::bn254_algebra::{Fr, FormatFrLsb};
 
     use aptos_std::math64::max;
     use aptos_std::from_bcs;
-    use aptos_std::crypto_algebra;
 
     use halo2_verifier::column::{Self, Column};
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::rotation::{Self, Rotation};
     use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::multivariate_poly;
+    use halo2_verifier::bn254_utils::{Self};
 
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
@@ -89,7 +87,7 @@ module halo2_verifier::protocol {
         let bytes = vector::empty();
         loop {
             if (i >= end_idx) {
-                break;
+                break
             };
 
             let b = vector::borrow(source_bytes, i);
@@ -134,10 +132,10 @@ module halo2_verifier::protocol {
         let idx = 4;
         loop {
             if (i >= term_len) {
-                break;
+                break
             };
             
-            let coff = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&get_bytes(data, idx, idx + 32)));
+            let coff = option::destroy_some(bn254_utils::deserialize_fr(&get_bytes(data, idx, idx + 32)));
             idx = idx + 32;
             
             let sparse_terms = vector::empty();
@@ -147,7 +145,7 @@ module halo2_verifier::protocol {
 
             loop {
                 if (i_t >= sparse_term_len) {
-                    break;
+                    break
                 };
 
                 let variable_index = from_bcs::to_u32(get_bytes(data, idx, idx + 4));
@@ -165,6 +163,31 @@ module halo2_verifier::protocol {
         };
 
         expression::new(multivariate_poly::new_poly(terms))
+    }
+
+    public fun deserialize_lookup_exprs(
+        data: &vector<u8>,
+    ): vector<Expression> {
+        let expressions = vector::empty();
+
+        let expr_len = from_bcs::to_u32(get_bytes(data, 0, 4));
+        let i = 0;
+        let idx = 4;
+        loop {
+            if (i >= expr_len) {
+                break
+            };
+
+            let expr_bytes_len = (from_bcs::to_u32(get_bytes(data, idx, idx + 4)) as u64);
+            idx = idx + 4;
+            
+            vector::push_back(&mut expressions, deserialize_expression(&get_bytes(data, idx, idx + expr_bytes_len)));
+            idx = idx + expr_bytes_len;
+
+            i = i + 1;
+        };
+
+        expressions
     }
 
     public fun from_bytes(
@@ -206,8 +229,12 @@ module halo2_verifier::protocol {
         let gates = vector::map_ref(&gates, |q| deserialize_expression(q));
 
         let lookups = vector::empty();
-        // let lookups_input_exprs = vector::map_ref(&lookups_input_exprs, |q| deserialize_expression(q));
-        // let lookups_table_exprs = vector::map_ref(&lookups_table_exprs, |q| deserialize_expression(q));
+        let lookups_input_exprs = vector::map_ref(&lookups_input_exprs, |q| deserialize_lookup_exprs(q));
+        let lookups_table_exprs = vector::map_ref(&lookups_table_exprs, |q| deserialize_lookup_exprs(q));
+        vector::zip(lookups_input_exprs, lookups_table_exprs, |p, q| vector::push_back(&mut lookups, Lookup {
+                input_expressions: p,
+                table_expressions: q,
+        }));
 
         // TODO: deserilize other data.
         let protocol = Protocol {
