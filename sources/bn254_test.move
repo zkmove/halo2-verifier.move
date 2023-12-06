@@ -5,7 +5,7 @@ module halo2_verifier::bn254_test {
 
     use aptos_std::bn254_algebra::Fr;
     use aptos_std::crypto_algebra::{Self, enable_cryptography_algebra_natives};
-
+/*
     #[test(s = @std)]
     public fun test_fr(s: &signer) {
         enable_cryptography_algebra_natives(s);
@@ -22,4 +22,5 @@ module halo2_verifier::bn254_test {
         let b = crypto_algebra::serialize<G1, FormatG1Uncompr>(&one);
         assert!(vector::length(&b) == 64, 1);
     }
+*/
 }

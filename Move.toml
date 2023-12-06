@@ -4,9 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-halo2_verifier = "_"
-[dev-addresses]
-halo2_verifier = "0x1234"
+halo2_verifier = "0x123"
 [dependencies.AptosFramework]
 git = "https://github.com/zkmove/aptos-core.git"
 rev = "bn256"

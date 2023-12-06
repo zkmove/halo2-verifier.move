@@ -29,4 +29,16 @@ module halo2_verifier::column {
     public fun column_index(column: &Column): u32 {
         column.index
     }
+
+    public fun column_type(column: &Column): u8 {
+        column.column_type
+    }
+
+    public fun new(index: u32, column_type: u8): Column {
+        Column {
+            index,
+            column_type
+        }
+    }
+
 }
