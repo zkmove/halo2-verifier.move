@@ -310,7 +310,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
     }
 }
 pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
-    const N: usize = 200;
+    const N: usize = 3;
     // Prepare the private and public inputs to the circuit!
     let a = [F::from(2); N];
     let b = [F::from(3); N];

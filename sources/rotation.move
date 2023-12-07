@@ -1,4 +1,5 @@
 module halo2_verifier::rotation {
+
     struct Rotation has copy, drop, store {
         rotation: u32,
         next: bool,
@@ -32,6 +33,9 @@ module halo2_verifier::rotation {
     }
 
     public fun reverse(r: &Rotation): Rotation {
+        if (r.rotation == 0) {
+            return *r
+        };
         Rotation {
             rotation: r.rotation,
             next: !r.next

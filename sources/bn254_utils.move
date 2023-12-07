@@ -7,21 +7,21 @@ module halo2_verifier::bn254_utils {
 
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
-    use aptos_std::string_utils::debug_string;
-    use aptos_std::debug;
+    use aptos_std::from_bcs;
+    use std::bcs;
 
     const S_OF_FR: u8 = 28;
-
+    const MODULUS: u256 = 21888242871839275222246405745257275088548364400416034343698204186575808495617;
     /// the following R, R2, R3 are derived from these of https://github.com/privacy-scaling-explorations/halo2curves/blob/a3f15e4106c8ba999ac958ff95aa543eb76adfba/src/bn256/fr.rs.
     /// `R = 2^256 mod r`
     /// `0xe0a77c19a07df2f666ea36f7879462e36fc76959f60cd29ac96341c4ffffffb`
-    const R: vector<u8> = x"0100000000000000000000000000000000000000000000000000000000000000";
+    const Montgomery_R: vector<u8> = x"0100000000000000000000000000000000000000000000000000000000000000";
     /// `R^2 = 2^512 mod r`
     /// `0x216d0b17f4e44a58c49833d53bb808553fe3ab1e35c59e31bb8e645ae216da7`
-    const R2: vector<u8> = x"fbffff4f1c3496ac29cd609f9576fc362e4679786fa36e662fdf079ac1770a0e";
+    const Montgomery_R2: vector<u8> = x"fbffff4f1c3496ac29cd609f9576fc362e4679786fa36e662fdf079ac1770a0e";
     /// `R^3 = 2^768 mod r`
     /// `0xcf8594b7fcc657c893cc664a19fcfed2a489cbe1cfbb6b85e94d8e1b4bf0040`
-    const R3: vector<u8> = x"a76d21ae45e6b81be3595ce3b13afe538580bb533d83498ca5444e7fb1d01602";
+    const Montgomery_R3: vector<u8> = x"a76d21ae45e6b81be3595ce3b13afe538580bb533d83498ca5444e7fb1d01602";
 
     /// GENERATOR^t where t * 2^s + 1 = r
     /// with t odd. In other words, this
@@ -76,6 +76,13 @@ module halo2_verifier::bn254_utils {
         from_u512_le<Fq>(bytes_lo, bytes_hi)
     }
 
+    fun mod_r(u256_bytes: &vector<u8>): vector<u8> {
+        let hi_u256 = from_bcs::to_u256(*u256_bytes);
+        if (hi_u256 >= MODULUS ){
+            hi_u256 = hi_u256 % MODULUS
+        };
+        bcs::to_bytes(&hi_u256)
+    }
     /// create a Field from u512 bytes in little endian.
     /// refer `Field::from_u512` of https://github.com/privacy-scaling-explorations/halo2curves/blob/a3f15e4106c8ba999ac958ff95aa543eb76adfba/src/derive/field.rs
     fun from_u512_le<F>(bytes_lo: &vector<u8>, bytes_hi: &vector<u8>): Element<F> {
@@ -83,11 +90,15 @@ module halo2_verifier::bn254_utils {
         assert!(len == 32, 100);
         let len = vector::length(bytes_hi);
         assert!(len == 32, 100);
-        debug::print(&debug_string(bytes_hi));
-        let lo = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(bytes_lo));
-        let hi = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(bytes_hi));
-        let r3 = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&R3));
-        let r2 = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&R2));
+
+        let lo = mod_r(bytes_lo);
+        let hi = mod_r(bytes_hi);
+
+
+        let lo = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&lo));
+        let hi = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&hi));
+        let r3 = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&Montgomery_R3));
+        let r2 = option::destroy_some(crypto_algebra::deserialize<F, FormatFrLsb>(&Montgomery_R2));
 
         // r2 have an inverse, so just unwrap here
         let hi = option::destroy_some(crypto_algebra::div(&crypto_algebra::mul(&hi, &r3), &r2));
@@ -151,9 +162,9 @@ module halo2_verifier::bn254_utils {
     #[test(s = @std)]
     fun test_R(s: &signer) {
         enable_cryptography_algebra_natives(s);
-        let r = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&R));
-        let r2 = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&R2));
-        let r3 = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&R3));
+        let r = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&Montgomery_R));
+        let r2 = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&Montgomery_R2));
+        let r3 = option::destroy_some(crypto_algebra::deserialize<Fr, FormatFrLsb>(&Montgomery_R3));
         assert!(crypto_algebra::eq(&crypto_algebra::mul(&r2, &r), &r2), 1);
         let result = crypto_algebra::mul(&r2, &r3);
         let bytes = crypto_algebra::serialize<Fr, FormatFrLsb>(&result);
@@ -175,6 +186,19 @@ module halo2_verifier::bn254_utils {
         );
     }
 
+    #[test(s=@std)]
+    fun test_from_u512_overflow(s: &signer) {
+        enable_cryptography_algebra_natives(s);
+        let lo = x"1d15ddb836f5734d8bb4971da83c7742ed757ed40c8364fd92f2ea48240171c8";
+        let hi = x"f9f721d317bb469737753bac7e16a4ab53ae27a9328d330bb81584e2e881eb44";
+        let result = fr_from_u512_le(&lo, &hi);
+        let expected = x"ee4f3269877c1e7cc93c2938527705dff64d159c16b09040c3990fdcf32f5705";
+
+        assert!(serialize_fr(&result) == expected, 100);
+
+    }
+
+
     #[test(s = @std)]
     fun test_pow_u64(s: &signer) {
         enable_cryptography_algebra_natives(s);
@@ -194,4 +218,5 @@ module halo2_verifier::bn254_utils {
         // 0b1100_0000
         assert!(swap_bit(0xc0, 7,5) == 0x60,1);
     }
+
 }
