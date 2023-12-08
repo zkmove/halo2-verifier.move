@@ -60,7 +60,7 @@ where
     // Create a proof
     let prove_start = std::time::Instant::now();
 
-    let rng = StdRng::from_entropy();
+    let rng = rand::rngs::mock::StepRng::new(0, 1);
     create_proof::<Scheme, P, _, _, _, _>(
         params,
         &pk,

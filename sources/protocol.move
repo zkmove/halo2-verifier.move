@@ -8,7 +8,7 @@ module halo2_verifier::protocol {
     use aptos_std::from_bcs;
     use aptos_std::math64::max;
 
-    use halo2_verifier::bn254_utils::{Self, deserialize_g1_from_halo2, deserialize_fr};
+    use halo2_verifier::bn254_utils::{Self, deserialize_g1_from_halo2, deserialize_fr, serialize_fr, serialize_g1_uncompressed};
     use halo2_verifier::column::{Self, Column};
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::expression::{Self, Expression};
@@ -23,6 +23,9 @@ module halo2_verifier::protocol {
     use std::string;
     #[test_only]
     use halo2_verifier::lookup;
+    use std::string::String;
+    use aptos_std::string_utils;
+    use std::vector::map_ref;
 
     // use std::vector::{Self, map_ref, length, fold};
     const QUERY_NOT_FOUND: u64 = 1;
@@ -66,26 +69,88 @@ module halo2_verifier::protocol {
         lookups: vector<Lookup>,
     }
 
+    struct ProtocolDisplay has  drop {
+        vk_transcript_repr: vector<u8>,
+        fixed_commitments: vector<vector<u8>>,
+        permutation_commitments: vector<vector<u8>>,
+        query_instance: bool,
+        // for ipa, true; for kzg, false
+        k: u8,
+        /// it's `advice_queries.count_by(|q| q.column).max`
+        max_num_query_of_advice_column: u32,
+
+        /// it's constraint_system's degree()
+        cs_degree: u32,
+
+        num_fixed_columns: u64,
+        num_instance_columns: u64,
+
+
+        advice_column_phase: vector<u8>,
+        challenge_phase: vector<u8>,
+
+        advice_queries: vector<AdviceQuery>,
+        instance_queries: vector<InstanceQuery>,
+        fixed_queries: vector<FixQuery>,
+
+        permutation_columns: vector<Column>,
+        gates: vector<vector<String>>,
+        lookups: vector<LookupDisplay>,
+    }
+
+    struct LookupDisplay has drop {
+        input_expressions: vector<vector<String>>,
+        table_expressions: vector<vector<String>>,
+    }
     struct Lookup has drop {
         input_expressions: vector<Expression>,
         table_expressions: vector<Expression>,
     }
 
-    struct AdviceQuery has drop {
+    struct AdviceQuery has copy,drop {
         q: ColumnQuery,
     }
 
-    struct InstanceQuery has drop {
+    struct InstanceQuery has copy,drop {
         q: ColumnQuery
     }
 
-    struct FixQuery  has drop {
+    struct FixQuery  has copy, drop {
         q: ColumnQuery
     }
 
-    struct ColumnQuery  has drop {
+    struct ColumnQuery  has copy, drop {
         column: Column,
         rotation: Rotation,
+    }
+
+    public fun format(self: &Protocol): String {
+        let display = ProtocolDisplay {
+            vk_transcript_repr: serialize_fr(&self.vk_transcript_repr),
+            fixed_commitments: map_ref(&self.fixed_commitments, |g| serialize_g1_uncompressed(g)),
+            permutation_commitments: map_ref(&self.permutation_commitments, |g| serialize_g1_uncompressed(g)),
+            query_instance: self.query_instance,
+            k: self.k,
+            max_num_query_of_advice_column: self.max_num_query_of_advice_column,
+            cs_degree: self.cs_degree,
+            num_fixed_columns: self.num_fixed_columns,
+            num_instance_columns: self.num_instance_columns,
+            advice_column_phase: self.advice_column_phase,
+            challenge_phase: self.challenge_phase,
+            advice_queries: self.advice_queries,
+            instance_queries: self.instance_queries,
+            fixed_queries: self.fixed_queries,
+            permutation_columns: self.permutation_columns,
+            gates: map_ref(&self.gates, |g| multivariate_poly::format(expression::poly(g))),
+            lookups: map_ref(&self.lookups, |l| {
+                let l: &Lookup = l;
+                LookupDisplay {
+                    input_expressions: map_ref(&l.input_expressions, |g| multivariate_poly::format(expression::poly(g))),
+                    table_expressions: map_ref(&l.table_expressions, |g| multivariate_poly::format(expression::poly(g)))
+                }
+            })
+        };
+        string_utils::debug_string(&display)
     }
 
     public fun get_bytes(

@@ -18,6 +18,9 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
+    use aptos_std::debug;
+    use aptos_std::string_utils;
+    use halo2_verifier::bn254_utils::serialize_fr;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -38,6 +41,7 @@ module halo2_verifier::halo2_verifier {
         transcript: Transcript
     ): bool {
         let domain = protocol::domain(protocol);
+        debug::print(&domain::format(&domain));
         // check_instances(&instances, protocol::num_instance(protocol));
         let instance_commitments: vector<vector<Element<G1>>> = if (protocol::query_instance(protocol)) {
             // TODO: not implemented for ipa
@@ -46,8 +50,10 @@ module halo2_verifier::halo2_verifier {
             map_ref(&instances, |i| vector::empty())
         };
         let num_proof = vector::length(&instances);
-        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
 
+        debug::print(&string_utils::format1(&b"vk repr: {}", serialize_fr(&protocol::transcript_repr(protocol))));
+        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
+        debug::print(&protocol::format(protocol));
         if (protocol::query_instance(protocol)) {
             // TODO: impl for ipa
             abort 100
@@ -202,7 +208,7 @@ module halo2_verifier::halo2_verifier {
                 rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
             );
 
-            let result = vector::empty();
+
             vector::map_ref(&instances, |instances| {
                 vector::map_ref(instance_queries, |q| {
                     let q: &InstanceQuery = q;
@@ -214,6 +220,7 @@ module halo2_verifier::halo2_verifier {
 
                     let i = 0;
                     let acc = crypto_algebra::zero();
+                    // change to multi_scalar_mul
                     while (i < instances_len) {
                         let val = vector::borrow(instances, i);
                         let l = *vector::borrow(&l_i_s, offset + i);
@@ -223,8 +230,7 @@ module halo2_verifier::halo2_verifier {
 
                     acc
                 })
-            });
-            result
+            })
         };
 
         let advice_evals = {
@@ -277,6 +283,7 @@ module halo2_verifier::halo2_verifier {
                 let result = crypto_algebra::zero();
                 while (i < len) {
                     result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                    i=i+1;
                 };
                 result
             };

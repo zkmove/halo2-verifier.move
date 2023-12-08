@@ -5,6 +5,11 @@ module halo2_verifier::query {
     use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
 
+    use std::string::String;
+
+    use aptos_std::string_utils;
+    use halo2_verifier::bn254_utils::serialize_fr;
+
     struct VerifierQuery has copy, drop {
         point: Element<Fr>,
         eval: Element<Fr>,
@@ -59,5 +64,11 @@ module halo2_verifier::query {
             msm::scale(&mut m, v);
             m
         }
+    }
+
+
+    public fun format(self: &VerifierQuery): String {
+        string_utils::format2(&b"{} {}", serialize_fr(&self.point), serialize_fr(&self.eval))
+        //string_utils::debug_string(self)
     }
 }

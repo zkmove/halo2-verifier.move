@@ -6,8 +6,9 @@ module halo2_verifier::transcript {
 
     use halo2_verifier::bn254_utils;
     use aptos_std::bn254_algebra::{Fr, G1};
-    use halo2_verifier::hasher::{Self, Hasher};
+    use halo2_verifier::plain_keccak::{Self};
     use std::option;
+    use halo2_verifier::plain_keccak::PlainKeccak;
 
     const U256_BYTE_LEN: u64 = 32;
 
@@ -30,14 +31,15 @@ module halo2_verifier::transcript {
         offset: u64,
     }
     struct Transcript has copy, drop {
-        state: Hasher,
+        state: PlainKeccak,
         reader: Read,
     }
 
     /// Initialize a transcript given an input buffer.
     public fun init(input: vector<u8>): Transcript {
-        let state = hasher::new();
-        hasher::update(&mut state, b"Halo2-Transcript");
+        
+        let state = plain_keccak::new();
+        plain_keccak::update(&mut state, b"Halo2-Transcript");
         Transcript {
             state,
             reader: Read {
@@ -53,21 +55,21 @@ module halo2_verifier::transcript {
         common_scalar_serialized(self, bn254_utils::serialize_fr(&s));
     }
     fun common_scalar_serialized(self: &mut Transcript, bytes: vector<u8>) {
-        hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_SCALAR));
-        hasher::update(&mut self.state,bytes);
+        plain_keccak::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_SCALAR));
+        plain_keccak::update(&mut self.state,bytes);
     }
 
     /// Writing the point to the transcript without writing it to the proof,
     /// treating it as a common input.
     public fun common_point(self: &mut Transcript, point: Element<G1>) {
-        hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_POINT));
+        plain_keccak::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_POINT));
         // because uncompressed serialize of g1 are [x.repr, y.repr_with_flag]
         // we can just erase the last 2 bits flags.
         let le_repr = bn254_utils::serialize_g1_uncompressed(&point);
         let bits = vector::pop_back(&mut le_repr);
         let flag_erased_bits = (bits << 2) >> 2;
         vector::push_back(&mut le_repr, flag_erased_bits);
-        hasher::update(&mut self.state, le_repr);
+        plain_keccak::update(&mut self.state, le_repr);
     }
 
     fun read_exact(read: &mut Read, len: u64) : vector<u8> {
@@ -124,15 +126,15 @@ module halo2_verifier::transcript {
 
     /// Squeeze an encoded verifier challenge from the transcript.
     public fun squeeze_challenge(self:  &mut Transcript) : Element<Fr> {
-        hasher::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_CHALLENGE)); 
+        plain_keccak::update(&mut self.state, vector::singleton(KECCAK256_PREFIX_CHALLENGE)); 
 
-        let state_lo : Hasher = self.state;
-        let state_hi : Hasher = self.state;
-        hasher::update(&mut state_lo, vector::singleton(KECCAK256_PREFIX_CHALLENGE_LO));
-        hasher::update(&mut state_hi, vector::singleton(KECCAK256_PREFIX_CHALLENGE_HI));
+        let state_lo : PlainKeccak = self.state;
+        let state_hi : PlainKeccak = self.state;
+        plain_keccak::update(&mut state_lo, vector::singleton(KECCAK256_PREFIX_CHALLENGE_LO));
+        plain_keccak::update(&mut state_hi, vector::singleton(KECCAK256_PREFIX_CHALLENGE_HI));
 
-        let result_lo = hasher::finalize(&mut state_lo);
-        let result_hi = hasher::finalize(&mut state_hi);
+        let result_lo = plain_keccak::finalize(&mut state_lo);
+        let result_hi = plain_keccak::finalize(&mut state_hi);
         let result = vector::empty();
         vector::append(&mut result, result_lo);
         vector::append(&mut result, result_hi);

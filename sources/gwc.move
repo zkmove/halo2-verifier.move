@@ -8,6 +8,7 @@ module halo2_verifier::gwc {
     use halo2_verifier::params::{Self, Params};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
+    use aptos_std::debug;
 
     public fun verify(
         params: &Params,
@@ -17,6 +18,9 @@ module halo2_verifier::gwc {
         let v = transcript::squeeze_challenge(transcript);
         let sets = construct_intermediate_sets(queries);
         let set_len = vector::length(&sets);
+        vector::for_each_ref(queries, |q| debug::print(&query::format(q)));
+
+        debug::print(&set_len);
         let w = transcript::read_n_point(transcript, set_len);
         let u = transcript::squeeze_challenge(transcript);
 
@@ -105,7 +109,7 @@ module halo2_verifier::gwc {
             let point = query::point(q);
             let (find, index) = vector::find(&sets, |s| {
                 let s: &vector<VerifierQuery> = s;
-                query::point(vector::borrow(s, 0)) == point
+                crypto_algebra::eq(query::point(vector::borrow(s, 0)), point)
             });
             if (find) {
                 vector::push_back(vector::borrow_mut(&mut sets, index), *q);

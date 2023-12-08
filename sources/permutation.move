@@ -59,9 +59,10 @@ module halo2_verifier::permutation {
             let permutation_product_next_eval = transcript::read_scalar(transcript);
             i = i + 1;
             let permutation_product_last_eval = if (i == len) {
-                option::some(transcript::read_scalar(transcript))
-            } else {
                 option::none()
+            } else {
+                option::some(transcript::read_scalar(transcript))
+
             };
 
             vector::push_back(&mut sets, PermutationEvaluatedSet {
