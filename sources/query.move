@@ -5,6 +5,11 @@ module halo2_verifier::query {
     use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
 
+    use std::string::String;
+
+    use aptos_std::string_utils;
+    use halo2_verifier::bn254_utils::{serialize_fr, serialize_g1_uncompressed};
+
     struct VerifierQuery has copy, drop {
         point: Element<Fr>,
         eval: Element<Fr>,
@@ -58,6 +63,21 @@ module halo2_verifier::query {
             let m = *option::borrow(&ref.msm);
             msm::scale(&mut m, v);
             m
+        }
+    }
+
+
+    public fun format(self: &VerifierQuery): String {
+        string_utils::format3(&b"{} {} {}", serialize_fr(&self.point), serialize_fr(&self.eval), format_commit_reference(&self.commitment))
+    }
+
+    fun format_commit_reference(self: &CommitmentReference): String {
+        if (option::is_some(&self.commitment)) {
+            string_utils::format1(&b"cm: {}", serialize_g1_uncompressed(option::borrow(&self.commitment)))
+        } else {
+            let m = option::borrow(&self.msm);
+
+            string_utils::format1(&b"sm: {}", serialize_g1_uncompressed(&msm::eval(m)))
         }
     }
 }

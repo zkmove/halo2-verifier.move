@@ -5,9 +5,17 @@ module halo2_verifier::multivariate_poly {
     use aptos_std::bn254_algebra::{Fr};
     use halo2_verifier::bn254_utils;
 
+    use std::string::String;
+
+    use std::string;
+
+    use aptos_std::string_utils;
+
+    use std::bn254_algebra::FormatFrMsb;
+
     /// TODO: we cannot make the poly `store`, as Scalar cannot be store.
     /// it's something like: coff1 * x1^1 * x2^2 + coff2 * x2^3 * x5^4 + coff3
-    struct MultiVariatePoly has drop {
+    struct MultiVariatePoly has  drop {
         terms: vector<Term>,
     }
 
@@ -84,5 +92,28 @@ module halo2_verifier::multivariate_poly {
             i = i+1;
         };
         crypto_algebra::mul<Fr>(coff(term), &result)
+    }
+
+
+    public fun format(self: &MultiVariatePoly): vector<String> {
+        vector::map_ref(&self.terms, |term| {
+            let t: &Term = term;
+             format_term(t)
+        })
+    }
+
+
+    fun format_term(self: &Term):String {
+        let result = string::utf8(b"");
+        string::append(&mut result, string_utils::to_string(&crypto_algebra::serialize<Fr, FormatFrMsb>(&self.coff)));
+        vector::for_each_ref(&self.terms, |term| {
+            let t: &SparseTerm = term;
+            if (t.power == 1) {
+                string::append(&mut result, string_utils::format1(&b" * x_{}", t.variable_index));
+            } else {
+                string::append(&mut result, string_utils::format2(&b" * x_{}^{}", t.variable_index, t.power));
+            }
+        });
+        result
     }
 }

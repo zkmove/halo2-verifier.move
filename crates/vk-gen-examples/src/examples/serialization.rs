@@ -110,8 +110,9 @@ impl Circuit<Fr> for StandardPlonk {
     }
 }
 
-pub fn get_example_circuit() -> StandardPlonk {
-    StandardPlonk(Fr::random(OsRng))
+pub fn get_example_circuit() -> (StandardPlonk, Vec<Fr>) {
+    let c = StandardPlonk(Fr::random(OsRng));
+    (c.clone(), vec![c.0])
 }
 // fn main() {
 //     let k = 4;

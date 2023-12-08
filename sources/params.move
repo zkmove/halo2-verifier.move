@@ -38,4 +38,11 @@ module halo2_verifier::params {
     public fun s_g2(params: &Params): &Element<G2> {
         &params.s_g2
     }
+
+    #[test_only]
+    public fun new_for_test(g1: Element<G1>, g2: Element<G2>, s_g2: Element<G2>): Params {
+        Params {
+            g1,g2,s_g2
+        }
+    }
 }

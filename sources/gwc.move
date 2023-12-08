@@ -85,15 +85,13 @@ module halo2_verifier::gwc {
         let right = msm::eval(&commitment_multi);
         let left = msm::eval(&witness);
 
-        let left_pairing = crypto_algebra::pairing<G1, G2, Gt>(
-            &left,
-            params::s_g2(params)
-        );
-        let right_pairing = crypto_algebra::pairing<G1, G2, Gt>(
-            &right,
-            params::g2(params)
-        );
-        crypto_algebra::eq(&left_pairing, &right_pairing)
+        let g1s = vector::singleton(left);
+        vector::push_back(&mut g1s, right);
+        let g2s = vector::singleton(*params::s_g2(params));
+        vector::push_back(&mut g2s, crypto_algebra::neg(params::g2(params)));
+
+        let pairing_result = crypto_algebra::multi_pairing<G1, G2, Gt>(&g1s, &g2s);
+        crypto_algebra::eq(&pairing_result, &crypto_algebra::zero())
     }
 
     fun construct_intermediate_sets(queries: &vector<VerifierQuery>): vector<vector<VerifierQuery>> {
@@ -105,7 +103,7 @@ module halo2_verifier::gwc {
             let point = query::point(q);
             let (find, index) = vector::find(&sets, |s| {
                 let s: &vector<VerifierQuery> = s;
-                query::point(vector::borrow(s, 0)) == point
+                crypto_algebra::eq(query::point(vector::borrow(s, 0)), point)
             });
             if (find) {
                 vector::push_back(vector::borrow_mut(&mut sets, index), *q);

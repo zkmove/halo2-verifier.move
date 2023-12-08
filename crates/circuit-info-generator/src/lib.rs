@@ -3,10 +3,9 @@ pub mod serialize;
 use std::collections::BTreeMap;
 
 use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::{FromUniformBytes};
+use halo2_proofs::halo2curves::ff::FromUniformBytes;
 use halo2_proofs::plonk::{
-    keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression,
-    Fixed, Instance,
+    keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
 };
 use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::Rotation as Halo2Rotation;
@@ -14,7 +13,12 @@ use halo2_proofs::poly::Rotation as Halo2Rotation;
 use multipoly::multivariate::{SparsePolynomial, SparseTerm, Term};
 use multipoly::DenseMVPolynomial;
 
-pub struct CircuitInfo<F: Field> {
+#[derive(Debug)]
+pub struct CircuitInfo<C: CurveAffine> {
+    vk_transcript_repr: C::Scalar,
+    fixed_commitments: Vec<C>,
+    permutation_commitments: Vec<C>,
+
     query_instance: bool,
     k: u8,
     max_num_query_of_advice_column: u32,
@@ -23,20 +27,21 @@ pub struct CircuitInfo<F: Field> {
     num_instance_columns: u64,
     advice_column_phase: Vec<u8>,
     challenge_phase: Vec<u8>,
-    gates: Vec<Vec<MultiVariatePolynomial<F>>>,
+    gates: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
 
     advice_queries: Vec<ColumnQuery>,
     instance_queries: Vec<ColumnQuery>,
     fixed_queries: Vec<ColumnQuery>,
     permutation_columns: Vec<Column>,
-    lookups: Vec<Lookup<F>>,
+    lookups: Vec<Lookup<C::Scalar>>,
 }
 
+#[derive(Debug)]
 pub struct ColumnQuery {
     pub column: Column,
     pub rotation: Rotation,
 }
-
+#[derive(Debug)]
 pub struct Column {
     pub index: u32,
     pub column_type: u8,
@@ -56,6 +61,7 @@ impl From<halo2_proofs::plonk::Column<Any>> for Column {
     }
 }
 
+#[derive(Debug)]
 pub struct Rotation {
     pub rotation: u32,
     pub next: bool,
@@ -76,7 +82,7 @@ impl From<halo2_proofs::poly::Rotation> for Rotation {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Lookup<F: Field> {
     pub input_exprs: Vec<MultiVariatePolynomial<F>>,
     pub table_exprs: Vec<MultiVariatePolynomial<F>>,
@@ -87,7 +93,7 @@ pub type MultiVariatePolynomial<F> = SparsePolynomial<F, SparseTerm>;
 pub fn generate_circuit_info<'params, C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
-) -> Result<CircuitInfo<C::Scalar>, Error>
+) -> Result<CircuitInfo<C>, Error>
 where
     C: CurveAffine,
     P: Params<'params, C>,
@@ -97,7 +103,27 @@ where
 {
     let vk = keygen_vk(params, circuit)?;
     let cs = vk.cs();
+    // as halo2 dones'nt expose vk's transcript_repr,
+    // we had to copy the code here.
+    let vk_repr = {
+        let mut hasher = blake2b_simd::Params::new()
+            .hash_length(64)
+            .personal(b"Halo2-Verify-Key")
+            .to_state();
+
+        let s = format!("{:?}", vk.pinned());
+
+        hasher.update(&(s.len() as u64).to_le_bytes());
+        hasher.update(s.as_bytes());
+
+        // Hash in final Blake2bState
+        C::Scalar::from_uniform_bytes(hasher.finalize().as_array())
+    };
+
     let info = CircuitInfo {
+        vk_transcript_repr: vk_repr,
+        fixed_commitments: vk.fixed_commitments().clone(),
+        permutation_commitments: vk.permutation().commitments().clone(),
         query_instance: false,
         k: (params.k() as u8), // we expect k would not be too large.
         cs_degree: cs.degree() as u32,

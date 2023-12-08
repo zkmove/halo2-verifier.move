@@ -1,8 +1,12 @@
 use crate::{CircuitInfo, Column, ColumnQuery, MultiVariatePolynomial};
+use halo2_proofs::arithmetic::CurveAffine;
 use halo2_proofs::halo2curves::ff::PrimeField;
 use multipoly::multivariate::SparseTerm;
 
-pub struct SerializableCircuitInfo<F: PrimeField> {
+pub struct SerializableCircuitInfo<C: CurveAffine> {
+    vk_transcript_repr: C::Scalar,
+    fixed_commitments: Vec<C>,
+    permutation_commitments: Vec<C>,
     query_instance: bool,
     k: u8,
     max_num_query_of_advice_column: u32,
@@ -11,19 +15,21 @@ pub struct SerializableCircuitInfo<F: PrimeField> {
     num_instance_columns: u64,
     advice_column_phase: Vec<u8>,
     challenge_phase: Vec<u8>,
-
     advice_queries: Vec<ColumnQuery>,
     instance_queries: Vec<ColumnQuery>,
     fixed_queries: Vec<ColumnQuery>,
     permutation_columns: Vec<Column>,
-    gates: Vec<MultiVariatePolynomial<F>>,
-    lookups_input_exprs: Vec<Vec<MultiVariatePolynomial<F>>>,
-    lookups_table_exprs: Vec<Vec<MultiVariatePolynomial<F>>>,
+    gates: Vec<MultiVariatePolynomial<C::Scalar>>,
+    lookups_input_exprs: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
+    lookups_table_exprs: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
 }
 
-impl<F: PrimeField> From<CircuitInfo<F>> for SerializableCircuitInfo<F> {
+impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
     fn from(
         CircuitInfo {
+            vk_transcript_repr,
+            fixed_commitments,
+            permutation_commitments,
             query_instance,
             k,
             max_num_query_of_advice_column,
@@ -38,7 +44,7 @@ impl<F: PrimeField> From<CircuitInfo<F>> for SerializableCircuitInfo<F> {
             fixed_queries,
             permutation_columns,
             lookups,
-        }: CircuitInfo<F>,
+        }: CircuitInfo<C>,
     ) -> Self {
         Self {
             query_instance,
@@ -56,16 +62,35 @@ impl<F: PrimeField> From<CircuitInfo<F>> for SerializableCircuitInfo<F> {
             gates: gates.into_iter().flatten().collect(),
             lookups_input_exprs: lookups.iter().map(|l| l.input_exprs.clone()).collect(),
             lookups_table_exprs: lookups.into_iter().map(|l| l.table_exprs).collect(),
+            vk_transcript_repr: vk_transcript_repr,
+            fixed_commitments: fixed_commitments,
+            permutation_commitments: permutation_commitments,
         }
     }
 }
 
 /// serialize circuit info as a arg list whose elements are nested bytes.
 /// the arg list will be part of the txn args for publish circuit verify keys.
-pub fn serialize<F: PrimeField>(
-    circuit_info: SerializableCircuitInfo<F>,
+pub fn serialize<C: CurveAffine>(
+    circuit_info: SerializableCircuitInfo<C>,
 ) -> bcs::Result<Vec<Vec<Vec<u8>>>> {
+    let vk_repr = PrimeField::to_repr(&circuit_info.vk_transcript_repr)
+        .as_ref()
+        .to_vec();
+    let fixed_commitments = circuit_info
+        .fixed_commitments
+        .iter()
+        .flat_map(|c| c.to_bytes().as_ref().to_vec())
+        .collect();
+    let permutation_commitments = circuit_info
+        .permutation_commitments
+        .iter()
+        .flat_map(|c| c.to_bytes().as_ref().to_vec())
+        .collect();
     let general_info = vec![
+        vk_repr,
+        fixed_commitments,
+        permutation_commitments,
         bcs::to_bytes(&circuit_info.query_instance)?,
         bcs::to_bytes(&circuit_info.k)?,
         bcs::to_bytes(&circuit_info.max_num_query_of_advice_column)?,

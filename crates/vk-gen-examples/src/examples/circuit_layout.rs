@@ -5,7 +5,6 @@ use halo2_proofs::{
     poly::Rotation,
 };
 
-
 use rand_core::OsRng;
 use std::marker::PhantomData;
 
@@ -272,16 +271,19 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
     }
 }
 
-pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
     // Prepare the circuit you want to render.
     // You don't need to include any witness variables.
     let a = F::random(OsRng);
     let instance = F::ONE + F::ONE;
     let lookup_table = vec![instance, a, a, F::ZERO];
-    MyCircuit {
-        a: Value::known(a),
-        lookup_table,
-    }
+    (
+        MyCircuit {
+            a: Value::unknown(),
+            lookup_table,
+        },
+        vec![],
+    )
 }
 
 // // ANCHOR: dev-graph

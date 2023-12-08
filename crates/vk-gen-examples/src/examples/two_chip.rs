@@ -496,21 +496,24 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         field_chip.expose_public(layouter.namespace(|| "expose d"), d, 0)
     }
 }
-pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
     // Prepare the private and public inputs to the circuit!
     let rng = OsRng;
     let a = F::random(rng);
     let b = F::random(rng);
     let c = F::random(rng);
-    let _d = (a + b) * c;
+    let d = (a + b) * c;
 
     // Instantiate the circuit with the private inputs.
-    
-    MyCircuit {
-        a: Value::known(a),
-        b: Value::known(b),
-        c: Value::known(c),
-    }
+
+    (
+        MyCircuit {
+            a: Value::known(a),
+            b: Value::known(b),
+            c: Value::known(c),
+        },
+        vec![d],
+    )
 }
 
 // ANCHOR_END: circuit

@@ -319,8 +319,8 @@ fn test_prover<C: CurveAffine, const W: usize, const H: usize>(
     assert_eq!(accepted, expected);
 }
 
-pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F, 4, 32> {
-    MyCircuit::<F, 4, 32>::rand(&mut OsRng)
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F, 4, 32>, Vec<F>) {
+    (MyCircuit::<F, 4, 32>::rand(&mut OsRng), vec![])
 }
 
 // fn main() {

@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use halo2_proofs::halo2curves::ff::PrimeField;
+
 use halo2_proofs::{
     arithmetic::Field,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
@@ -308,20 +309,21 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         Ok(())
     }
 }
-pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
-    const N: usize = 20000;
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
+    const N: usize = 3;
     // Prepare the private and public inputs to the circuit!
     let a = [F::from(2); N];
     let b = [F::from(3); N];
-    let _c: Vec<F> = a.iter().zip(b).map(|(&a, b)| a * b).collect();
+    let c: Vec<F> = a.iter().zip(b).map(|(&a, b)| a * b).collect();
 
     // Instantiate the circuit with the private inputs.
     let circuit = MyCircuit {
         a: a.iter().map(|&x| Value::known(x)).collect(),
         b: b.iter().map(|&x| Value::known(x)).collect(),
     };
-    circuit
+    (circuit, c)
 }
+
 // ANCHOR_END: circuit
 
 // fn main() {
