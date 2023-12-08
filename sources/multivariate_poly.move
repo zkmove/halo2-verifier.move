@@ -4,15 +4,13 @@ module halo2_verifier::multivariate_poly {
 
     use aptos_std::bn254_algebra::{Fr};
     use halo2_verifier::bn254_utils;
-    #[test_only]
+
     use std::string::String;
-    #[test_only]
+
     use std::string;
-    #[test_only]
-    use halo2_verifier::bn254_utils::serialize_fr;
-    #[test_only]
+
     use aptos_std::string_utils;
-    #[test_only]
+
     use std::bn254_algebra::FormatFrMsb;
 
     /// TODO: we cannot make the poly `store`, as Scalar cannot be store.
@@ -96,7 +94,7 @@ module halo2_verifier::multivariate_poly {
         crypto_algebra::mul<Fr>(coff(term), &result)
     }
 
-    #[test_only]
+
     public fun format(self: &MultiVariatePoly): vector<String> {
         vector::map_ref(&self.terms, |term| {
             let t: &Term = term;
@@ -104,7 +102,7 @@ module halo2_verifier::multivariate_poly {
         })
     }
 
-    #[test_only]
+
     fun format_term(self: &Term):String {
         let result = string::utf8(b"");
         string::append(&mut result, string_utils::to_string(&crypto_algebra::serialize<Fr, FormatFrMsb>(&self.coff)));

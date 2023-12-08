@@ -46,8 +46,8 @@ module halo2_verifier::halo2_verifier {
             map_ref(&instances, |i| vector::empty())
         };
         let num_proof = vector::length(&instances);
-        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
 
+        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
         if (protocol::query_instance(protocol)) {
             // TODO: impl for ipa
             abort 100
@@ -82,9 +82,7 @@ module halo2_verifier::halo2_verifier {
             //     });
             // });
         };
-
         // read advice commitments and challenges
-
         let advice_commitments = if (num_advice_columns(protocol) == 0) {
             vector::empty()
         } else {
@@ -129,7 +127,6 @@ module halo2_verifier::halo2_verifier {
                 i = i + 1;
             }
         };
-
         let theta = transcript::squeeze_challenge(&mut transcript);
 
 
@@ -141,6 +138,7 @@ module halo2_verifier::halo2_verifier {
         );
         let beta = transcript::squeeze_challenge(&mut transcript);
         let gamma = transcript::squeeze_challenge(&mut transcript);
+
         let permutations_committed = permutation_read_product_commitments(
             &mut transcript,
             num_proof,
@@ -202,7 +200,7 @@ module halo2_verifier::halo2_verifier {
                 rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
             );
 
-            let result = vector::empty();
+
             vector::map_ref(&instances, |instances| {
                 vector::map_ref(instance_queries, |q| {
                     let q: &InstanceQuery = q;
@@ -214,6 +212,7 @@ module halo2_verifier::halo2_verifier {
 
                     let i = 0;
                     let acc = crypto_algebra::zero();
+                    // change to multi_scalar_mul
                     while (i < instances_len) {
                         let val = vector::borrow(instances, i);
                         let l = *vector::borrow(&l_i_s, offset + i);
@@ -223,8 +222,7 @@ module halo2_verifier::halo2_verifier {
 
                     acc
                 })
-            });
-            result
+            })
         };
 
         let advice_evals = {
@@ -273,10 +271,11 @@ module halo2_verifier::halo2_verifier {
             let l_0 = *vector::borrow(&l_evals, blinding_factors + 1);
             let l_blind = {
                 let i = 1;
-                let len = blinding_factors + 2;
+                let len = blinding_factors + 1;
                 let result = crypto_algebra::zero();
                 while (i < len) {
                     result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                    i=i+1;
                 };
                 result
             };
@@ -369,9 +368,6 @@ module halo2_verifier::halo2_verifier {
         };
 
 
-        //let evaluation_len = evaluations_len(protocol, num_proof);
-        // read evaluations of polys at z.
-        //let evaluations = transcript::read_n_scalar(&mut transcript, evaluation_len);
         gwc::verify(params, &mut transcript, &queries)
     }
 
@@ -384,27 +380,6 @@ module halo2_verifier::halo2_verifier {
             i = i + 1;
         }
     }
-
-
-    // fun read_commitment_and_challenges(
-    //     transcript: &mut Transcript,
-    //     num_in_phase: &vector<u64>,
-    //     num_challenge_in_phase: &vector<u64>,
-    // ): (vector<Element<G1>>, vector<Element<Fr>>) {
-    //     let phase_len = vector::length(num_in_phase);
-    //     let i = 0;
-    //     let commitments = vector[];
-    //     let challenges = vector[];
-    //     while (i < phase_len) {
-    //         vector::append(&mut commitments, transcript::read_n_point(transcript, *vector::borrow(num_in_phase, i)));
-    //         vector::append(
-    //             &mut challenges,
-    //             transcript::squeeze_n_challenges(transcript, *vector::borrow(num_challenge_in_phase, i))
-    //         );
-    //         i = i + 1;
-    //     };
-    //     (commitments, challenges)
-    // }
 
     fun lookup_read_permuted_commitments(
         transcript: &mut Transcript,

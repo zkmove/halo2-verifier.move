@@ -6,6 +6,7 @@ use clap::{value_parser, Parser, Subcommand, ValueEnum};
 
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::group::GroupEncoding;
+use halo2_proofs::halo2curves::group::UncompressedEncoding;
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};
 use halo2_proofs::poly::commitment::{Params, ParamsProver};
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
@@ -18,7 +19,6 @@ use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul,
 };
 use vk_gen_examples::proof::prove_with_gwc_and_keccak256;
-
 #[derive(Parser)]
 struct Cli {
     #[arg(long = "verifier-module", default_value = "halo2_verifier")]
@@ -86,9 +86,9 @@ fn main() -> anyhow::Result<()> {
     println!(
         "use param with, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
         params.k(),
-        hex::encode(g.to_bytes()),
-        hex::encode(g2.to_bytes()),
-        hex::encode(s_g2.to_bytes())
+        hex::encode(g.to_uncompressed()),
+        hex::encode(g2.to_uncompressed()),
+        hex::encode(s_g2.to_uncompressed())
     );
 
     match cli.command {

@@ -1,17 +1,19 @@
 module halo2_verifier::permutation {
     use std::option::{Self, Option};
     use std::vector::{Self, zip, for_each_ref, for_each_reverse};
-    use aptos_std::crypto_algebra::{Self, Element};
 
     use aptos_std::bn254_algebra::{G1, Fr};
-    use halo2_verifier::bn254_utils;
+    use aptos_std::crypto_algebra::{Self, Element};
+    use aptos_std::debug;
+    use aptos_std::string_utils;
+
+    use halo2_verifier::bn254_utils::{Self, serialize_fr};
     use halo2_verifier::column;
-    use halo2_verifier::domain;
+    use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
     use halo2_verifier::transcript::{Self, Transcript};
-    use halo2_verifier::domain::Domain;
 
     struct Commited has drop {
         permutation_product_commitments: vector<Element<G1>>,
@@ -59,9 +61,9 @@ module halo2_verifier::permutation {
             let permutation_product_next_eval = transcript::read_scalar(transcript);
             i = i + 1;
             let permutation_product_last_eval = if (i == len) {
-                option::some(transcript::read_scalar(transcript))
-            } else {
                 option::none()
+            } else {
+                option::some(transcript::read_scalar(transcript))
             };
 
             vector::push_back(&mut sets, PermutationEvaluatedSet {
@@ -151,7 +153,10 @@ module halo2_verifier::permutation {
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
                 let right = set.permutation_product_eval;
                 // cur_delta = beta * x * delta^(i*chunk_len)
-                let current_delta = crypto_algebra::mul(&crypto_algebra::mul(beta, x), &bn254_utils::pow_u32(&bn254_utils::delta_of_fr(), (i * chunk_len as u32)));
+                let current_delta = crypto_algebra::mul(
+                    &crypto_algebra::mul(beta, x),
+                    &bn254_utils::pow_u32(&bn254_utils::delta_of_fr(), (i * chunk_len as u32))
+                );
                 let j = i * chunk_len;
                 while (j < (i + 1) * chunk_len && j < permutation_columns_len) {
                     let permutation_eval = vector::borrow(&permutations_common.permutation_evals, j);
@@ -168,9 +173,15 @@ module halo2_verifier::permutation {
                     };
                     left = crypto_algebra::mul(
                         &left,
-                        &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &crypto_algebra::mul(beta, permutation_eval))
+                        &crypto_algebra::add(
+                            &crypto_algebra::add(eval, gamma),
+                            &crypto_algebra::mul(beta, permutation_eval)
+                        )
                     );
-                    right = crypto_algebra::mul(&right, &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &current_delta));
+                    right = crypto_algebra::mul(
+                        &right,
+                        &crypto_algebra::add(&crypto_algebra::add(eval, gamma), &current_delta)
+                    );
                     current_delta = crypto_algebra::mul(&current_delta, &bn254_utils::delta_of_fr());
                     j = j + 1;
                 };
@@ -191,7 +202,13 @@ module halo2_verifier::permutation {
         results
     }
 
-    public fun queries(self: Evaluted, queries: &mut vector<VerifierQuery>, protocol: &Protocol,domain: &Domain, x: &Element<Fr>) {
+    public fun queries(
+        self: Evaluted,
+        queries: &mut vector<VerifierQuery>,
+        protocol: &Protocol,
+        domain: &Domain,
+        x: &Element<Fr>
+    ) {
         let blinding_factors = protocol::blinding_factors(protocol);
         let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
         let x_last = domain::rotate_omega(domain, x, &rotation::prev((blinding_factors as u32) + 1));

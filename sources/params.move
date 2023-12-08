@@ -40,11 +40,9 @@ module halo2_verifier::params {
     }
 
     #[test_only]
-    public fun new_for_test(g1: &vector<u8>, g2: &vector<u8>, s_g2: &vector<u8>): Params {
+    public fun new_for_test(g1: Element<G1>, g2: Element<G2>, s_g2: Element<G2>): Params {
         Params {
-            g1: option::destroy_some(bn254_utils::deserialize_g1(g1)),
-            g2: option::destroy_some(bn254_utils::deserialize_g2(g2)),
-            s_g2: option::destroy_some(bn254_utils::deserialize_g2(s_g2)),
+            g1,g2,s_g2
         }
     }
 }
