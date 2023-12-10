@@ -12,12 +12,14 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
-    use halo2_verifier::protocol::{Self, Protocol, InstanceQuery, query_instance, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
+    use halo2_verifier::protocol::{Self, Protocol,  query_instance, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::rotation;
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
+    use halo2_verifier::column_query;
+    use halo2_verifier::column_query::ColumnQuery;
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -166,14 +168,13 @@ module halo2_verifier::halo2_verifier {
             };
             result
         } else {
-            // TODO: calculate instances eval
             let instance_queries = instance_queries(protocol);
             let min_rotation = rotation::cur();
             let max_rotation = rotation::cur();
 
             vector::for_each_ref(instance_queries, |q| {
-                let q: &InstanceQuery = q;
-                let (_column, rotation) = protocol::from_instance_query(q);
+                let q: &ColumnQuery = q;
+                let rotation = column_query::rotation(q);
                 if (rotation::gt(&min_rotation, rotation)) {
                     min_rotation = *rotation;
                 }
@@ -203,8 +204,9 @@ module halo2_verifier::halo2_verifier {
 
             vector::map_ref(&instances, |instances| {
                 vector::map_ref(instance_queries, |q| {
-                    let q: &InstanceQuery = q;
-                    let (column, rotation) = protocol::from_instance_query(q);
+                    let q: &ColumnQuery = q;
+                    let column = column_query::column(q);
+                    let rotation = column_query::rotation(q);
                     let column_index = (column::column_index(column) as u64);
                     let instances = vector::borrow(instances, column_index);
                     let instances_len = vector::length(instances);
@@ -212,7 +214,6 @@ module halo2_verifier::halo2_verifier {
 
                     let i = 0;
                     let acc = crypto_algebra::zero();
-                    // change to multi_scalar_mul
                     while (i < instances_len) {
                         let val = vector::borrow(instances, i);
                         let l = *vector::borrow(&l_i_s, offset + i);
@@ -349,7 +350,9 @@ module halo2_verifier::halo2_verifier {
             // fixed queries
             let fixed_commitments = protocol::fixed_commitments(protocol);
             enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
-                let (column, rotation) = protocol::from_fixed_query(query);
+                let column = column_query::column(query);
+                let  rotation = column_query::rotation(query);
+
                 vector::push_back(&mut queries,
                     query::new_commitment(
                         *vector::borrow(fixed_commitments, (column::column_index(column) as u64)),
@@ -438,7 +441,9 @@ module halo2_verifier::halo2_verifier {
         // instance queries
         if (protocol::query_instance(protocol)) {
             enumerate_ref(protocol::instance_queries(protocol), |query_index, query| {
-                let (column, rotation) = protocol::from_instance_query(query);
+                let column = column_query::column(query);
+                let  rotation = column_query::rotation(query);
+
                 vector::push_back(queries,
                     query::new_commitment(
                         *vector::borrow(instance_commitments, (column::column_index(column) as u64)),
@@ -450,7 +455,9 @@ module halo2_verifier::halo2_verifier {
 
         // advice queries
         enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{
-            let (column, rotation) = protocol::from_advice_query(query);
+            let column = column_query::column(query);
+            let  rotation = column_query::rotation(query);
+
             vector::push_back(queries,
                 query::new_commitment(
                     *vector::borrow(advice_commitments, (column::column_index(column) as u64)),

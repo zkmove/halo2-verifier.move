@@ -4,10 +4,8 @@ module halo2_verifier::permutation {
 
     use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
-    use aptos_std::debug;
-    use aptos_std::string_utils;
 
-    use halo2_verifier::bn254_utils::{Self, serialize_fr};
+    use halo2_verifier::bn254_utils;
     use halo2_verifier::column;
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
