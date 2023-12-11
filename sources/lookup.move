@@ -168,7 +168,7 @@ module halo2_verifier::lookup {
         acc
     }
 
-    public fun queries(self: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
+    public fun queries(self: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, _protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
         let x_inv = domain::rotate_omega(domain, x, &rotation::prev(1));
         let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
         for_each_ref(self, |evaluated| {
