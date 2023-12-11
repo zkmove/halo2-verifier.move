@@ -16,6 +16,3 @@ toml = { version = "0.8.8" }
 rand_core = { version = "0.6.4" }
 rand = { version = "0.8.5" }
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
-
-[patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = {path = "../../../../privacy-scaling-explorations/halo2/halo2_proofs"}

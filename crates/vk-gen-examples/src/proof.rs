@@ -9,8 +9,8 @@ use halo2_proofs::poly::{kzg, VerificationStrategy};
 use halo2_proofs::transcript::{
     Challenge255, Keccak256Read, Keccak256Write, TranscriptReadBuffer, TranscriptWriterBuffer,
 };
-use rand::prelude::StdRng;
-use rand_core::SeedableRng;
+
+
 use std::fmt::Debug;
 
 pub fn prove_with_gwc_and_keccak256<E, ConcreteCircuit>(
