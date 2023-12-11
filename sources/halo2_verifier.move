@@ -14,7 +14,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::permutation;
     use halo2_verifier::protocol::{Self, Protocol,  query_instance, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::rotation;
+    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
@@ -169,16 +169,17 @@ module halo2_verifier::halo2_verifier {
             result
         } else {
             let instance_queries = instance_queries(protocol);
-            let min_rotation = rotation::cur();
-            let max_rotation = rotation::cur();
+            let min_rotation = i32::zero();
+            let max_rotation = i32::zero();
 
             vector::for_each_ref(instance_queries, |q| {
                 let q: &ColumnQuery = q;
                 let rotation = column_query::rotation(q);
-                if (rotation::gt(&min_rotation, rotation)) {
+                // GREATER_THAN = 2
+                if (i32::compare(&min_rotation, rotation) == 2) {
                     min_rotation = *rotation;
                 }
-                else if (rotation::gt(rotation, &max_rotation)) {
+                else if (i32::compare(rotation, &max_rotation) == 2) {
                     max_rotation = *rotation;
                 }
             });
@@ -197,8 +198,8 @@ module halo2_verifier::halo2_verifier {
                 &domain,
                 &z,
                 &z_n,
-                rotation::reverse(&max_rotation),
-                rotation::next((max_instance_len as u32) + rotation::value(&min_rotation))
+                i32::neg(&max_rotation),
+                i32::from((max_instance_len as u32) + i32::abs(&min_rotation))
             );
 
 
@@ -210,7 +211,7 @@ module halo2_verifier::halo2_verifier {
                     let column_index = (column::column_index(column) as u64);
                     let instances = vector::borrow(instances, column_index);
                     let instances_len = vector::length(instances);
-                    let offset = (rotation::value(&rotation::sub(&max_rotation, rotation)) as u64);
+                    let offset = (i32::abs(&i32::sub(&max_rotation, rotation)) as u64);
 
                     let i = 0;
                     let acc = crypto_algebra::zero();
@@ -264,8 +265,8 @@ module halo2_verifier::halo2_verifier {
                 &domain,
                 &z,
                 &z_n,
-                rotation::prev((blinding_factors as u32) + 1),
-                rotation::next(1)
+                i32::neg_from((blinding_factors as u32) + 1),
+                i32::from(1)
             );
             // todo: assert len(l_evals) = blinding_factor+2
             let l_last = *vector::borrow(&l_evals, 0);

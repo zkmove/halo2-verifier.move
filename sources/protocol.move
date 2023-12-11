@@ -14,7 +14,7 @@ module halo2_verifier::protocol {
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::multivariate_poly;
-    use halo2_verifier::rotation::{Self, Rotation};
+    use halo2_verifier::i32::{Self, I32};
 
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
@@ -165,7 +165,7 @@ module halo2_verifier::protocol {
         let rotation = from_bcs::to_u32(read_bytes(q, 6, 10));
         column_query::new(
             column::new(index, column_type),
-            rotation::new(next, rotation)
+            i32::new(next, rotation)
         )
     }
 
@@ -344,7 +344,7 @@ module halo2_verifier::protocol {
 
     /// get query index of any column
     /// TODO(optimize): get_query_index is only called in one place, and we can optimize it for the specific usage.
-    public fun get_query_index(protocol: &Protocol, column: &Column, rotation: &Rotation): u64 {
+    public fun get_query_index(protocol: &Protocol, column: &Column, rotation: &I32): u64 {
         let target_queries = if (column::is_fixed(column)) {
             &protocol.fixed_queries
         } else if (column::is_instance(column)) {
@@ -542,8 +542,8 @@ module halo2_verifier::protocol {
         let advice_query = vector::borrow(&protocol.advice_queries, 3);
         assert!(column::column_type(column_query::column(advice_query)) == 0, 1);
         assert!(column::column_index(column_query::column(advice_query)) == 4, 1);
-        assert!(!rotation::is_neg(column_query::rotation(advice_query)), 1);
-        assert!(rotation::value(column_query::rotation(advice_query)) == 1, 1);
+        assert!(!i32::is_neg(column_query::rotation(advice_query)), 1);
+        assert!(i32::abs(column_query::rotation(advice_query)) == 1, 1);
 
         let permutation_column = vector::borrow(&protocol.permutation_columns, 2);
         assert!(column::column_type(permutation_column) == 0, 1);
