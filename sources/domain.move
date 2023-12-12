@@ -81,7 +81,7 @@ module halo2_verifier::domain {
             r = option::destroy_some(crypto_algebra::inv(&r));
             r = rotate_omega(self, &crypto_algebra::mul(&r, &common), rotation);
             vector::push_back(&mut result, r);
-            cur = i32::get_next(&cur);
+            cur = i32::add(&cur, &i32::from(1));
         };
 
         result
