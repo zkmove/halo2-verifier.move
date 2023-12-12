@@ -19,7 +19,6 @@ pub struct CircuitInfo<C: CurveAffine> {
     fixed_commitments: Vec<C>,
     permutation_commitments: Vec<C>,
 
-    query_instance: bool,
     k: u8,
     max_num_query_of_advice_column: u32,
     cs_degree: u32,
@@ -124,7 +123,6 @@ where
         vk_transcript_repr: vk_repr,
         fixed_commitments: vk.fixed_commitments().clone(),
         permutation_commitments: vk.permutation().commitments().clone(),
-        query_instance: false,
         k: (params.k() as u8), // we expect k would not be too large.
         cs_degree: cs.degree() as u32,
         num_fixed_columns: cs.num_fixed_columns() as u64,

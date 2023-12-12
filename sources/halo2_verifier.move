@@ -12,7 +12,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
-    use halo2_verifier::protocol::{Self, Protocol,  query_instance, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
+    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
@@ -41,38 +41,29 @@ module halo2_verifier::halo2_verifier {
     ): bool {
         let domain = protocol::domain(protocol);
         // check_instances(&instances, protocol::num_instance(protocol));
-        let instance_commitments: vector<vector<Element<G1>>> = if (protocol::query_instance(protocol)) {
-            // TODO: not implemented for ipa
-            abort 100
-        } else {
-            map_ref(&instances, |i| vector::empty())
-        };
+        let instance_commitments: vector<vector<Element<G1>>> = map_ref(&instances, |i| vector::empty());
         let num_proof = vector::length(&instances);
 
         transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
-        if (protocol::query_instance(protocol)) {
-            // TODO: impl for ipa
-            abort 100
-        } else {
-            // use while loop to keep the code more portable.
-            // if protable is not the priority, can use for_each instead in aptos.
-            let i = 0;
-            while (i < num_proof) {
-                let instance = vector::borrow(&instances, i);
-                let col_len = vector::length(instance);
-                let j = 0;
-                while (j < col_len) {
-                    let col_values = vector::borrow(instance, j);
-                    let value_len = vector::length(col_values);
-                    let k = 0;
-                    while (k < value_len) {
-                        transcript::common_scalar(&mut transcript, *vector::borrow(col_values, k));
-                        k = k + 1;
-                    };
-                    j = j + 1;
+        
+        // use while loop to keep the code more portable.
+        // if protable is not the priority, can use for_each instead in aptos.
+        let i = 0;
+        while (i < num_proof) {
+            let instance = vector::borrow(&instances, i);
+            let col_len = vector::length(instance);
+            let j = 0;
+            while (j < col_len) {
+                let col_values = vector::borrow(instance, j);
+                let value_len = vector::length(col_values);
+                let k = 0;
+                while (k < value_len) {
+                    transcript::common_scalar(&mut transcript, *vector::borrow(col_values, k));
+                    k = k + 1;
                 };
-                i = i + 1;
+                j = j + 1;
             };
+            i = i + 1;
 
             // in aptos, we can use for_each_ref
             // for_each_ref(&instances, |instance| {
@@ -158,74 +149,63 @@ module halo2_verifier::halo2_verifier {
         let z = transcript::squeeze_challenge(&mut transcript);
         let z_n = bn254_utils::pow_u32(&z, domain::n(&domain));
 
-        let instance_evals = if (query_instance(protocol)) {
-            let len = vector::length(instance_queries(protocol));
-            let i = 0;
-            let result = vector::empty();
-            while (i < num_proof) {
-                vector::push_back(&mut result, transcript::read_n_scalar(&mut transcript, len));
-                i = i + 1;
-            };
-            result
-        } else {
-            let instance_queries = instance_queries(protocol);
-            let min_rotation = i32::zero();
-            let max_rotation = i32::zero();
+        let instance_queries = instance_queries(protocol);
+        let min_rotation = i32::zero();
+        let max_rotation = i32::zero();
 
-            vector::for_each_ref(instance_queries, |q| {
-                let q: &ColumnQuery = q;
-                let rotation = column_query::rotation(q);
-                // GREATER_THAN = 2
-                if (i32::compare(&min_rotation, rotation) == 2) {
-                    min_rotation = *rotation;
+        vector::for_each_ref(instance_queries, |q| {
+            let q: &ColumnQuery = q;
+            let rotation = column_query::rotation(q);
+            // GREATER_THAN = 2
+            if (i32::compare(&min_rotation, rotation) == 2) {
+                min_rotation = *rotation;
+            }
+            else if (i32::compare(rotation, &max_rotation) == 2) {
+                max_rotation = *rotation;
+            }
+        });
+
+        let max_instance_len = 0;
+        vector::for_each_ref(&instances, |i| {
+            vector::for_each_ref(i, |r| {
+                let length = vector::length(r);
+                if (length > max_instance_len) {
+                    max_instance_len = length;
                 }
-                else if (i32::compare(rotation, &max_rotation) == 2) {
-                    max_rotation = *rotation;
-                }
-            });
-
-            let max_instance_len = 0;
-            vector::for_each_ref(&instances, |i| {
-                vector::for_each_ref(i, |r| {
-                    let length = vector::length(r);
-                    if (length > max_instance_len) {
-                        max_instance_len = length;
-                    }
-                })
-            });
-
-            let l_i_s = domain::l_i_range(
-                &domain,
-                &z,
-                &z_n,
-                i32::neg(&max_rotation),
-                i32::from((max_instance_len as u32) + i32::abs(&min_rotation))
-            );
-
-
-            vector::map_ref(&instances, |instances| {
-                vector::map_ref(instance_queries, |q| {
-                    let q: &ColumnQuery = q;
-                    let column = column_query::column(q);
-                    let rotation = column_query::rotation(q);
-                    let column_index = (column::column_index(column) as u64);
-                    let instances = vector::borrow(instances, column_index);
-                    let instances_len = vector::length(instances);
-                    let offset = (i32::abs(&i32::sub(&max_rotation, rotation)) as u64);
-
-                    let i = 0;
-                    let acc = crypto_algebra::zero();
-                    while (i < instances_len) {
-                        let val = vector::borrow(instances, i);
-                        let l = *vector::borrow(&l_i_s, offset + i);
-                        acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
-                        i = i + 1;
-                    };
-
-                    acc
-                })
             })
-        };
+        });
+
+        let l_i_s = domain::l_i_range(
+            &domain,
+            &z,
+            &z_n,
+            i32::neg(&max_rotation),
+            i32::from((max_instance_len as u32) + i32::abs(&min_rotation))
+        );
+
+
+        let instance_evals = vector::map_ref(&instances, |instances| {
+            vector::map_ref(instance_queries, |q| {
+                let q: &ColumnQuery = q;
+                let column = column_query::column(q);
+                let rotation = column_query::rotation(q);
+                let column_index = (column::column_index(column) as u64);
+                let instances = vector::borrow(instances, column_index);
+                let instances_len = vector::length(instances);
+                let offset = (i32::abs(&i32::sub(&max_rotation, rotation)) as u64);
+
+                let i = 0;
+                let acc = crypto_algebra::zero();
+                while (i < instances_len) {
+                    let val = vector::borrow(instances, i);
+                    let l = *vector::borrow(&l_i_s, offset + i);
+                    acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
+                    i = i + 1;
+                };
+
+                acc
+            })
+        });
 
         let advice_evals = {
             let len = vector::length(protocol::advice_queries(protocol));
@@ -439,6 +419,7 @@ module halo2_verifier::halo2_verifier {
         permutation: permutation::Evaluted,
         lookups: vector<lookup::Evaluated>
     ) {
+        /*
         // instance queries
         if (protocol::query_instance(protocol)) {
             enumerate_ref(protocol::instance_queries(protocol), |query_index, query| {
@@ -453,6 +434,7 @@ module halo2_verifier::halo2_verifier {
                     ));
             });
         };
+        */
 
         // advice queries
         enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{

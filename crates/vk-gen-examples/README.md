@@ -15,9 +15,9 @@ cargo run --release -- --help
 Run the follow to generate vk info  for circuit in `src/examples/vector-mul.rs`.
 replace the `verifier-module` and `verifier-address` with the actual verifier's address and name.
 ``` shell
-cargo run --release -- -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example vector-mul -o vk_deployment
+cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example vector-mul -o vk_deployment
 
-cargo run --release -- -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example circuit-layout -o vk_deployment
+cargo run --release --  --param-path params/challenge_0078-kzg_bn254_16.srs -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example circuit-layout -o vk_deployment
 
 
 ```
