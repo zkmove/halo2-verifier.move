@@ -37,8 +37,7 @@ module halo2_verifier::protocol {
         vk_transcript_repr: Element<Fr>,
         fixed_commitments: vector<Element<G1>>,
         permutation_commitments: vector<Element<G1>>,
-        query_instance: bool,
-        // for ipa, true; for kzg, false
+        // query_instance: bool, // for ipa, true; for kzg, false
         k: u8,
         /// it's `advice_queries.count_by(|q| q.column).max`
         max_num_query_of_advice_column: u32,
@@ -88,7 +87,6 @@ module halo2_verifier::protocol {
         let cs_degree = from_bcs::to_u32(vector::pop_back(&mut general_info));
         let max_num_query_of_advice_column = from_bcs::to_u32(vector::pop_back(&mut general_info));
         let k = from_bcs::to_u8(vector::pop_back(&mut general_info));
-        let query_instance = from_bcs::to_bool(vector::pop_back(&mut general_info));
         let permutation_commitments = deserialize_commitment_list(&vector::pop_back(&mut general_info));
         let fixed_commitments = deserialize_commitment_list(&vector::pop_back(&mut general_info));
         let vk_repr = option::destroy_some(deserialize_fr(&vector::pop_back(&mut general_info)));
@@ -117,7 +115,6 @@ module halo2_verifier::protocol {
             vk_transcript_repr: vk_repr,
             fixed_commitments,
             permutation_commitments,
-            query_instance,
             k,
             max_num_query_of_advice_column,
             cs_degree,
@@ -278,10 +275,6 @@ module halo2_verifier::protocol {
         &self.permutation_commitments
     }
 
-    public fun query_instance(protocol: &Protocol): bool {
-        protocol.query_instance
-    }
-
     public fun instance_queries(protocol: &Protocol): &vector<ColumnQuery> {
         &protocol.instance_queries
     }
@@ -420,8 +413,6 @@ module halo2_verifier::protocol {
         vk_transcript_repr: vector<u8>,
         fixed_commitments: vector<vector<u8>>,
         permutation_commitments: vector<vector<u8>>,
-        query_instance: bool,
-        // for ipa, true; for kzg, false
         k: u8,
         /// it's `advice_queries.count_by(|q| q.column).max`
         max_num_query_of_advice_column: u32,
@@ -456,7 +447,6 @@ module halo2_verifier::protocol {
             vk_transcript_repr: serialize_fr(&self.vk_transcript_repr),
             fixed_commitments: map_ref(&self.fixed_commitments, |g| serialize_g1_uncompressed(g)),
             permutation_commitments: map_ref(&self.permutation_commitments, |g| serialize_g1_uncompressed(g)),
-            query_instance: self.query_instance,
             k: self.k,
             max_num_query_of_advice_column: self.max_num_query_of_advice_column,
             cs_degree: self.cs_degree,

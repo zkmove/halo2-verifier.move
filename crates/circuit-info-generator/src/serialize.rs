@@ -7,7 +7,6 @@ pub struct SerializableCircuitInfo<C: CurveAffine> {
     vk_transcript_repr: C::Scalar,
     fixed_commitments: Vec<C>,
     permutation_commitments: Vec<C>,
-    query_instance: bool,
     k: u8,
     max_num_query_of_advice_column: u32,
     cs_degree: u32,
@@ -30,7 +29,6 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
             vk_transcript_repr,
             fixed_commitments,
             permutation_commitments,
-            query_instance,
             k,
             max_num_query_of_advice_column,
             cs_degree,
@@ -47,7 +45,6 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
         }: CircuitInfo<C>,
     ) -> Self {
         Self {
-            query_instance,
             k,
             max_num_query_of_advice_column,
             cs_degree,
@@ -91,7 +88,6 @@ pub fn serialize<C: CurveAffine>(
         vk_repr,
         fixed_commitments,
         permutation_commitments,
-        bcs::to_bytes(&circuit_info.query_instance)?,
         bcs::to_bytes(&circuit_info.k)?,
         bcs::to_bytes(&circuit_info.max_num_query_of_advice_column)?,
         bcs::to_bytes(&circuit_info.cs_degree)?,
