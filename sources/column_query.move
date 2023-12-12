@@ -1,20 +1,20 @@
 module halo2_verifier::column_query {
     use halo2_verifier::column::Column;
-    use halo2_verifier::rotation::Rotation;
+    use halo2_verifier::i32::I32;
 
     struct ColumnQuery  has copy, drop {
         column: Column,
-        rotation: Rotation,
+        rotation: I32,
     }
 
-    public fun new(c: Column, rotation: Rotation): ColumnQuery {
+    public fun new(c: Column, rotation: I32): ColumnQuery {
         ColumnQuery {
             column:c,
             rotation
         }
     }
 
-    public fun rotation(self: &ColumnQuery): &Rotation {
+    public fun rotation(self: &ColumnQuery): &I32 {
         &self.rotation
     }
     public fun column(self: &ColumnQuery): &Column {

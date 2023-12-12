@@ -7,7 +7,7 @@ module halo2_verifier::lookup {
     use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::protocol::{Self, Protocol, Lookup};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::rotation;
+    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::domain::Domain;
 
@@ -169,8 +169,8 @@ module halo2_verifier::lookup {
     }
 
     public fun queries(self: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, _protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
-        let x_inv = domain::rotate_omega(domain, x, &rotation::prev(1));
-        let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
+        let x_inv = domain::rotate_omega(domain, x, &i32::neg_from(1));
+        let x_next = domain::rotate_omega(domain, x, &i32::from(1));
         for_each_ref(self, |evaluated| {
             let eval: &Evaluated = evaluated;
             // Open lookup product commitment at x

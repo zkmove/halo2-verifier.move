@@ -10,7 +10,7 @@ module halo2_verifier::permutation {
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::rotation;
+    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
 
     struct Commited has drop {
@@ -160,13 +160,13 @@ module halo2_verifier::permutation {
                     let permutation_eval = vector::borrow(&permutations_common.permutation_evals, j);
                     let column = vector::borrow(permutation_columns, j);
                     let eval = if (column::is_fixed(column)) {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
+                        let query_index = protocol::get_query_index(protocol, column, &i32::zero());
                         vector::borrow(fixed_evals, query_index)
                     } else if (column::is_instance(column)) {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
+                        let query_index = protocol::get_query_index(protocol, column, &i32::zero());
                         vector::borrow(instance_evals, query_index)
                     } else {
-                        let query_index = protocol::get_query_index(protocol, column, &rotation::cur());
+                        let query_index = protocol::get_query_index(protocol, column, &i32::zero());
                         vector::borrow(advice_evals, query_index)
                     };
                     left = crypto_algebra::mul(
@@ -208,8 +208,8 @@ module halo2_verifier::permutation {
         x: &Element<Fr>
     ) {
         let blinding_factors = protocol::blinding_factors(protocol);
-        let x_next = domain::rotate_omega(domain, x, &rotation::next(1));
-        let x_last = domain::rotate_omega(domain, x, &rotation::prev((blinding_factors as u32) + 1));
+        let x_next = domain::rotate_omega(domain, x, &i32::from(1));
+        let x_last = domain::rotate_omega(domain, x, &i32::neg_from((blinding_factors as u32) + 1));
         // Open permutation product commitments at x and \omega^{-1} x
         // Open permutation product commitments at x and \omega x
         for_each_ref(&self.sets, |set| {

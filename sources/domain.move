@@ -5,7 +5,7 @@ module halo2_verifier::domain {
     use aptos_std::crypto_algebra::{Self, Element};
 
     use aptos_std::bn254_algebra::{Fr};
-    use halo2_verifier::rotation::{Self, Rotation};
+    use halo2_verifier::i32::{Self, I32};
     use halo2_verifier::bn254_utils;
     use halo2_verifier::bn254_utils::{root_of_unity, serialize_fr};
     use std::string::String;
@@ -47,10 +47,10 @@ module halo2_verifier::domain {
         ((domain.j - 1) as u64)
     }
 
-    public fun rotate_omega(domain: &Domain, x: &Element<Fr>, rotation: &Rotation): Element<Fr> {
-        let rotation_value = rotation::value(rotation);
+    public fun rotate_omega(domain: &Domain, x: &Element<Fr>, rotation: &I32): Element<Fr> {
+        let rotation_value = i32::abs(rotation);
         // todo(optimize): we can pre-calculate some of them, and if not found, then calculate.
-        let multiple = if (rotation::is_neg(rotation)) {
+        let multiple = if (i32::is_neg(rotation)) {
             bn254_utils::pow_u32<Fr>(&domain.omega_inv, rotation_value)
         } else {
             bn254_utils::pow_u32<Fr>(&domain.omega, rotation_value)
@@ -65,8 +65,8 @@ module halo2_verifier::domain {
         self: &Domain,
         x: &Element<Fr>,
         xn: &Element<Fr>,
-        from: Rotation,
-        until: Rotation
+        from: I32,
+        until: I32
     ): vector<Element<Fr>> {
         // (x^n - 1)/n
         let common = crypto_algebra::mul(&self.n_inv, &crypto_algebra::sub(xn, &crypto_algebra::one()));
@@ -81,7 +81,7 @@ module halo2_verifier::domain {
             r = option::destroy_some(crypto_algebra::inv(&r));
             r = rotate_omega(self, &crypto_algebra::mul(&r, &common), rotation);
             vector::push_back(&mut result, r);
-            cur = rotation::get_next(&cur);
+            cur = i32::add(&cur, &i32::from(1));
         };
 
         result
