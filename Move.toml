@@ -8,8 +8,8 @@ halo2_verifier = "_"
 [dev-addresses]
 halo2_verifier = "0x1234"
 [dependencies.AptosFramework]
-git = "https://github.com/zkmove/aptos-core.git"
-rev = "bn256"
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "main"
 subdir = "aptos-move/framework/aptos-framework"
 
 [dev-dependencies]
