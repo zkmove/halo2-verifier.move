@@ -40,8 +40,8 @@ module halo2_verifier::halo2_verifier {
         transcript: Transcript
     ): bool {
         let domain = protocol::domain(protocol);
+        // TODO: check instance?
         // check_instances(&instances, protocol::num_instance(protocol));
-        let instance_commitments: vector<vector<Element<G1>>> = map_ref(&instances, |i| vector::empty());
         let num_proof = vector::length(&instances);
 
         transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
@@ -318,8 +318,6 @@ module halo2_verifier::halo2_verifier {
                     &domain,
                     &mut queries,
                     &z,
-                    vector::borrow(&instance_commitments, i),
-                    vector::borrow(&instance_evals, i),
                     vector::borrow(&advice_commitments, i),
                     vector::borrow(&advice_evals, i),
                     vector::pop_back(&mut permutations_evaluated),
@@ -412,8 +410,8 @@ module halo2_verifier::halo2_verifier {
         domain: &Domain,
         queries: &mut vector<VerifierQuery>,
         x: &Element<Fr>,
-        instance_commitments: &vector<Element<G1>>,
-        instance_evals: &vector<Element<Fr>>,
+        // instance_commitments: &vector<Element<G1>>,
+        // instance_evals: &vector<Element<Fr>>,
         advice_commitments: &vector<Element<G1>>,
         advice_evals: &vector<Element<Fr>>,
         permutation: permutation::Evaluted,
