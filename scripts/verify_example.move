@@ -1,13 +1,13 @@
 script {
-    use halo2_verifier::params;
+    use std::bn254_algebra::{G1, FormatG1Uncompr, FormatG2Uncompr, G2};
     use std::option;
-    use aptos_std::crypto_algebra;
-    use std::bn254_algebra::{G1, FormatG1Uncompr, FormatG2Uncompr, G2, Fr};
-    use halo2_verifier::protocol;
     use std::vector;
-    use aptos_std::crypto_algebra::Element;
-    use halo2_verifier::bn254_utils;
+
+    use aptos_std::crypto_algebra;
+
     use halo2_verifier::halo2_verifier;
+    use halo2_verifier::params;
+    use halo2_verifier::protocol;
 
     const TESTING_G1: vector<u8> = x"01000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000";
     const TESTING_G2: vector<u8> = x"edf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e19aa7dfa6601cce64c7bd3430c69e7d1e38f40cb8d8071ab4aeb6d8cdba55ec8125b9722d1dcdaac55f38eb37033314bbc95330c69ad999eec75f05f58d0890609";
@@ -60,11 +60,7 @@ script {
             x"0600000000000000000000000000000000000000000000000000000000000000",
             x"0600000000000000000000000000000000000000000000000000000000000000"
         ];
-        let instances = vector::map_ref<vector<u8>, Element<Fr>>(&instances, |instance| {
-            option::destroy_some( bn254_utils::deserialize_fr(instance))
-        });
-        let result = halo2_verifier::verify(&params, &protocol, vector::singleton(vector::singleton(instances)), proof);
+        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof);
         assert!(result, 100);
-
     }
 }

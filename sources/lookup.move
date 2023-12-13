@@ -73,7 +73,8 @@ module halo2_verifier::lookup {
         theta: &Element<Fr>,
         beta: &Element<Fr>,
         gamma: &Element<Fr>,
-    ): vector<Element<Fr>> {
+        result: &mut vector<Element<Fr>>,
+    ) {
         let active_rows = crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind));
 
         // z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
@@ -114,34 +115,32 @@ module halo2_verifier::lookup {
             crypto_algebra::mul(&active_rows, &crypto_algebra::sub(&left, &right))
         };
 
-        let result = vector::empty();
         // l_0(X) * (1 - z'(X)) = 0
-        vector::push_back(&mut result, crypto_algebra::mul(l_0, &crypto_algebra::sub(&crypto_algebra::one(), &self.product_eval)));
+        vector::push_back(result, crypto_algebra::mul(l_0, &crypto_algebra::sub(&crypto_algebra::one(), &self.product_eval)));
         // l_last(X) * (z(X)^2 - z(X)) = 0
         vector::push_back(
-            &mut result,
+            result,
             crypto_algebra::mul(l_last, &crypto_algebra::sub(&crypto_algebra::sqr(&self.product_eval), &self.product_eval))
         );
         // (1 - (l_last(X) + l_blind(X))) * (
         //   z(\omega X) (a'(X) + \beta) (s'(X) + \gamma)
         //   - z(X) (\theta^{m-1} a_0(X) + ... + a_{m-1}(X) + \beta) (\theta^{m-1} s_0(X) + ... + s_{m-1}(X) + \gamma)
         // ) = 0
-        vector::push_back(&mut result, product_expression);
+        vector::push_back(result, product_expression);
 
         // l_0(X) * (a'(X) - s'(X)) = 0
         vector::push_back(
-            &mut result,
+            result,
             crypto_algebra::mul(l_0, &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_table_eval))
         );
         // (1 - (l_last(X) + l_blind(X))) * (a'(X) - s'(X))*(a'(X) - a'(\omega^{-1} X)) = 0
-        vector::push_back(&mut result,
+        vector::push_back(result,
             crypto_algebra::mul(&active_rows,
                 &crypto_algebra::mul(
                     &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_table_eval),
                     &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_input_inv_eval)),
             ));
 
-        result
     }
 
     fun compress_expressions(exprs: &vector<Expression>,

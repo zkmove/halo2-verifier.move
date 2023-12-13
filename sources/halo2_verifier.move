@@ -6,31 +6,36 @@ module halo2_verifier::halo2_verifier {
 
     use halo2_verifier::bn254_utils;
     use halo2_verifier::column;
+    use halo2_verifier::column_query::{Self, ColumnQuery};
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::expression::{Self, Expression};
     use halo2_verifier::gwc;
+    use halo2_verifier::i32;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
     use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
-    use halo2_verifier::column_query;
-    use halo2_verifier::column_query::ColumnQuery;
+    use std::option;
 
     const INVALID_INSTANCES: u64 = 100;
 
-    public fun verify(
+    public fun verify_single(
         params: &Params,
         protocol: &Protocol,
-        instances: vector<vector<vector<Element<Fr>>>>,
+        instances: vector<vector<vector<u8>>>,
         proof: vector<u8>
     ): bool {
         let transcript = transcript::init(proof);
-        verify_inner(params, protocol, instances, transcript)
+        let instances = vector::map_ref(&instances, |column_instances|{
+            vector::map_ref<vector<u8>, Element<Fr>>(column_instances, |instance| {
+                option::destroy_some( bn254_utils::deserialize_fr(instance))
+            })
+        });
+        verify_inner(params, protocol, vector::singleton(instances), transcript)
     }
 
     fun verify_inner(
@@ -45,36 +50,14 @@ module halo2_verifier::halo2_verifier {
         let num_proof = vector::length(&instances);
 
         transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
-        
-        // use while loop to keep the code more portable.
-        // if protable is not the priority, can use for_each instead in aptos.
-        let i = 0;
-        while (i < num_proof) {
-            let instance = vector::borrow(&instances, i);
-            let col_len = vector::length(instance);
-            let j = 0;
-            while (j < col_len) {
-                let col_values = vector::borrow(instance, j);
-                let value_len = vector::length(col_values);
-                let k = 0;
-                while (k < value_len) {
-                    transcript::common_scalar(&mut transcript, *vector::borrow(col_values, k));
-                    k = k + 1;
-                };
-                j = j + 1;
-            };
-            i = i + 1;
+        vector::for_each_ref(&instances, |instance| {
+            vector::for_each_ref(instance, |ic| {
+                vector::for_each_ref(ic, |i| {
+                    transcript::common_scalar(&mut transcript, *i);
+                });
+            });
+        });
 
-            // in aptos, we can use for_each_ref
-            // for_each_ref(&instances, |instance| {
-            //     let instance: vector<vector<Element<Fr>>> = instance;
-            //     for_each_ref(instance, |ic| {
-            //         for_each_ref(ic, |i| {
-            //             transcript::common_scalar(&mut transcript, *i);
-            //         });
-            //     });
-            // });
-        };
         // read advice commitments and challenges
         let advice_commitments = if (num_advice_columns(protocol) == 0) {
             vector::empty()
@@ -257,7 +240,7 @@ module halo2_verifier::halo2_verifier {
                 let result = crypto_algebra::zero();
                 while (i < len) {
                     result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
-                    i=i+1;
+                    i = i + 1;
                 };
                 result
             };
@@ -265,15 +248,16 @@ module halo2_verifier::halo2_verifier {
             let expressions = vector::empty();
             let i = 0;
             while (i < num_proof) {
-                let gate_expressions = evaluate_gates(
+                evaluate_gates(
                     protocol::gates(protocol),
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
                     &challenges,
+                    &mut expressions,
                 );
 
-                let permutation_expressions = permutation::expressions(
+                permutation::expressions(
                     vector::borrow(&permutations_evaluated, i),
                     protocol,
                     &permutations_common,
@@ -284,8 +268,9 @@ module halo2_verifier::halo2_verifier {
                     &beta,
                     &gamma,
                     &z,
+                    &mut expressions,
                 );
-                let lookup_expressions: vector<Element<Fr>> = evaluate_lookups(
+                evaluate_lookups(
                     vector::borrow(&lookups_evaluated, i),
                     protocol::lookups(protocol),
                     protocol,
@@ -294,12 +279,9 @@ module halo2_verifier::halo2_verifier {
                     vector::borrow(&instance_evals, i),
                     &challenges,
                     &l_0, &l_last, &l_blind,
-                    &theta, &beta, &gamma
+                    &theta, &beta, &gamma,
+                    &mut expressions,
                 );
-                // TODO: optimize the vector
-                vector::append(&mut expressions, gate_expressions);
-                vector::append(&mut expressions, permutation_expressions);
-                vector::append(&mut expressions, lookup_expressions);
                 i = i + 1;
             };
 
@@ -330,7 +312,7 @@ module halo2_verifier::halo2_verifier {
             let fixed_commitments = protocol::fixed_commitments(protocol);
             enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
                 let column = column_query::column(query);
-                let  rotation = column_query::rotation(query);
+                let rotation = column_query::rotation(query);
 
                 vector::push_back(&mut queries,
                     query::new_commitment(
@@ -437,7 +419,7 @@ module halo2_verifier::halo2_verifier {
         // advice queries
         enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{
             let column = column_query::column(query);
-            let  rotation = column_query::rotation(query);
+            let rotation = column_query::rotation(query);
 
             vector::push_back(queries,
                 query::new_commitment(
@@ -451,22 +433,18 @@ module halo2_verifier::halo2_verifier {
         lookup::queries(&lookups, queries, protocol, domain, x);
     }
 
-    fun evaluate_gates(gates: &vector<Expression>,
-                       advice_evals: &vector<Element<Fr>>,
-                       fixed_evals: &vector<Element<Fr>>,
-                       instance_evals: &vector<Element<Fr>>, challenges: &vector<Element<Fr>>): vector<Element<Fr>> {
-        let result = vector::empty();
-        let gate_len = vector::length(gates);
-        let i = 0;
-        while (i < gate_len) {
-            let gate = vector::borrow(gates, i);
-            let poly_eval = expression::evaluate(gate, advice_evals, fixed_evals, instance_evals, challenges);
-            vector::push_back(&mut result, poly_eval);
-
-            i = i + 1;
-        };
-
-        result
+    fun evaluate_gates(
+        gates: &vector<Expression>,
+        advice_evals: &vector<Element<Fr>>,
+        fixed_evals: &vector<Element<Fr>>,
+        instance_evals: &vector<Element<Fr>>,
+        challenges: &vector<Element<Fr>>,
+        results: &mut vector<Element<Fr>>,
+    ) {
+        vector::for_each_ref(gates, |expr| {
+            vector::push_back(results,
+                expression::evaluate(expr, advice_evals, fixed_evals, instance_evals, challenges))
+        });
     }
 
     fun evaluate_lookups(
@@ -483,21 +461,17 @@ module halo2_verifier::halo2_verifier {
         theta: &Element<Fr>,
         beta: &Element<Fr>,
         gamma: &Element<Fr>,
-    ): vector<Element<Fr>> {
-        let result = vector::empty();
-        let i = 0;
-        let lookup_len = vector::length(lookup_evaluates);
-        while (i < lookup_len) {
-            i = i + 1;
-            vector::append(&mut result,
-                lookup::expression(
-                    vector::borrow(lookup_evaluates, i),
-                    vector::borrow(lookup, i),
-                    advice_evals,
-                    fixed_evals,
-                    instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma
-                ));
-        };
-        result
+        results: &mut vector<Element<Fr>>,
+    ) {
+        vector::zip_ref(lookup_evaluates, lookup, | lookup_evaluate, l| {
+            lookup::expression(
+                lookup_evaluate,
+                l,
+                advice_evals,
+                fixed_evals,
+                instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma,
+                results
+            );
+        });
     }
 }
