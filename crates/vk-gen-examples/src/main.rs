@@ -5,7 +5,6 @@ use circuit_info_generator::serialize::serialize;
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
 
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
-use halo2_proofs::halo2curves::group::GroupEncoding;
 use halo2_proofs::halo2curves::group::UncompressedEncoding;
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};
 use halo2_proofs::poly::commitment::{Params, ParamsProver};

@@ -20,6 +20,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::vanishing;
     use halo2_verifier::vec_utils::repeat;
     use std::option;
+    use halo2_verifier::bn254_utils::{deserialize_g1, deserialize_fr};
 
     const INVALID_INSTANCES: u64 = 100;
 
@@ -51,7 +52,7 @@ module halo2_verifier::halo2_verifier {
         // check_instances(&instances, protocol::num_instance(protocol));
         let num_proof = vector::length(&instances);
 
-        transcript::common_scalar(&mut transcript, protocol::transcript_repr(protocol));
+        transcript::common_scalar(&mut transcript,  option::destroy_some( bn254_utils::deserialize_fr(protocol::transcript_repr(protocol))));
         vector::for_each_ref(&instances, |instance| {
             vector::for_each_ref(instance, |ic| {
                 vector::for_each_ref(ic, |i| {
@@ -246,12 +247,13 @@ module halo2_verifier::halo2_verifier {
                 };
                 result
             };
-
+            let coeff_pool = vector::map_ref(protocol::fields_pool(protocol), |e| option::destroy_some(deserialize_fr(e)));
             let expressions = vector::empty();
             let i = 0;
             while (i < num_proof) {
                 evaluate_gates(
                     protocol::gates(protocol),
+                    &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
@@ -275,7 +277,7 @@ module halo2_verifier::halo2_verifier {
                 evaluate_lookups(
                     vector::borrow(&lookups_evaluated, i),
                     protocol::lookups(protocol),
-                    protocol,
+                    &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
                     vector::borrow(&instance_evals, i),
@@ -311,14 +313,14 @@ module halo2_verifier::halo2_verifier {
             };
 
             // fixed queries
-            let fixed_commitments = protocol::fixed_commitments(protocol);
+            let fixed_commitments = map_ref(protocol::fixed_commitments(protocol), |c| option::destroy_some(deserialize_g1(c)));
             enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
                 let column = column_query::column(query);
                 let rotation = column_query::rotation(query);
 
                 vector::push_back(&mut queries,
                     query::new_commitment(
-                        *vector::borrow(fixed_commitments, (column::column_index(column) as u64)),
+                        *vector::borrow(&fixed_commitments, (column::column_index(column) as u64)),
                         domain::rotate_omega(&domain, &z, rotation),
                         *vector::borrow(&fixed_evals, query_index),
                     ));
@@ -327,7 +329,7 @@ module halo2_verifier::halo2_verifier {
             permutation::common_queries(
                 permutations_common,
                 &mut queries,
-                *protocol::permutation_commitments(protocol),
+                map_ref(protocol::permutation_commitments(protocol), |c| option::destroy_some(deserialize_g1(c))),
                 &z
             );
             vanishing::queries(vanishing, &mut queries, &z);
@@ -437,6 +439,7 @@ module halo2_verifier::halo2_verifier {
 
     fun evaluate_gates(
         gates: &vector<Expression>,
+        coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
         instance_evals: &vector<Element<Fr>>,
@@ -445,14 +448,14 @@ module halo2_verifier::halo2_verifier {
     ) {
         vector::for_each_ref(gates, |expr| {
             vector::push_back(results,
-                expression::evaluate(expr, advice_evals, fixed_evals, instance_evals, challenges))
+                expression::evaluate(expr, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges))
         });
     }
 
     fun evaluate_lookups(
         lookup_evaluates: &vector<lookup::Evaluated>,
         lookup: &vector<Lookup>,
-        _protocol: &Protocol,
+        coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
         instance_evals: &vector<Element<Fr>>,
@@ -469,6 +472,7 @@ module halo2_verifier::halo2_verifier {
             lookup::expression(
                 lookup_evaluate,
                 l,
+                coeff_pool,
                 advice_evals,
                 fixed_evals,
                 instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma,

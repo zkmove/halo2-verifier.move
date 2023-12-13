@@ -1,42 +1,44 @@
 module halo2_verifier::protocol {
-    use std::bn254_algebra::{G1, Fr};
+    use std::bn254_algebra::G1;
     use std::error;
     use std::option;
-    use std::vector;
+    use std::vector::{Self, map_ref};
 
     use aptos_std::crypto_algebra::Element;
     use aptos_std::from_bcs;
     use aptos_std::math64::max;
 
-    use halo2_verifier::bn254_utils::{Self, deserialize_g1_from_halo2, deserialize_fr};
+    use halo2_verifier::bn254_utils::{deserialize_g1_from_halo2, deserialize_fr, serialize_fr, serialize_g1};
     use halo2_verifier::column::{Self, Column};
     use halo2_verifier::column_query::{Self, ColumnQuery};
     use halo2_verifier::domain::{Self, Domain};
     use halo2_verifier::expression::{Self, Expression};
-    use halo2_verifier::multivariate_poly;
     use halo2_verifier::i32::{Self, I32};
+    use halo2_verifier::multivariate_poly;
 
     #[test_only]
-    use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
+    use aptos_std::crypto_algebra::{Self, enable_cryptography_algebra_natives};
     #[test_only]
     use aptos_std::string_utils;
     #[test_only]
-    use halo2_verifier::bn254_utils::{serialize_fr, serialize_g1_uncompressed};
+    use halo2_verifier::multivariate_poly::{Term, MultiVariatePoly};
+    #[test_only]
+    use std::bn254_algebra::{FormatFrMsb, Fr};
     #[test_only]
     use std::string::{Self, String};
-    #[test_only]
-    use std::vector::map_ref;
-
 
     const CurvePointLen: u64 = 32;
 
 
     const QUERY_NOT_FOUND: u64 = 1;
 
-    struct Protocol has drop {
-        vk_transcript_repr: Element<Fr>,
-        fixed_commitments: vector<Element<G1>>,
-        permutation_commitments: vector<Element<G1>>,
+    struct Protocol has key, store, drop {
+        // Fr in bytes
+        vk_transcript_repr: vector<u8>,
+        // G1 in arkworks compressed
+        fixed_commitments: vector<vector<u8>>,
+        // G1 in arkworks compressed
+        permutation_commitments: vector<vector<u8>>,
         // query_instance: bool, // for ipa, true; for kzg, false
         k: u8,
         /// it's `advice_queries.count_by(|q| q.column).max`
@@ -56,12 +58,14 @@ module halo2_verifier::protocol {
         fixed_queries: vector<ColumnQuery>,
 
         permutation_columns: vector<Column>,
+        // list of Fr in bytes
+        fields_pool: vector<vector<u8>>,
         gates: vector<Expression>,
         lookups: vector<Lookup>,
     }
 
 
-    struct Lookup has drop {
+    struct Lookup has store, drop {
         input_expressions: vector<Expression>,
         table_expressions: vector<Expression>,
     }
@@ -76,6 +80,7 @@ module halo2_verifier::protocol {
         instance_queries: vector<vector<u8>>,
         fixed_queries: vector<vector<u8>>,
         permutation_columns: vector<vector<u8>>,
+        fields_pool: vector<vector<u8>>,
         gates: vector<vector<u8>>,
         lookups_input_exprs: vector<vector<u8>>,
         lookups_table_exprs: vector<vector<u8>>,
@@ -87,9 +92,11 @@ module halo2_verifier::protocol {
         let cs_degree = from_bcs::to_u32(vector::pop_back(&mut general_info));
         let max_num_query_of_advice_column = from_bcs::to_u32(vector::pop_back(&mut general_info));
         let k = from_bcs::to_u8(vector::pop_back(&mut general_info));
+
         let permutation_commitments = deserialize_commitment_list(&vector::pop_back(&mut general_info));
         let fixed_commitments = deserialize_commitment_list(&vector::pop_back(&mut general_info));
         let vk_repr = option::destroy_some(deserialize_fr(&vector::pop_back(&mut general_info)));
+
         let advice_queries = vector::map_ref(&advice_queries, |q| {
             deserialize_column_query(q)
         });
@@ -101,6 +108,7 @@ module halo2_verifier::protocol {
         });
 
         let permutation_columns = vector::map_ref(&permutation_columns, |q| deserialize_column(q));
+        //let fields_pool = vector::map_ref(&fields_pool, |e| option::destroy_some(deserialize_fr(e)));
         let gates = vector::map_ref(&gates, |q| deserialize_expression(q));
 
         let lookups = vector::empty();
@@ -112,9 +120,9 @@ module halo2_verifier::protocol {
         }));
 
         let protocol = Protocol {
-            vk_transcript_repr: vk_repr,
-            fixed_commitments,
-            permutation_commitments,
+            vk_transcript_repr: serialize_fr(&vk_repr),
+            fixed_commitments: map_ref(&fixed_commitments, |c| serialize_g1(c)),
+            permutation_commitments: map_ref(&permutation_commitments, |c| serialize_g1(c)),
             k,
             max_num_query_of_advice_column,
             cs_degree,
@@ -126,6 +134,7 @@ module halo2_verifier::protocol {
             instance_queries,
             fixed_queries,
             permutation_columns,
+            fields_pool,
             gates,
             lookups,
         };
@@ -188,8 +197,8 @@ module halo2_verifier::protocol {
                 break
             };
 
-            let coff = option::destroy_some(bn254_utils::deserialize_fr(&read_bytes(data, idx, idx + 32)));
-            idx = idx + 32;
+            let coff_idx = from_bcs::to_u16(read_bytes(data, idx, idx + 2));
+            idx = idx + 2;
 
             let sparse_terms = vector::empty();
             let sparse_term_len = from_bcs::to_u32(read_bytes(data, idx, idx + 4));
@@ -211,7 +220,7 @@ module halo2_verifier::protocol {
                 i_t = i_t + 1;
             };
 
-            vector::push_back(&mut terms, multivariate_poly::new_term(coff, sparse_terms));
+            vector::push_back(&mut terms, multivariate_poly::new_term(coff_idx, sparse_terms));
             i = i + 1;
         };
 
@@ -263,15 +272,15 @@ module halo2_verifier::protocol {
         domain::new(p.cs_degree, p.k)
     }
 
-    public fun transcript_repr(self: &Protocol): Element<Fr> {
-        self.vk_transcript_repr
+    public fun transcript_repr(self: &Protocol): &vector<u8> {
+        &self.vk_transcript_repr
     }
 
-    public fun fixed_commitments(self: &Protocol): &vector<Element<G1>> {
+    public fun fixed_commitments(self: &Protocol): &vector<vector<u8>> {
         &self.fixed_commitments
     }
 
-    public fun permutation_commitments(self: &Protocol): &vector<Element<G1>> {
+    public fun permutation_commitments(self: &Protocol): &vector<vector<u8>> {
         &self.permutation_commitments
     }
 
@@ -293,6 +302,10 @@ module halo2_verifier::protocol {
 
     public fun gates(protocol: &Protocol): &vector<Expression> {
         &protocol.gates
+    }
+
+    public fun fields_pool(protocol: &Protocol): &vector<vector<u8>> {
+        &protocol.fields_pool
     }
 
     public fun input_exprs(self: &Lookup): &vector<Expression> {
@@ -444,9 +457,9 @@ module halo2_verifier::protocol {
     #[test_only]
     public fun format(self: &Protocol): String {
         let display = ProtocolDisplay {
-            vk_transcript_repr: serialize_fr(&self.vk_transcript_repr),
-            fixed_commitments: map_ref(&self.fixed_commitments, |g| serialize_g1_uncompressed(g)),
-            permutation_commitments: map_ref(&self.permutation_commitments, |g| serialize_g1_uncompressed(g)),
+            vk_transcript_repr: self.vk_transcript_repr,
+            fixed_commitments: self.fixed_commitments,
+            permutation_commitments: self.permutation_commitments,
             k: self.k,
             max_num_query_of_advice_column: self.max_num_query_of_advice_column,
             cs_degree: self.cs_degree,
@@ -473,14 +486,30 @@ module halo2_verifier::protocol {
         string_utils::debug_string(&display)
     }
 
+    #[test_only]
+    fun display_expression_poly(
+        poly: &MultiVariatePoly<u16>,
+        fields_pool: &vector<Element<Fr>>
+    ): MultiVariatePoly<vector<u8>> {
+        let new_term = vector::map_ref(multivariate_poly::terms(poly), |term| {
+            let term: &Term<u16> = term;
+            multivariate_poly::new_term(
+                crypto_algebra::serialize<Fr, FormatFrMsb>(
+                    vector::borrow(fields_pool, (*multivariate_poly::coff(term) as u64))
+                ),
+                *multivariate_poly::sparse_terms(term)
+            )
+        });
+        multivariate_poly::new_poly(new_term)
+    }
 
     #[test(s = @std)]
     fun test_serialize(s: &signer) {
         enable_cryptography_algebra_natives(s);
         let protocol = from_bytes(
             vector[
-                x"e1b7a56758703487bc373d94283e5a82cb60ccb6c89b55f95c59bfad9de1961c",
-                x"0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008032bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e19051b9aed5c1116492424abdca68fb84fb42a5f5dc5424c911e89fc05e785046dc4d",
+                x"e4e0dba61d6090a78a67fe434074dc8e4bcfb756185b0e145df8c6020bc1260d",
+                x"0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008032bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e19051af9612d9cec5b7fb4c89947de2e3a8b8bb0e4e8faa06ebaa74573bc7ecd72c62",
                 x"49dec335e762fbbdaaefd2fd222d90c0e3debcff45ed97a434ac431d125d8415cbce8d505c3a6fc016e29b97d88a191324050debe6485e6c3781fd9aeced8f2cc4df2c2bcc96cc6e5e11d0c8c383761addd98e22add6b8a168bd41ade081b44b",
                 x"10",
                 x"01000000",
@@ -512,13 +541,17 @@ module halo2_verifier::protocol {
                 x"0003000000"
             ],
             vector[
-                x"05000000000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e643002000000020000000100000009000000010000000100000000000000000000000000000000000000000000000000000000000000020000000100000001000000080000000100000001000000000000000000000000000000000000000000000000000000000000000200000000000000010000000700000001000000010000000000000000000000000000000000000000000000000000000000000003000000030000000100000004000000010000000600000001000000010000000000000000000000000000000000000000000000000000000000000003000000000000000100000001000000010000000a00000001000000"
+                x"000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430",
+                x"0100000000000000000000000000000000000000000000000000000000000000"
             ],
             vector[
-                x"0100000030000000010000000100000000000000000000000000000000000000000000000000000000000000010000000000000001000000"
+                x"05000000000002000000020000000100000009000000010000000100020000000100000001000000080000000100000001000200000000000000010000000700000001000000010003000000030000000100000004000000010000000600000001000000010003000000000000000100000001000000010000000a00000001000000"
             ],
             vector[
-                x"0100000030000000010000000100000000000000000000000000000000000000000000000000000000000000010000000500000001000000"
+                x"0100000012000000010000000100010000000000000001000000"
+            ],
+            vector[
+                x"0100000012000000010000000100010000000500000001000000"
             ],
         );
 
@@ -537,10 +570,9 @@ module halo2_verifier::protocol {
         let permutation_column = vector::borrow(&protocol.permutation_columns, 2);
         assert!(column::column_type(permutation_column) == 0, 1);
         assert!(column::column_index(permutation_column) == 3, 1);
-
-        let gate_repr = vector::map_ref(&protocol.gates, |gate| {
-            let g: &Expression = gate;
-            multivariate_poly::format(expression::poly(g))
+        let fields_pool = vector::map_ref(&protocol.fields_pool, |e| option::destroy_some(deserialize_fr(e)));
+        let gate_repr = vector::map_ref(&protocol.gates, |g| {
+            multivariate_poly::format(&display_expression_poly(expression::poly(g), &fields_pool))
         });
         let expected_gate_repr = vector[
             vector[
@@ -556,12 +588,10 @@ module halo2_verifier::protocol {
 
         let lookup = vector::borrow<Lookup>(&protocol.lookups, 0);
         let lookup_input_repr = vector::map_ref(&lookup.input_expressions, |expr| {
-            let g: &Expression = expr;
-            multivariate_poly::format(expression::poly(g))
+            multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
         });
         let lookup_table_repr = vector::map_ref(&lookup.table_expressions, |expr| {
-            let g: &Expression = expr;
-            multivariate_poly::format(expression::poly(g))
+            multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
         });
         assert!(
             lookup_input_repr == vector[vector[string::utf8(

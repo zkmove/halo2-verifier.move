@@ -1,4 +1,4 @@
-use crate::{CircuitInfo, Column, ColumnQuery, MultiVariatePolynomial};
+use crate::{CircuitInfo, Column, ColumnQuery};
 use halo2_proofs::arithmetic::CurveAffine;
 use halo2_proofs::halo2curves::ff::PrimeField;
 use multipoly::multivariate::SparseTerm;
@@ -18,9 +18,22 @@ pub struct SerializableCircuitInfo<C: CurveAffine> {
     instance_queries: Vec<ColumnQuery>,
     fixed_queries: Vec<ColumnQuery>,
     permutation_columns: Vec<Column>,
-    gates: Vec<MultiVariatePolynomial<C::Scalar>>,
-    lookups_input_exprs: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
-    lookups_table_exprs: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
+
+    fields_pool: Vec<C::Scalar>,
+    gates: Vec<IndexedMultiVariatePolynomial>,
+    lookups_input_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
+    lookups_table_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
+}
+
+type IndexedMultiVariatePolynomial = Vec<(u16, SparseTerm)>;
+
+fn index_element<T: Eq>(pool: &mut Vec<T>, elem: T) -> usize {
+    if let Some(pos) = pool.iter().position(|e| e == &elem) {
+        pos
+    } else {
+        pool.push(elem);
+        pool.len() - 1
+    }
 }
 
 impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
@@ -44,6 +57,59 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
             lookups,
         }: CircuitInfo<C>,
     ) -> Self {
+        let mut fields_pool: Vec<C::Scalar> = Vec::new();
+        let gates: Vec<_> = gates
+            .iter()
+            .flatten()
+            .map(|expr| {
+                expr.terms
+                    .iter()
+                    .map(|(coff, t)| {
+                        let new_coff = index_element(&mut fields_pool, *coff);
+                        (new_coff as u16, t.clone())
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let lookups_len = lookups.len();
+        let (inputs, tables) = lookups.into_iter().fold(
+            (
+                Vec::with_capacity(lookups_len),
+                Vec::with_capacity(lookups_len),
+            ),
+            |(mut inputs, mut tables), l| {
+                inputs.push(
+                    l.input_exprs
+                        .into_iter()
+                        .map(|expr| {
+                            expr.terms
+                                .iter()
+                                .map(|(coff, t)| {
+                                    let new_coff = index_element(&mut fields_pool, *coff);
+                                    (new_coff as u16, t.clone())
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
+                );
+                tables.push(
+                    l.table_exprs
+                        .into_iter()
+                        .map(|expr| {
+                            expr.terms
+                                .iter()
+                                .map(|(coff, t)| {
+                                    let new_coff = index_element(&mut fields_pool, *coff);
+                                    (new_coff as u16, t.clone())
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
+                );
+                (inputs, tables)
+            },
+        );
+
         Self {
             k,
             max_num_query_of_advice_column,
@@ -52,16 +118,19 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
             num_instance_columns,
             advice_column_phase,
             challenge_phase,
+
             advice_queries,
             instance_queries,
             fixed_queries,
             permutation_columns,
-            gates: gates.into_iter().flatten().collect(),
-            lookups_input_exprs: lookups.iter().map(|l| l.input_exprs.clone()).collect(),
-            lookups_table_exprs: lookups.into_iter().map(|l| l.table_exprs).collect(),
-            vk_transcript_repr: vk_transcript_repr,
-            fixed_commitments: fixed_commitments,
-            permutation_commitments: permutation_commitments,
+
+            gates,
+            lookups_input_exprs: inputs,
+            lookups_table_exprs: tables,
+            fields_pool,
+            vk_transcript_repr,
+            fixed_commitments,
+            permutation_commitments,
         }
     }
 }
@@ -96,6 +165,11 @@ pub fn serialize<C: CurveAffine>(
         circuit_info.advice_column_phase,
         circuit_info.challenge_phase,
     ];
+    let fields_pool: Vec<_> = circuit_info
+        .fields_pool
+        .into_iter()
+        .map(|elem| elem.to_repr().as_ref().to_vec())
+        .collect();
     let gates = circuit_info
         .gates
         .iter()
@@ -137,6 +211,7 @@ pub fn serialize<C: CurveAffine>(
         instance_queries,
         fixed_queries,
         permutation_columns,
+        fields_pool,
         gates,
         lookups_input_exprs,
         lookups_table_exprs,
@@ -159,13 +234,13 @@ fn serialize_column(column: &Column) -> Vec<u8> {
     bytes
 }
 
-fn serialize_multivaiate_poly<F: PrimeField>(poly: &MultiVariatePolynomial<F>) -> Vec<u8> {
+fn serialize_multivaiate_poly(poly: &IndexedMultiVariatePolynomial) -> Vec<u8> {
     let mut bytes = vec![];
-    let term_len = poly.terms.len() as u32;
+    let term_len = poly.len() as u32;
     bytes.extend(term_len.to_le_bytes());
 
-    poly.terms.iter().for_each(|(coff, term)| {
-        bytes.extend(coff.to_repr().as_ref());
+    poly.iter().for_each(|(coff, term)| {
+        bytes.extend(coff.to_le_bytes());
         bytes.append(&mut serialize_sparse_term(term));
     });
     bytes
@@ -182,15 +257,13 @@ fn serialize_sparse_term(t: &SparseTerm) -> Vec<u8> {
     bytes
 }
 
-fn serialize_lookup_exprs<F: PrimeField>(
-    lookup_input_exprs: &Vec<MultiVariatePolynomial<F>>,
-) -> Vec<u8> {
+fn serialize_lookup_exprs(lookup_input_exprs: &Vec<IndexedMultiVariatePolynomial>) -> Vec<u8> {
     let mut bytes = vec![];
     let input_expr_len = lookup_input_exprs.len() as u32;
     bytes.extend(input_expr_len.to_le_bytes());
     lookup_input_exprs
         .iter()
-        .map(|e| serialize_multivaiate_poly(e))
+        .map(serialize_multivaiate_poly)
         .for_each(|mut p| {
             bytes.extend((p.len() as u32).to_le_bytes());
             bytes.append(&mut p);
