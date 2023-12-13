@@ -88,24 +88,24 @@ module halo2_verifier::permutation {
         l_blind: &Element<Fr>,
         beta: &Element<Fr>,
         gamma: &Element<Fr>,
-        x: &Element<Fr>
-    ): vector<Element<Fr>> {
+        x: &Element<Fr>,
+        results: &mut vector<Element<Fr>>,
+    ){
         let evaluted = &self.sets;
         let sets_len = vector::length(evaluted);
-        let results = vector::empty();
         if (sets_len == 0) {
-            return results
+            return
         };
 
         // l_0(X)*(1 - z_0(X)) = 0
         let first_set = vector::borrow(evaluted, 0);
         vector::push_back(
-            &mut results,
+            results,
             crypto_algebra::mul(l_0, &crypto_algebra::sub(&crypto_algebra::one(), &first_set.permutation_product_eval))
         );
         // l_last(X)*(z_l(X)^2 - z_l(X)) = 0
         let last_set = vector::borrow(evaluted, sets_len - 1);
-        vector::push_back(&mut results,
+        vector::push_back(results,
             crypto_algebra::mul(
                 l_last,
                 &crypto_algebra::sub(
@@ -121,7 +121,7 @@ module halo2_verifier::permutation {
                 let prev = vector::borrow(evaluted, i - 1);
                 let cur = vector::borrow(evaluted, i);
                 vector::push_back(
-                    &mut results,
+                    results,
                     crypto_algebra::mul(
                         l_0,
                         &crypto_algebra::sub(
@@ -186,7 +186,7 @@ module halo2_verifier::permutation {
 
                 // (1-(l_last(X) + l_blind(X))) * (left - right)
                 vector::push_back(
-                    &mut results,
+                    results,
                     crypto_algebra::mul(
                         &crypto_algebra::sub(&left, &right),
                         &crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind))
@@ -195,9 +195,6 @@ module halo2_verifier::permutation {
                 i = i + 1;
             }
         };
-
-
-        results
     }
 
     public fun queries(

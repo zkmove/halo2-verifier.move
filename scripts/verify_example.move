@@ -1,13 +1,13 @@
 script {
-    use halo2_verifier::params;
+    use std::bn254_algebra::{G1, FormatG1Uncompr, FormatG2Uncompr, G2};
     use std::option;
-    use aptos_std::crypto_algebra;
-    use std::bn254_algebra::{G1, FormatG1Uncompr, FormatG2Uncompr, G2, Fr};
-    use halo2_verifier::protocol;
     use std::vector;
-    use aptos_std::crypto_algebra::Element;
-    use halo2_verifier::bn254_utils;
+
+    use aptos_std::crypto_algebra;
+
     use halo2_verifier::halo2_verifier;
+    use halo2_verifier::params;
+    use halo2_verifier::protocol;
 
     const TESTING_G1: vector<u8> = x"01000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000";
     const TESTING_G2: vector<u8> = x"edf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e19aa7dfa6601cce64c7bd3430c69e7d1e38f40cb8d8071ab4aeb6d8cdba55ec8125b9722d1dcdaac55f38eb37033314bbc95330c69ad999eec75f05f58d0890609";
@@ -25,7 +25,6 @@ script {
             x"0f040b991d2f930e735f0028ac957fb7ab6707474ed4eedbfe4f7cbb391c6f07",
             x"baaa5c0c4c452e320267ee0a90b648c30821c86d8627359fcb32e13deb83ad02",
             x"8703f8f88dac3610100dfbe5bb52498335e94896d2268e0128976bb88e15ec1bd7e110682012410aaebe615ee56d487414c5cdf4edc3ea7c94c18898207f750438eb14dd26e292dc9e41920db4619a83a4b6c5691825d26cc4a33fb29ccd69499a8c64ea83540da5130cd2f098126287ba27fc2f51dd20bc9fc7fe5bdfb3dd51",
-            x"00",
             x"10",
             x"01000000",
             x"03000000",
@@ -61,11 +60,7 @@ script {
             x"0600000000000000000000000000000000000000000000000000000000000000",
             x"0600000000000000000000000000000000000000000000000000000000000000"
         ];
-        let instances = vector::map_ref<vector<u8>, Element<Fr>>(&instances, |instance| {
-            option::destroy_some( bn254_utils::deserialize_fr(instance))
-        });
-        let result = halo2_verifier::verify(&params, &protocol, vector::singleton(vector::singleton(instances)), proof);
+        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof);
         assert!(result, 100);
-
     }
 }
