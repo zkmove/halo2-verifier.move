@@ -35,10 +35,12 @@ module halo2_verifier::halo2_verifier {
                 option::destroy_some( bn254_utils::deserialize_fr(instance))
             })
         });
-        verify_inner(params, protocol, vector::singleton(instances), transcript)
+        verify(params, protocol, vector::singleton(instances), transcript)
     }
 
-    fun verify_inner(
+    /// `verify` function verify the proof in transcript with given params, protocol, and instances.
+    /// instances is multi instances of the circuit.
+    public fun verify(
         params: &Params,
         protocol: &Protocol,
         instances: vector<vector<vector<Element<Fr>>>>,
