@@ -1,0 +1,20 @@
+[package]
+name = "verifier-api"
+version = "0.1.0"
+authors = ["zkmove contributors"]
+
+[addresses]
+verifier_api="_"
+
+[dev-addresses]
+verifier_api="0x12345"
+halo2_verifier="0x1234"
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "main"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dependencies.halo2-verifier]
+local = "../"
+
+[dev-dependencies]

@@ -1,0 +1,49 @@
+module verifier_api::verifier_api {
+    use halo2_verifier::halo2_verifier::verify_single;
+    use halo2_verifier::protocol::{Self, Protocol};
+
+    use verifier_api::param_store::get_params;
+
+    /// wrapper on protocol
+    struct Circuit has key {
+        protocol: Protocol,
+    }
+
+    /// Publish the circuit into under sender account
+    public entry fun publish_circuit(
+        sender: &signer,
+        general_info: vector<vector<u8>>,
+        advice_queries: vector<vector<u8>>,
+        instance_queries: vector<vector<u8>>,
+        fixed_queries: vector<vector<u8>>,
+        permutation_columns: vector<vector<u8>>,
+        fields_pool: vector<vector<u8>>,
+        gates: vector<vector<u8>>,
+        lookups_input_exprs: vector<vector<u8>>,
+        lookups_table_exprs: vector<vector<u8>>,
+    ) {
+        let proto = protocol::from_bytes(
+            general_info, advice_queries, instance_queries, fixed_queries, permutation_columns,
+            fields_pool, gates, lookups_input_exprs, lookups_table_exprs
+        );
+        move_to(sender, Circuit { protocol: proto });
+    }
+
+    /// verify a proof on the circuit in `circuit_address`
+    public fun verify(
+        param_address: address,
+        circuit_address: address,
+        instances: vector<vector<vector<u8>>>,
+        proof: vector<u8>
+    ): bool acquires Circuit {
+        let params = get_params(param_address);
+        let circuit = borrow_global<Circuit>(circuit_address);
+        let protocol = &circuit.protocol;
+        verify_single(&params, protocol, instances, proof)
+    }
+
+    /// destory a circuit
+    public fun destroy(circuit: Circuit) {
+        let Circuit { protocol: _ } = circuit;
+    }
+}
