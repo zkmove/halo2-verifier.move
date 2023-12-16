@@ -15,6 +15,6 @@ rev = "devnet"
 subdir = "aptos-move/framework/aptos-framework"
 
 [dependencies.halo2-verifier]
-local = "../"
+local = "../verifier"
 
 [dev-dependencies]
