@@ -18,8 +18,6 @@ replace the `verifier-module` and `verifier-address` with the actual verifier's 
 cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example vector-mul -o vk_deployment
 
 cargo run --release --  --param-path params/challenge_0078-kzg_bn254_16.srs -k 16 --verifier-module halo2_verifier --verifier-address 0x1234 build-publish-vk-aptos-txn --example circuit-layout -o vk_deployment
-
-
 ```
 It will generate a json file in dir `vk_deployment`.
 #### send the publish-vk transaction
