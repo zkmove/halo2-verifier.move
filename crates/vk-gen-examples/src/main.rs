@@ -4,8 +4,9 @@ use circuit_info_generator::generate_circuit_info;
 use circuit_info_generator::serialize::serialize;
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
 
+use ark_serialize::CanonicalSerialize;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
-use halo2_proofs::halo2curves::group::UncompressedEncoding;
+use halo2_proofs::halo2curves::group::GroupEncoding;
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};
 use halo2_proofs::poly::commitment::{Params, ParamsProver};
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
@@ -17,15 +18,25 @@ use std::path::PathBuf;
 use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul,
 };
+
 use vk_gen_examples::proof::prove_with_gwc_and_keccak256;
+use vk_gen_examples::to_ark::IntoArk;
+
+/// the consts correspond to the definition of `verifier_api.move`.
+const PUBLISH_CIRCUIT: &str = "publish_circuit";
+const VERIFY: &str = "verify_proof";
+const VERIFIER_API: &str = "verifier_api";
+
 #[derive(Parser)]
 struct Cli {
-    #[arg(long = "verifier-module", default_value = "halo2_verifier")]
-    verifier_module: String,
-    #[arg(long = "verifier-address")]
+    #[arg(long = "verifier-address", default_value = "0x1")]
     verifier_address: String,
-    #[arg(long = "publish-vk-func", default_value = "publish_vk")]
+    #[arg(long = "verifier-module", default_value = VERIFIER_API)]
+    verifier_module: String,
+    #[arg(long = "publish-vk-func", default_value = PUBLISH_CIRCUIT)]
     publish_vk_func: String,
+    #[arg(long, default_value = VERIFY)]
+    verify_func: String,
     #[arg(long)]
     param_path: PathBuf,
     #[arg(short)]
@@ -36,6 +47,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    ViewParam,
     BuildPublishVkAptosTxn(BuildPublishVkAptosTxn),
     BuildVerifyProofAptosTxn(BuildVerifyProofTxn),
 }
@@ -65,9 +77,10 @@ struct BuildVerifyProofTxn {
 
     #[arg(long = "output", short = 'o', value_parser = value_parser ! (PathBuf))]
     output_dir: Option<PathBuf>,
-
-    #[arg(long, default_value = "verify")]
-    verify_func: String,
+    #[arg(long)]
+    param_address: String,
+    #[arg(long)]
+    circuit_address: String,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -82,15 +95,34 @@ fn main() -> anyhow::Result<()> {
     let g = params.get_g().first().unwrap();
     let g2 = params.g2();
     let s_g2 = params.s_g2();
-    println!(
-        "use param with, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
-        params.k(),
-        hex::encode(g.to_uncompressed()),
-        hex::encode(g2.to_uncompressed()),
-        hex::encode(s_g2.to_uncompressed())
-    );
-
     match cli.command {
+        Commands::ViewParam => {
+            println!("param info:");
+            println!(
+                "halo2 encoding, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
+                params.k(),
+                hex::encode(g.to_bytes()),
+                hex::encode(g2.to_bytes()),
+                hex::encode(s_g2.to_bytes())
+            );
+
+            let g = g.to_ark();
+            let mut g_bytes = vec![];
+            CanonicalSerialize::serialize_compressed(&g, &mut g_bytes).unwrap();
+            let g2 = g2.to_ark();
+            let mut g2_bytes = vec![];
+            CanonicalSerialize::serialize_compressed(&g2, &mut g2_bytes).unwrap();
+            let s_g2 = s_g2.to_ark();
+            let mut s_g2_bytes = vec![];
+            CanonicalSerialize::serialize_compressed(&s_g2, &mut s_g2_bytes).unwrap();
+            println!(
+                "arkworks encoding, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
+                params.k(),
+                hex::encode(g_bytes),
+                hex::encode(g2_bytes),
+                hex::encode(s_g2_bytes)
+            );
+        }
         Commands::BuildPublishVkAptosTxn(BuildPublishVkAptosTxn {
             example,
             output_dir,
@@ -122,7 +154,6 @@ fn main() -> anyhow::Result<()> {
                     generate_circuit_info(&params, &circuit.0)?
                 }
             };
-            println!("{:#?}", &circuit_info);
             let data = serialize(circuit_info.into())?;
 
             let args: Vec<_> = data
@@ -149,7 +180,7 @@ fn main() -> anyhow::Result<()> {
 
             std::fs::write(
                 output_path
-                    .join(format!("{:?}", example))
+                    .join(format!("{:?}-publish-circuit", example))
                     .with_extension("json"),
                 output,
             )?;
@@ -157,7 +188,8 @@ fn main() -> anyhow::Result<()> {
         Commands::BuildVerifyProofAptosTxn(BuildVerifyProofTxn {
             example,
             output_dir,
-            verify_func,
+            param_address,
+            circuit_address,
         }) => {
             let (proof, instances) = match example {
                 Examples::CircuitLayout => {
@@ -207,20 +239,28 @@ fn main() -> anyhow::Result<()> {
             let json = EntryFunctionArgumentsJSON {
                 function_id: format!(
                     "{}::{}::{}",
-                    cli.verifier_address, cli.verifier_module, verify_func
+                    cli.verifier_address, cli.verifier_module, cli.verify_func
                 ),
                 type_args: vec![],
                 args: vec![
                     ArgWithTypeJSON {
-                        arg_type: "hex".to_string(),
-                        value: json!(HexEncodedBytes(proof.clone()).to_string()),
+                        arg_type: "address".to_string(),
+                        value: json!(param_address),
+                    },
+                    ArgWithTypeJSON {
+                        arg_type: "address".to_string(),
+                        value: json!(circuit_address),
                     },
                     ArgWithTypeJSON {
                         arg_type: "hex".to_string(),
-                        value: json!(instances
+                        value: json!(vec![instances
                             .into_iter()
                             .map(|i| HexEncodedBytes(i).to_string())
-                            .collect::<Vec<_>>()),
+                            .collect::<Vec<_>>()]),
+                    },
+                    ArgWithTypeJSON {
+                        arg_type: "hex".to_string(),
+                        value: json!(HexEncodedBytes(proof.clone()).to_string()),
                     },
                 ],
             };
@@ -231,7 +271,7 @@ fn main() -> anyhow::Result<()> {
 
             std::fs::write(
                 output_path
-                    .join(format!("{:?}-{}", example, hex::encode(&proof[0..20])))
+                    .join(format!("{:?}-verify-proof", example))
                     .with_extension("json"),
                 output,
             )?;

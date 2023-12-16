@@ -9,7 +9,7 @@ halo2_verifier = "_"
 halo2_verifier = "0x1234"
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "main"
+rev = "devnet"
 subdir = "aptos-move/framework/aptos-framework"
 
 [dev-dependencies]

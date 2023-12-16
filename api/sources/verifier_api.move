@@ -3,6 +3,9 @@ module verifier_api::verifier_api {
     use halo2_verifier::protocol::{Self, Protocol};
 
     use verifier_api::param_store::get_params;
+    use std::error;
+
+    const VERIFY_PROOF_FAILURE: u64 = 1;
 
     /// wrapper on protocol
     struct Circuit has key {
@@ -27,6 +30,13 @@ module verifier_api::verifier_api {
             fields_pool, gates, lookups_input_exprs, lookups_table_exprs
         );
         move_to(sender, Circuit { protocol: proto });
+    }
+
+    public entry fun verify_proof(param_address: address,
+                                  circuit_address: address,
+                                  instances: vector<vector<vector<u8>>>,
+                                  proof: vector<u8>) acquires Circuit {
+        assert!(verify(param_address,circuit_address,instances,proof), error::aborted(VERIFY_PROOF_FAILURE));
     }
 
     /// verify a proof on the circuit in `circuit_address`
