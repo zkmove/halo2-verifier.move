@@ -12,7 +12,7 @@ module verifier_api::verifier_api {
         protocol: Protocol,
     }
 
-    /// Publish the circuit into under sender account
+    /// Publish the circuit under sender account
     public entry fun publish_circuit(
         sender: &signer,
         general_info: vector<vector<u8>>,
