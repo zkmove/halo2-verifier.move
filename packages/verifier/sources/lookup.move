@@ -63,6 +63,7 @@ module halo2_verifier::lookup {
     public fun expression(
         self: &Evaluated,
         lookup: &Lookup,
+        coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
         instance_evals: &vector<Element<Fr>>,
@@ -92,6 +93,7 @@ module halo2_verifier::lookup {
                     &crypto_algebra::add(
                         &compress_expressions(
                             protocol::input_exprs(lookup),
+                            coeff_pool,
                             advice_evals,
                             fixed_evals,
                             instance_evals,
@@ -103,6 +105,7 @@ module halo2_verifier::lookup {
                     &crypto_algebra::add(
                         &compress_expressions(
                             protocol::table_exprs(lookup),
+                            coeff_pool,
                             advice_evals,
                             fixed_evals,
                             instance_evals,
@@ -144,6 +147,7 @@ module halo2_verifier::lookup {
     }
 
     fun compress_expressions(exprs: &vector<Expression>,
+                             coeff_pool: &vector<Element<Fr>>,
                              advice_evals: &vector<Element<Fr>>,
                              fixed_evals: &vector<Element<Fr>>,
                              instance_evals: &vector<Element<Fr>>,
@@ -156,6 +160,7 @@ module halo2_verifier::lookup {
         while (i < len) {
             let eval = expression::evaluate(
                 vector::borrow(exprs, i),
+                coeff_pool,
                 advice_evals,
                 fixed_evals,
                 instance_evals,

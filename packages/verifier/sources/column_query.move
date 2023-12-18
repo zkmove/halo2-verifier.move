@@ -2,7 +2,7 @@ module halo2_verifier::column_query {
     use halo2_verifier::column::Column;
     use halo2_verifier::i32::I32;
 
-    struct ColumnQuery  has copy, drop {
+    struct ColumnQuery  has store, copy, drop {
         column: Column,
         rotation: I32,
     }
