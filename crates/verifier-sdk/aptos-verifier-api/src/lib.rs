@@ -9,10 +9,12 @@ use shape_generator::serialize::serialize;
 
 pub mod proving;
 pub mod types;
+pub use shape_generator;
 
 const VERIFIER_MODULE: &str = "verifier_api";
 const PUBLISH_CIRCUIT: &str = "publish_circuit";
 const VERIFY_PROOF_FUNC: &str = "verify";
+
 /// build publish protocol transaction payload for aptos.
 /// we only support kzg on bn254 for now.
 /// Returns a structure which can be serialized to json string,
@@ -50,16 +52,17 @@ where
     Ok(json)
 }
 
-pub fn build_verify_proof_transaction_payload<ConcreteCircuit>(
+/// Build verify proof transaction payload for aptos.
+/// we only support kzg on bn254 for now.
+/// Returns a structure which can be serialized to json string,
+/// and when output the json to file, it can be run by `aptos move run`.
+pub fn build_verify_proof_transaction_payload(
     proof: Vec<u8>,
     instances: Vec<Vec<Fr>>,
     verifier_address: String,
     param_address: String,
     protocol_address: String,
-) -> Result<EntryFunctionArgumentsJSON, Error>
-where
-    ConcreteCircuit: Circuit<Fr>,
-{
+) -> EntryFunctionArgumentsJSON {
     let instances = instances
         .iter()
         .map(|fr| {
@@ -94,5 +97,5 @@ where
         ],
     };
 
-    Ok(json)
+    json
 }
