@@ -1,0 +1,17 @@
+[package]
+name = "aptos-verifier-api"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+shape-generator.workspace=true
+serde.workspace=true
+serde_json.workspace=true
+halo2_proofs.workspace=true
+hex.workspace=true
+rand_core.workspace=true
