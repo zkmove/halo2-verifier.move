@@ -12,6 +12,7 @@ use halo2_proofs::transcript::{
 use std::fmt::Debug;
 
 pub use halo2_proofs::plonk::{keygen_pk, keygen_vk};
+use rand_core::OsRng;
 
 pub fn prove_with_gwc_and_keccak256<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
@@ -60,13 +61,12 @@ where
     // Create a proof
     let prove_start = std::time::Instant::now();
 
-    let rng = rand::rngs::mock::StepRng::new(0, 1);
     create_proof::<Scheme, P, _, _, _, _>(
         params,
         &pk,
         &[circuit],
         &[instance],
-        rng,
+        OsRng,
         &mut transcript,
     )
     .expect("proof generation should not fail");

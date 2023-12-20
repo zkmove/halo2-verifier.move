@@ -1,8 +1,8 @@
 extern crate core;
 
-use circuit_info_generator::generate_circuit_info;
-use circuit_info_generator::serialize::serialize;
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
+use shape_generator::generate_circuit_info;
+use shape_generator::serialize::serialize;
 
 use ark_serialize::CanonicalSerialize;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};

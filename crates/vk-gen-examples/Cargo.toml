@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-circuit-info-generator = {path = "../circuit-info-generator"}
+shape-generator = {path = "../verifier-sdk/shape-generator" }
 clap = { version = "4.4.10",features = ["derive"] }
 anyhow = { version = "1.0.75" }
 serde = { version = "1" }

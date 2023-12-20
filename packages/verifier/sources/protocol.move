@@ -73,7 +73,7 @@ module halo2_verifier::protocol {
     // --- Protocol Deserialzation start ---
 
     /// deserialize from a list of vector<vector<u8>> into Protocol.
-    /// it corresponds to the serialization in the rust code of circuit-info-generator.
+    /// it corresponds to the serialization in the rust code of shape-generator.
     public fun from_bytes(
         general_info: vector<vector<u8>>,
         advice_queries: vector<vector<u8>>,

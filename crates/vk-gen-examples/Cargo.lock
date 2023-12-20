@@ -259,16 +259,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "circuit-info-generator"
-version = "0.1.0"
-dependencies = [
- "bcs",
- "blake2b_simd",
- "halo2_proofs",
- "multipoly",
-]
-
-[[package]]
 name = "clap"
 version = "4.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -826,6 +816,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "shape-generator"
+version = "0.1.0"
+dependencies = [
+ "bcs",
+ "blake2b_simd",
+ "halo2_proofs",
+ "multipoly",
+]
+
+[[package]]
 name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -994,7 +994,6 @@ dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-serialize",
- "circuit-info-generator",
  "clap",
  "halo2_proofs",
  "hex",
@@ -1002,6 +1001,7 @@ dependencies = [
  "rand_core",
  "serde",
  "serde_json",
+ "shape-generator",
  "toml",
 ]
 
