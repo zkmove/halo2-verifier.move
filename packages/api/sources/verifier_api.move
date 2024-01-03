@@ -32,11 +32,17 @@ module verifier_api::verifier_api {
         move_to(sender, Circuit { protocol: proto });
     }
 
-    public entry fun verify_proof(param_address: address,
+    public entry fun verify_proof_gwc(param_address: address,
                                   circuit_address: address,
                                   instances: vector<vector<vector<u8>>>,
                                   proof: vector<u8>) acquires Circuit {
-        assert!(verify(param_address,circuit_address,instances,proof), error::aborted(VERIFY_PROOF_FAILURE));
+        assert!(verify(param_address,circuit_address,instances,proof, 1), error::aborted(VERIFY_PROOF_FAILURE));
+    }
+    public entry fun verify_proof_shplonk(param_address: address,
+                                      circuit_address: address,
+                                      instances: vector<vector<vector<u8>>>,
+                                      proof: vector<u8>) acquires Circuit {
+        assert!(verify(param_address,circuit_address,instances,proof, 0), error::aborted(VERIFY_PROOF_FAILURE));
     }
 
     /// verify a proof on the circuit in `circuit_address`
@@ -44,12 +50,13 @@ module verifier_api::verifier_api {
         param_address: address,
         circuit_address: address,
         instances: vector<vector<vector<u8>>>,
-        proof: vector<u8>
+        proof: vector<u8>,
+        kzg_variant: u8,
     ): bool acquires Circuit {
         let params = get_params(param_address);
         let circuit = borrow_global<Circuit>(circuit_address);
         let protocol = &circuit.protocol;
-        verify_single(&params, protocol, instances, proof)
+        verify_single(&params, protocol, instances, proof, kzg_variant)
     }
 
     /// destory a circuit

@@ -66,7 +66,7 @@ module verifier_api::verifier_api_test {
             x"0600000000000000000000000000000000000000000000000000000000000000",
             x"0600000000000000000000000000000000000000000000000000000000000000"
         ];
-         verifier_api::verify_proof(signer::address_of(&signer), signer::address_of(&signer),  vector::singleton(instances), proof);
+         verifier_api::verify_proof_gwc(signer::address_of(&signer), signer::address_of(&signer),  vector::singleton(instances), proof);
     }
 
 }
