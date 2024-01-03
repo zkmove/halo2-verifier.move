@@ -19,7 +19,7 @@ use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul,
 };
 
-use vk_gen_examples::proof::prove_with_gwc_and_keccak256;
+use vk_gen_examples::proof::{prove_with_keccak256, KZG};
 use vk_gen_examples::to_ark::IntoArk;
 
 /// the consts correspond to the definition of `verifier_api.move`.
@@ -69,6 +69,11 @@ pub enum Examples {
     TwoChip,
     VectorMul,
 }
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum KZGVariant {
+    GWC,
+    SHPLONK,
+}
 
 #[derive(Parser)]
 struct BuildVerifyProofTxn {
@@ -81,6 +86,9 @@ struct BuildVerifyProofTxn {
     param_address: String,
     #[arg(long)]
     circuit_address: String,
+
+    #[arg(long = "kzg", value_enum)]
+    variant: KZGVariant,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -190,48 +198,53 @@ fn main() -> anyhow::Result<()> {
             output_dir,
             param_address,
             circuit_address,
+            variant,
         }) => {
+            let kzg = match variant {
+                KZGVariant::GWC => KZG::GWC,
+                KZGVariant::SHPLONK => KZG::SHPLONK,
+            };
             let (proof, instances) = match example {
                 Examples::CircuitLayout => {
                     let (circuit, instances) = circuit_layout::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
                 Examples::Serialization => {
                     let (circuit, instances) = serialization::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
                 Examples::Shuffle => {
                     let (circuit, instances) = shuffle::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
                 Examples::SimpleExample => {
                     let (circuit, instances) = simple_example::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
                 Examples::TwoChip => {
                     let (circuit, instances) = two_chip::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
                 Examples::VectorMul => {
                     let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_gwc_and_keccak256(circuit, &[&instances], &params, pk);
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, instances)
                 }
             };
@@ -271,7 +284,7 @@ fn main() -> anyhow::Result<()> {
 
             std::fs::write(
                 output_path
-                    .join(format!("{:?}-verify-proof", example))
+                    .join(format!("{:?}-verify-proof-{}", example, kzg))
                     .with_extension("json"),
                 output,
             )?;

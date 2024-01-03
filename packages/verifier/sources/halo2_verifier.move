@@ -21,14 +21,18 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::vec_utils::repeat;
     use std::option;
     use halo2_verifier::bn254_utils::{deserialize_g1, deserialize_fr};
+    use halo2_verifier::shplonk;
 
     const INVALID_INSTANCES: u64 = 100;
+    const SHPLONK: u8 = 0;
+    const GWC: u8 = 1;
 
     public fun verify_single(
         params: &Params,
         protocol: &Protocol,
         instances: vector<vector<vector<u8>>>,
-        proof: vector<u8>
+        proof: vector<u8>,
+        kzg_variant: u8,
     ): bool {
         let transcript = transcript::init(proof);
         let instances = vector::map_ref(&instances, |column_instances|{
@@ -36,7 +40,7 @@ module halo2_verifier::halo2_verifier {
                 option::destroy_some( bn254_utils::deserialize_fr(instance))
             })
         });
-        verify(params, protocol, vector::singleton(instances), transcript)
+        verify(params, protocol, vector::singleton(instances), transcript, kzg_variant)
     }
 
     /// `verify` function verify the proof in transcript with given params, protocol, and instances.
@@ -45,7 +49,8 @@ module halo2_verifier::halo2_verifier {
         params: &Params,
         protocol: &Protocol,
         instances: vector<vector<vector<Element<Fr>>>>,
-        transcript: Transcript
+        transcript: Transcript,
+        kzg_variant: u8,
     ): bool {
         let domain = protocol::domain(protocol);
         // TODO: check instance?
@@ -335,8 +340,13 @@ module halo2_verifier::halo2_verifier {
             vanishing::queries(vanishing, &mut queries, &z);
         };
 
-
-        gwc::verify(params, &mut transcript, &queries)
+        if (kzg_variant == GWC) {
+            gwc::verify(params, &mut transcript, &queries)
+        } else if (kzg_variant == SHPLONK) {
+            shplonk::verify(params, &mut transcript, &queries)
+        } else {
+            abort 400
+        }
     }
 
 

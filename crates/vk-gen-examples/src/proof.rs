@@ -4,14 +4,64 @@ use halo2_proofs::halo2curves::serde::SerdeObject;
 use halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
 use halo2_proofs::poly::commitment::{CommitmentScheme, ParamsProver, Prover, Verifier};
 use halo2_proofs::poly::kzg::commitment::{KZGCommitmentScheme, ParamsKZG};
-use halo2_proofs::poly::kzg::multiopen::{ProverGWC, VerifierGWC};
+use halo2_proofs::poly::kzg::multiopen::{ProverGWC, ProverSHPLONK, VerifierGWC, VerifierSHPLONK};
 use halo2_proofs::poly::{kzg, VerificationStrategy};
 use halo2_proofs::transcript::{
     Challenge255, Keccak256Read, Keccak256Write, TranscriptReadBuffer, TranscriptWriterBuffer,
 };
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 
 pub use halo2_proofs::plonk::{keygen_pk, keygen_vk};
+
+#[derive(Copy, Clone, Debug)]
+pub enum KZG {
+    GWC,
+    SHPLONK,
+}
+
+impl std::fmt::Display for KZG {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GWC => write!(f, "gwc"),
+            Self::SHPLONK => write!(f, "shplonk"),
+        }
+    }
+}
+
+pub fn prove_with_keccak256<E, ConcreteCircuit>(
+    circuit: ConcreteCircuit,
+    instance: &[&[E::Scalar]],
+    params: &ParamsKZG<E>,
+    pk: ProvingKey<E::G1Affine>,
+    kzg: KZG,
+) -> Vec<u8>
+where
+    E: Engine + Debug + MultiMillerLoop,
+    E::G1Affine: SerdeObject,
+    E::G2Affine: SerdeObject,
+    ConcreteCircuit: Circuit<E::Scalar>,
+    <E as Engine>::Scalar: PrimeField,
+    <E as Engine>::Scalar: Ord,
+    <E as Engine>::Scalar: WithSmallOrderMulGroup<3>,
+    <E as Engine>::Scalar: FromUniformBytes<64>,
+{
+    match kzg {
+        KZG::GWC => prove_vm_circuit::<
+            KZGCommitmentScheme<E>,
+            ProverGWC<E>,
+            VerifierGWC<E>,
+            kzg::strategy::SingleStrategy<E>,
+            _,
+        >(circuit, instance, params, pk),
+        KZG::SHPLONK => prove_vm_circuit::<
+            KZGCommitmentScheme<E>,
+            ProverSHPLONK<E>,
+            VerifierSHPLONK<E>,
+            kzg::strategy::SingleStrategy<E>,
+            _,
+        >(circuit, instance, params, pk),
+    }
+}
 
 pub fn prove_with_gwc_and_keccak256<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
@@ -33,6 +83,31 @@ where
         KZGCommitmentScheme<E>,
         ProverGWC<E>,
         VerifierGWC<E>,
+        kzg::strategy::SingleStrategy<E>,
+        _,
+    >(circuit, instance, params, pk)
+}
+
+pub fn prove_with_shplonk_and_keccak256<E, ConcreteCircuit>(
+    circuit: ConcreteCircuit,
+    instance: &[&[E::Scalar]],
+    params: &ParamsKZG<E>,
+    pk: ProvingKey<E::G1Affine>,
+) -> Vec<u8>
+where
+    E: Engine + Debug + MultiMillerLoop,
+    E::G1Affine: SerdeObject,
+    E::G2Affine: SerdeObject,
+    ConcreteCircuit: Circuit<E::Scalar>,
+    <E as Engine>::Scalar: PrimeField,
+    <E as Engine>::Scalar: Ord,
+    <E as Engine>::Scalar: WithSmallOrderMulGroup<3>,
+    <E as Engine>::Scalar: FromUniformBytes<64>,
+{
+    prove_vm_circuit::<
+        KZGCommitmentScheme<E>,
+        ProverSHPLONK<E>,
+        VerifierSHPLONK<E>,
         kzg::strategy::SingleStrategy<E>,
         _,
     >(circuit, instance, params, pk)
