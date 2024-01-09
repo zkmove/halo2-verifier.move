@@ -1,6 +1,6 @@
 module halo2_verifier::query {
     use std::option::{Self, Option};
-    use aptos_std::crypto_algebra::{Element};
+    use aptos_std::crypto_algebra::{Self, Element};
 
     use aptos_std::bn254_algebra::{G1, Fr};
     use halo2_verifier::msm::{Self, MSM};
@@ -71,13 +71,33 @@ module halo2_verifier::query {
         string_utils::format3(&b"{} {} {}", serialize_fr(&self.point), serialize_fr(&self.eval), format_commit_reference(&self.commitment))
     }
 
-    fun format_commit_reference(self: &CommitmentReference): String {
+    public fun format_commit_reference(self: &CommitmentReference): String {
         if (option::is_some(&self.commitment)) {
             string_utils::format1(&b"cm: {}", serialize_g1_uncompressed(option::borrow(&self.commitment)))
         } else {
             let m = option::borrow(&self.msm);
 
             string_utils::format1(&b"sm: {}", serialize_g1_uncompressed(&msm::eval(m)))
+        }
+    }
+
+    public fun eq_commit_reference(self: &CommitmentReference, other: &CommitmentReference): bool {
+        if (option::is_some(&self.commitment)) {
+            if(option::is_none(&other.commitment)) {
+                false
+            }
+            else {
+                let e1 = option::borrow(&self.commitment);
+                let e2 = option::borrow(&other.commitment);
+                crypto_algebra::eq(e1, e2)
+            }
+        } else {
+            if(option::is_none(&other.msm)) {
+                false
+            }
+            else {
+                option::borrow(&self.msm) == option::borrow(&other.msm)
+            }
         }
     }
 }

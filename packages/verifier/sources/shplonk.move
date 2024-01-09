@@ -2,8 +2,9 @@ module halo2_verifier::shplonk {
     use std::vector;
 
     use aptos_std::crypto_algebra::{Self, Element};
+    use aptos_std::comparator::{compare_u8_vector, is_greater_than, is_equal};
 
-    use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
+    use aptos_std::bn254_algebra::{G1, G2, Gt, Fr, FormatGt};
     use halo2_verifier::msm::{Self, MSM};
     use halo2_verifier::params::{Self, Params};
     use halo2_verifier::query::{Self, VerifierQuery, CommitmentReference};
@@ -12,7 +13,6 @@ module halo2_verifier::shplonk {
 
     #[test_only]
     use aptos_std::crypto_algebra::{enable_cryptography_algebra_natives};
-    use aptos_std::debug;
     use std::option::{Self, Option};
     
     struct CommitmentRotationSet has copy, drop {
@@ -51,7 +51,7 @@ module halo2_verifier::shplonk {
 
         let z_0_diff_inverse: Element<Fr> = crypto_algebra::zero();
         let z_0: Element<Fr> = crypto_algebra::zero();
-        let outer_msm: vector<MSM> = vector::empty();
+        let outer_msm = msm::empty_msm();
         let r_outer_acc: Element<Fr> = crypto_algebra::zero();
 
         let i = 0;
@@ -63,7 +63,13 @@ module halo2_verifier::shplonk {
             let diffs: vector<Element<Fr>> = vector::empty();
             vector::for_each_ref(&super_point_set, |point| {
                 let point: &Element<Fr> = point;
-                if (!vector::contains(&rotation_set.points, point)) {
+
+                let (find, _) = vector::find(&rotation_set.points, |s| {
+                    let s: &Element<Fr> = s;
+                    crypto_algebra::eq(s, point)
+                });
+
+                if (!find) {
                     vector::push_back(&mut diffs, *point);
                 };
             });
@@ -101,7 +107,7 @@ module halo2_verifier::shplonk {
             };
 
             msm::scale(&mut inner_msm, &crypto_algebra::mul(&power_of_v, &z_diff_i));
-            vector::push_back(&mut outer_msm, inner_msm);
+            msm::add_msm(&mut outer_msm, &inner_msm);
             r_outer_acc = crypto_algebra::add(&r_outer_acc, &crypto_algebra::mul(&power_of_v, &crypto_algebra::mul(&r_inner_acc, &z_diff_i)));
 
             power_of_v = crypto_algebra::mul(&power_of_v, &v);
@@ -110,17 +116,16 @@ module halo2_verifier::shplonk {
 
         let left = msm::empty_msm();
         msm::append_term(&mut left, crypto_algebra::one(), h2);
-        let left_eval = msm::eval(&left);
+        let left = msm::eval(&left);
 
-        let right = msm::empty_msm();
         let g1 = *params::g(params);
-        msm::append_term(&mut right, bn254_utils::invert(&r_outer_acc), g1);
-        msm::append_term(&mut right, bn254_utils::invert(&z_0), h1);
-        msm::append_term(&mut right, u, h2);
-        let right_eval = msm::eval(&right);
+        msm::append_term(&mut outer_msm, crypto_algebra::neg(&r_outer_acc), g1);
+        msm::append_term(&mut outer_msm, crypto_algebra::neg(&z_0), h1);
+        msm::append_term(&mut outer_msm, u, h2);
+        let right = msm::eval(&outer_msm);
 
-        let g1s = vector::singleton(left_eval);
-        vector::push_back(&mut g1s, right_eval);
+        let g1s = vector::singleton(left);
+        vector::push_back(&mut g1s, right);
         let g2s = vector::singleton(*params::s_g2(params));
         vector::push_back(&mut g2s, crypto_algebra::neg(params::g2(params)));
 
@@ -149,7 +154,7 @@ module halo2_verifier::shplonk {
 
             let (find, index) = vector::find(&commitment_rotation_set_map, |s| {
                 let s: CommitmentRotationSet = *s;
-                s.commitment == commitment
+                query::eq_commit_reference(&s.commitment, &commitment)
             });
             if (find) {
                 let s = vector::borrow_mut(&mut commitment_rotation_set_map, index);
@@ -160,6 +165,16 @@ module halo2_verifier::shplonk {
                     commitment,
                 });
             };
+
+            i = i + 1;
+        };
+        
+        // Implement btree for rotations in commitment_rotation_set_map
+        i = 0;
+        let map_len = vector::length(&commitment_rotation_set_map);
+        while (i < map_len) {
+            let set = vector::borrow_mut(&mut commitment_rotation_set_map, i);
+            set.rotations = format_btree(&set.rotations);
 
             i = i + 1;
         };
@@ -178,7 +193,7 @@ module halo2_verifier::shplonk {
 
             let (find, index) = vector::find(&rotation_set_commitment_map, |s| {
                 let s: RotationSetCommitment = *s;
-                s.rotations == c.rotations
+                bn254_utils::eq_elements<Fr>(&s.rotations, &c.rotations)
             });
             if (find) {
                 let s = vector::borrow_mut(&mut rotation_set_commitment_map, index);
@@ -203,7 +218,7 @@ module halo2_verifier::shplonk {
                     
                     let (_, index) = vector::find(queries, |q| {
                         let q: &VerifierQuery = q;
-                        commitment == *query::commitment(q) && rotation == *query::point(q)
+                        query::eq_commit_reference(&commitment, query::commitment(q)) && crypto_algebra::eq(&rotation, query::point(q))
                     });
                     
                     *query::eval(vector::borrow(queries, index))
@@ -221,6 +236,8 @@ module halo2_verifier::shplonk {
             }
         });
         
+        super_point_set = format_btree(&super_point_set);
+
         (rotation_sets, super_point_set)
     }
 
@@ -358,6 +375,45 @@ module halo2_verifier::shplonk {
         val
     }
 
+    fun format_btree(tree: &vector<Element<Fr>>): vector<Element<Fr>> {
+
+        if(vector::length(tree) <= 1) {
+            return *tree
+        };
+
+        let btree: vector<Element<Fr>> = vector::empty();
+
+        vector::for_each_ref(tree, |e| {
+            let e: &Element<Fr> = e;
+            let (find, _) = vector::find(&btree, |ref| crypto_algebra::eq(e, ref));
+            if(!find) {
+                vector::push_back(&mut btree, *e);
+            };
+        });
+
+        let i = 0;
+        let tree_len = vector::length(&btree);
+        while (i < tree_len - 1) {
+            let j = 0;
+            while (j < tree_len - 1 - i) {
+                let e_i = vector::borrow(&btree, j);
+                let e_j = vector::borrow(&btree, j + 1);
+
+                let e_i_bytes = bn254_utils::serialize_fr(e_i);
+                let e_j_bytes = bn254_utils::serialize_fr(e_j);
+                if(is_greater_than(&compare_u8_vector(e_i_bytes, e_j_bytes))) {
+                    vector::swap(&mut btree, j, j + 1);
+                };
+
+                j = j + 1;
+            };
+
+            i = i + 1;
+        };
+
+        btree
+    }
+
     #[test(s = @std)]
     fun test_construct_intermediate_sets(s: &signer) {
         enable_cryptography_algebra_natives(s);
@@ -382,7 +438,8 @@ module halo2_verifier::shplonk {
         
         let (rotation_sets, super_point_set) = construct_intermediate_sets(&queries);
         assert!(vector::length(&super_point_set) == vector::length(&queries), 100);
-        assert!(vector::length(&rotation_sets) == vector::length(&queries), 100);
+        // Used same g1 elements
+        assert!(vector::length(&rotation_sets) == 1, 100);
     }
 
     #[test(s = @std)]
