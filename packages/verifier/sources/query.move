@@ -71,7 +71,7 @@ module halo2_verifier::query {
         string_utils::format3(&b"{} {} {}", serialize_fr(&self.point), serialize_fr(&self.eval), format_commit_reference(&self.commitment))
     }
 
-    public fun format_commit_reference(self: &CommitmentReference): String {
+    fun format_commit_reference(self: &CommitmentReference): String {
         if (option::is_some(&self.commitment)) {
             string_utils::format1(&b"cm: {}", serialize_g1_uncompressed(option::borrow(&self.commitment)))
         } else {

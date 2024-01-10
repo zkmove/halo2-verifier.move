@@ -176,7 +176,7 @@ module halo2_verifier::shplonk {
         let map_len = vector::length(&commitment_rotation_set_map);
         while (i < map_len) {
             let set = vector::borrow_mut(&mut commitment_rotation_set_map, i);
-            set.rotations = format_btree(&set.rotations);
+            set.rotations = remove_duplicate_and_sort(&set.rotations);
 
             i = i + 1;
         };
@@ -238,7 +238,7 @@ module halo2_verifier::shplonk {
             }
         });
         
-        super_point_set = format_btree(&super_point_set);
+        super_point_set = remove_duplicate_and_sort(&super_point_set);
 
         (rotation_sets, super_point_set)
     }
@@ -377,7 +377,7 @@ module halo2_verifier::shplonk {
         val
     }
 
-    fun format_btree(tree: &vector<Element<Fr>>): vector<Element<Fr>> {
+    fun remove_duplicate_and_sort(tree: &vector<Element<Fr>>): vector<Element<Fr>> {
 
         if(vector::length(tree) <= 1) {
             return *tree

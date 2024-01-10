@@ -240,7 +240,7 @@ module halo2_verifier::bn254_utils {
     public fun eq_elements<T>(self: &vector<Element<T>>, other: &vector<Element<T>>): bool {
 
         let elements_len = vector::length(self);
-        if(vector::length(self) != vector::length(other)) {
+        if(elements_len != vector::length(other)) {
             return false
         };
 
