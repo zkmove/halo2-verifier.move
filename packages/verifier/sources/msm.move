@@ -1,8 +1,8 @@
 module halo2_verifier::msm {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
-
     use aptos_std::bn254_algebra::{G1, Fr};
+    use halo2_verifier::bn254_utils::eq_elements;
 
     struct MSM has copy, drop {
         scalars: vector<Element<Fr>>,
@@ -38,5 +38,10 @@ module halo2_verifier::msm {
 
     public fun eval(msm: &MSM): Element<G1> {
         crypto_algebra::multi_scalar_mul(&msm.bases, &msm.scalars)
+    }
+
+    public fun eq(msm: &MSM, other: &MSM): bool {
+        eq_elements<Fr>(&msm.scalars, &other.scalars)
+        && eq_elements<G1>(&msm.bases, &other.bases)
     }
 }

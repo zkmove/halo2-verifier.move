@@ -58,6 +58,7 @@ where
 /// and when output the json to file, it can be run by `aptos move run`.
 pub fn build_verify_proof_transaction_payload(
     proof: Vec<u8>,
+    proof_kzg_variant: u8,
     instances: Vec<Vec<Fr>>,
     verifier_address: String,
     param_address: String,
@@ -93,6 +94,10 @@ pub fn build_verify_proof_transaction_payload(
             ArgWithTypeJSON {
                 arg_type: "hex".to_string(),
                 value: json!(HexEncodedBytes(proof.clone()).to_string()),
+            },
+            ArgWithTypeJSON {
+                arg_type: "u8".to_string(),
+                value: json!(proof_kzg_variant),
             },
         ],
     };

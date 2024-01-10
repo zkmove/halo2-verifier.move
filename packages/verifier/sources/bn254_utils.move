@@ -237,6 +237,26 @@ module halo2_verifier::bn254_utils {
         crypto_algebra::deserialize<G2, FormatG2Compr>(e)
     }
 
+    public fun eq_elements<T>(self: &vector<Element<T>>, other: &vector<Element<T>>): bool {
+
+        let elements_len = vector::length(self);
+        if(elements_len != vector::length(other)) {
+            return false
+        };
+
+        let i = 0;
+        while (i < elements_len) {
+            let e_1 = vector::borrow(self, i);
+            let e_2 = vector::borrow(other, i);
+            if(!crypto_algebra::eq<T>(e_1, e_2)) {
+                return false
+            };
+
+            i = i + 1;
+        };
+
+        true
+    }
 
     #[test(s = @std)]
     fun test_R(s: &signer) {
