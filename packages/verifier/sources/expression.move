@@ -63,15 +63,11 @@ module halo2_verifier::expression {
     }
 
     inline fun eval(coeff: &Element<Fr>, terms: &vector<SparseTerm>, var_access: |u32| &Element<Fr>): Element<Fr> {
-        let i = 0;
-        let term_len = vector::length(terms);
         let result = crypto_algebra::one<Fr>();
-        while (i < term_len) {
-            let term = vector::borrow(terms, i);
+        vector::for_each_ref(terms, |term| {
             let var: &Element<Fr> = var_access(variable_index(term));
             result = crypto_algebra::mul<Fr>(&result, &bn254_utils::pow_u32<Fr>(var, power(term)));
-            i = i + 1;
-        };
+        });
         crypto_algebra::mul<Fr>(coeff, &result)
     }
 }

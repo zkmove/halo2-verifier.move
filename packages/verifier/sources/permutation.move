@@ -143,9 +143,9 @@ module halo2_verifier::permutation {
             let chunk_len = (protocol::permutation_chunk_size(protocol) as u64);
             let permutation_columns = permutation_columns(protocol);
             let permutation_columns_len = vector::length(permutation_columns);
-            let i = 0;
-            while (i < sets_len) {
-                let set = vector::borrow(evaluted, i);
+            vector::enumerate_ref(evaluted, |i, set| {
+                let set: &PermutationEvaluatedSet = set;
+
                 // left = z_i(w*X) * (p(X) + beta * s_i(X) + gamma)
                 let left = set.permutation_product_next_eval;
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
@@ -192,8 +192,7 @@ module halo2_verifier::permutation {
                         &crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind))
                     )
                 );
-                i = i + 1;
-            }
+            });
         };
     }
 

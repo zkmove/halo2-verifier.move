@@ -182,17 +182,13 @@ module halo2_verifier::halo2_verifier {
                 let rotation = column_query::rotation(q);
                 let column_index = (column::column_index(column) as u64);
                 let instances = vector::borrow(instances, column_index);
-                let instances_len = vector::length(instances);
                 let offset = (i32::abs(&i32::sub(&max_rotation, rotation)) as u64);
 
-                let i = 0;
                 let acc = crypto_algebra::zero();
-                while (i < instances_len) {
-                    let val = vector::borrow(instances, i);
+                vector::enumerate_ref(instances, |i, val| {
                     let l = *vector::borrow(&l_i_s, offset + i);
                     acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
-                    i = i + 1;
-                };
+                });
 
                 acc
             })
@@ -351,12 +347,9 @@ module halo2_verifier::halo2_verifier {
 
 
     fun check_instances(instances: &vector<vector<Element<Fr>>>, num: u64) {
-        let i = 0;
-        let len = vector::length(instances);
-        while (i < len) {
-            assert!(vector::length(vector::borrow(instances, i)) == num, INVALID_INSTANCES);
-            i = i + 1;
-        }
+        vector::for_each_ref(instances, |i| {
+            assert!(vector::length(i) == num, INVALID_INSTANCES);
+        });
     }
 
     fun lookup_read_permuted_commitments(

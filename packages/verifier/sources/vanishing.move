@@ -65,24 +65,18 @@ module halo2_verifier::vanishing {
         xn: &Element<Fr>
     ): EvaluatedH {
         let PartialEvaluated { h_commitments, random_eval, random_poly_commitment } = self;
-        let i = 0;
-        let len = vector::length(expressions);
-        let h_eval = crypto_algebra::zero();
-        while (i < len) {
-            let v = vector::borrow(expressions, i);
-            h_eval = crypto_algebra::add(&crypto_algebra::mul(&h_eval, y), v);
-            i = i + 1;
-        };
+
+        let h_eval = vector::fold(*expressions, crypto_algebra::zero<Fr>(), |h_eval, v| {
+            crypto_algebra::add(&crypto_algebra::mul(&h_eval, y), &v)
+        });
         h_eval = crypto_algebra::mul(&h_eval, &bn254_utils::invert(&crypto_algebra::sub(xn, &crypto_algebra::one())));
 
         let msm = msm::empty_msm();
-        let i = vector::length(&h_commitments);
-        while (i > 0) {
-            i = i - 1;
-            let commitment = vector::pop_back(&mut h_commitments);
+        vector::for_each_reverse(h_commitments, |commitment| {
             msm::scale(&mut msm, xn);
             msm::append_term(&mut msm, crypto_algebra::one(), commitment);
-        };
+        });
+        
         EvaluatedH {
             expected_h_eval: h_eval,
             h_commitment: msm,
