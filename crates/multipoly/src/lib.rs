@@ -4,7 +4,6 @@
 use std::{
     fmt::Debug,
     ops::{Add, AddAssign, Neg, SubAssign},
-
     vec::Vec,
 };
 

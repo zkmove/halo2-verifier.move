@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "circuit-info-generator",
+    "multipoly",
+    "vk-gen-examples",
+]
