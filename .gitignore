@@ -6,3 +6,5 @@ build
 
 **/target/*
 vk_deployment/
+
+.aptos/

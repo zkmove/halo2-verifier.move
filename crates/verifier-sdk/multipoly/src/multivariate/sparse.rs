@@ -6,20 +6,18 @@ use crate::{
 use ff::Field;
 use num_traits::Zero;
 //use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use std::ops::{Deref, Mul, MulAssign};
 use std::{
     cmp::Ordering,
     fmt,
     ops::{Add, AddAssign, Neg, Sub, SubAssign},
-
     vec::Vec,
 };
-use std::ops::{Deref, Mul, MulAssign};
 
 use derivative::Derivative;
 
 /// Stores a sparse multivariate polynomial in coefficient form.
-#[derive(Derivative)]
-#[derive(Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Derivative, Clone, PartialEq, Eq, Hash, Default)]
 pub struct SparsePolynomial<F: Field, T: Term> {
     /// The number of variables the polynomial supports
     #[derivative(PartialEq = "ignore")]
@@ -84,13 +82,14 @@ impl<F: Field + Ord> Polynomial<F> for SparsePolynomial<F, SparseTerm> {
         if self.is_zero() {
             return F::ZERO;
         }
-        self.terms.iter()
+        self.terms
+            .iter()
             .map(|(coeff, term)| *coeff * term.evaluate(point))
             .sum()
     }
 }
 
-impl<F: Field+Ord> DenseMVPolynomial<F> for SparsePolynomial<F, SparseTerm> {
+impl<F: Field + Ord> DenseMVPolynomial<F> for SparsePolynomial<F, SparseTerm> {
     /// Returns the number of variables in `self`
     fn num_vars(&self) -> usize {
         self.num_vars
@@ -198,7 +197,7 @@ impl<'a, 'b, F: Field, T: Term> Add<&'a SparsePolynomial<F, T>> for &'b SparsePo
                     let other = other_iter.next().unwrap();
                     let cur = cur_iter.next().unwrap();
                     (cur.0 + other.0, cur.1.clone())
-                },
+                }
                 Some(Ordering::Greater) => other_iter.next().unwrap().clone(),
                 None => break,
             };
@@ -219,6 +218,7 @@ impl<'a, F: Field, T: Term> AddAssign<&'a SparsePolynomial<F, T>> for SparsePoly
     }
 }
 
+#[allow(clippy::suspicious_op_assign_impl)]
 impl<'a, F: Field, T: Term> AddAssign<(F, &'a SparsePolynomial<F, T>)> for SparsePolynomial<F, T> {
     fn add_assign(&mut self, (f, other): (F, &'a SparsePolynomial<F, T>)) {
         let other = Self {
@@ -246,6 +246,7 @@ impl<F: Field, T: Term> Neg for SparsePolynomial<F, T> {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl<'a, 'b, F: Field, T: Term> Sub<&'a SparsePolynomial<F, T>> for &'b SparsePolynomial<F, T> {
     type Output = SparsePolynomial<F, T>;
 
@@ -291,7 +292,9 @@ impl<F: Field, T: Term> Zero for SparsePolynomial<F, T> {
     }
 }
 
-impl<'a, 'b, F: Field+Ord> Mul<&'a SparsePolynomial<F, SparseTerm>> for &'b SparsePolynomial<F, SparseTerm> {
+impl<'a, 'b, F: Field + Ord> Mul<&'a SparsePolynomial<F, SparseTerm>>
+    for &'b SparsePolynomial<F, SparseTerm>
+{
     type Output = SparsePolynomial<F, SparseTerm>;
 
     /// Perform a naive n^2 multiplication of `self` by `other`.
@@ -313,7 +316,7 @@ impl<'a, 'b, F: Field+Ord> Mul<&'a SparsePolynomial<F, SparseTerm>> for &'b Spar
     }
 }
 
-impl<'a, F: Field+Ord, T: Term> Mul<&'a F> for SparsePolynomial<F, T> {
+impl<'a, F: Field + Ord, T: Term> Mul<&'a F> for SparsePolynomial<F, T> {
     type Output = SparsePolynomial<F, T>;
 
     /// Perform a naive n^2 multiplication of `self` by `other`.
@@ -324,17 +327,13 @@ impl<'a, F: Field+Ord, T: Term> Mul<&'a F> for SparsePolynomial<F, T> {
     }
 }
 
-impl<'a,F: Field+Ord, T:Term> MulAssign<&'a F> for SparsePolynomial<F, T> {
-
+impl<'a, F: Field + Ord, T: Term> MulAssign<&'a F> for SparsePolynomial<F, T> {
     #[inline]
-    fn mul_assign(&mut self, other: &'a F){
+    fn mul_assign(&mut self, other: &'a F) {
         if self.is_zero() || bool::from(other.is_zero()) {
             *self = SparsePolynomial::zero();
         } else {
-            self.terms.iter_mut().for_each(|(coeff, _)| *coeff *=other);
-
+            self.terms.iter_mut().for_each(|(coeff, _)| *coeff *= other);
         }
     }
 }
-
-

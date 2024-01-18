@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./crates/verifier-sdk/Cargo.toml",
+        "./crates/vk-gen-examples/Cargo.toml", 
+    ]
+}

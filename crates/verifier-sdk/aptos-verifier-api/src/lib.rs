@@ -56,6 +56,8 @@ where
 /// we only support kzg on bn254 for now.
 /// Returns a structure which can be serialized to json string,
 /// and when output the json to file, it can be run by `aptos move run`.
+
+#[allow(clippy::let_and_return)]
 pub fn build_verify_proof_transaction_payload(
     proof: Vec<u8>,
     proof_kzg_variant: u8,
