@@ -327,8 +327,7 @@ module halo2_verifier::shplonk {
     }
 
     fun eval_polynomial(poly: vector<Element<Fr>>, point: Element<Fr>): Element<Fr> {
-        vector::reverse(&mut poly);
-        vector::fold(poly, crypto_algebra::zero<Fr>(), |val, coeff| {
+        vector::foldr(poly, crypto_algebra::zero<Fr>(), |coeff, val| {
             crypto_algebra::add(&crypto_algebra::mul(&val, &point), &coeff)
         })
     }
