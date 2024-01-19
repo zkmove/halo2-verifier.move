@@ -1,4 +1,4 @@
-module halo2_verifier::bn254_utils {
+module halo2_common::bn254_utils {
     use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr, Fq, FormatFqLsb};
     use std::option::{Self, Option};
     use std::vector;

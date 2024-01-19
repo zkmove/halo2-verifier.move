@@ -1,13 +1,13 @@
-module halo2_verifier::domain {
+module halo2_common::domain {
     use std::option;
     use std::vector;
 
     use aptos_std::crypto_algebra::{Self, Element};
 
     use aptos_std::bn254_algebra::{Fr};
-    use halo2_verifier::i32::{Self, I32};
-    use halo2_verifier::bn254_utils;
-    use halo2_verifier::bn254_utils::{root_of_unity, serialize_fr};
+    use halo2_common::i32::{Self, I32};
+    use halo2_common::bn254_utils;
+    use halo2_common::bn254_utils::{root_of_unity, serialize_fr};
     use std::string::String;
     use aptos_std::string_utils;
 

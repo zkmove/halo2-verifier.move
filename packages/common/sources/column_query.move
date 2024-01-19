@@ -1,6 +1,6 @@
-module halo2_verifier::column_query {
-    use halo2_verifier::column::Column;
-    use halo2_verifier::i32::I32;
+module halo2_common::column_query {
+    use halo2_common::column::Column;
+    use halo2_common::i32::I32;
 
     struct ColumnQuery  has store, copy, drop {
         column: Column,

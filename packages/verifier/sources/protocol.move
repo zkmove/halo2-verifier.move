@@ -8,24 +8,24 @@ module halo2_verifier::protocol {
     use aptos_std::from_bcs;
     use aptos_std::math64::max;
 
-    use halo2_verifier::bn254_utils::{deserialize_g1_from_halo2, deserialize_fr, serialize_fr, serialize_g1};
-    use halo2_verifier::column::{Self, Column};
-    use halo2_verifier::column_query::{Self, ColumnQuery};
-    use halo2_verifier::domain::{Self, Domain};
-    use halo2_verifier::expression::{Self, Expression};
-    use halo2_verifier::i32::{Self, I32};
-    use halo2_verifier::multivariate_poly;
+    use halo2_common::bn254_utils::{deserialize_g1_from_halo2, deserialize_fr, serialize_fr, serialize_g1};
+    use halo2_common::column::{Self, Column};
+    use halo2_common::column_query::{Self, ColumnQuery};
+    use halo2_common::domain::{Self, Domain};
+    use halo2_common::expression::{Self, Expression};
+    use halo2_common::i32::{Self, I32};
+    use halo2_common::multivariate_poly;
 
+    #[test_only]
+    use std::bn254_algebra::{FormatFrMsb, Fr};
+    #[test_only]
+    use std::string::{Self, String};
     #[test_only]
     use aptos_std::crypto_algebra::{Self, enable_cryptography_algebra_natives};
     #[test_only]
     use aptos_std::string_utils;
     #[test_only]
-    use halo2_verifier::multivariate_poly::{Term, MultiVariatePoly};
-    #[test_only]
-    use std::bn254_algebra::{FormatFrMsb, Fr};
-    #[test_only]
-    use std::string::{Self, String};
+    use halo2_common::multivariate_poly::{Term, MultiVariatePoly};
 
     const CurvePointLen: u64 = 32;
 

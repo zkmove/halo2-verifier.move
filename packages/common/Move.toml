@@ -1,23 +1,17 @@
 [package]
-name = "halo2-verifier"
+name = "halo2-common"
 version = "1.0.0"
 authors = ["zkmove contributors"]
 
 [addresses]
 halo2_common = "_"
-halo2_verifier = "_"
 
 [dev-addresses]
 halo2_common = "0x123"
-halo2_verifier = "0x1234"
 
 [dependencies.AptosFramework]
 git = "https://github.com/aptos-labs/aptos-core.git"
 rev = "devnet"
 subdir = "aptos-move/framework/aptos-framework"
-
-
-[dependencies.halo2-common]
-local = "../common"
 
 [dev-dependencies]

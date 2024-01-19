@@ -1,4 +1,4 @@
-module halo2_verifier::plain_blake2b {
+module halo2_common::plain_blake2b {
     use std::vector;
     use aptos_std::aptos_hash;
 

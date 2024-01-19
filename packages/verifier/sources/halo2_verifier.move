@@ -1,26 +1,25 @@
 module halo2_verifier::halo2_verifier {
+    use std::option;
     use std::vector::{Self, map_ref, map, enumerate_ref};
-
     use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_utils;
-    use halo2_verifier::column;
-    use halo2_verifier::column_query::{Self, ColumnQuery};
-    use halo2_verifier::domain::{Self, Domain};
-    use halo2_verifier::expression::{Self, Expression};
+    use halo2_common::bn254_utils::{Self, deserialize_g1, deserialize_fr};
+    use halo2_common::column;
+    use halo2_common::column_query::{Self, ColumnQuery};
+    use halo2_common::domain::{Self, Domain};
+    use halo2_common::expression::{Self, Expression};
+    use halo2_common::i32;
+    use halo2_common::params::Params;
+    use halo2_common::query::{Self, VerifierQuery};
+    use halo2_common::vec_utils::repeat;
+
     use halo2_verifier::gwc;
-    use halo2_verifier::i32;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
-    use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
-    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
-    use halo2_verifier::vec_utils::repeat;
-    use std::option;
-    use halo2_verifier::bn254_utils::{deserialize_g1, deserialize_fr};
     use halo2_verifier::shplonk;
 
     const INVALID_INSTANCES: u64 = 100;
@@ -182,17 +181,13 @@ module halo2_verifier::halo2_verifier {
                 let rotation = column_query::rotation(q);
                 let column_index = (column::column_index(column) as u64);
                 let instances = vector::borrow(instances, column_index);
-                let instances_len = vector::length(instances);
                 let offset = (i32::abs(&i32::sub(&max_rotation, rotation)) as u64);
 
-                let i = 0;
                 let acc = crypto_algebra::zero();
-                while (i < instances_len) {
-                    let val = vector::borrow(instances, i);
+                vector::enumerate_ref(instances, |i, val| {
                     let l = *vector::borrow(&l_i_s, offset + i);
                     acc = crypto_algebra::add(&acc, &crypto_algebra::mul(val, &l));
-                    i = i + 1;
-                };
+                });
 
                 acc
             })
@@ -351,12 +346,9 @@ module halo2_verifier::halo2_verifier {
 
 
     fun check_instances(instances: &vector<vector<Element<Fr>>>, num: u64) {
-        let i = 0;
-        let len = vector::length(instances);
-        while (i < len) {
-            assert!(vector::length(vector::borrow(instances, i)) == num, INVALID_INSTANCES);
-            i = i + 1;
-        }
+        vector::for_each_ref(instances, |i| {
+            assert!(vector::length(i) == num, INVALID_INSTANCES);
+        });
     }
 
     fun lookup_read_permuted_commitments(

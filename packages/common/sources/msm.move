@@ -1,8 +1,8 @@
-module halo2_verifier::msm {
+module halo2_common::msm {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
     use aptos_std::bn254_algebra::{G1, Fr};
-    use halo2_verifier::bn254_utils::eq_elements;
+    use halo2_common::bn254_utils::eq_elements;
 
     struct MSM has copy, drop {
         scalars: vector<Element<Fr>>,

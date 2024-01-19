@@ -1,16 +1,15 @@
 module halo2_verifier::permutation {
     use std::option::{Self, Option};
     use std::vector::{Self, zip, for_each_ref, for_each_reverse};
-
     use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_utils;
-    use halo2_verifier::column;
-    use halo2_verifier::domain::{Self, Domain};
+    use halo2_common::bn254_utils;
+    use halo2_common::column;
+    use halo2_common::domain::{Self, Domain};
+    use halo2_common::query::{Self, VerifierQuery};
+    use halo2_common::i32;
     use halo2_verifier::protocol::{Self, Protocol, permutation_columns};
-    use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
 
     struct Commited has drop {
@@ -143,9 +142,9 @@ module halo2_verifier::permutation {
             let chunk_len = (protocol::permutation_chunk_size(protocol) as u64);
             let permutation_columns = permutation_columns(protocol);
             let permutation_columns_len = vector::length(permutation_columns);
-            let i = 0;
-            while (i < sets_len) {
-                let set = vector::borrow(evaluted, i);
+            vector::enumerate_ref(evaluted, |i, set| {
+                let set: &PermutationEvaluatedSet = set;
+
                 // left = z_i(w*X) * (p(X) + beta * s_i(X) + gamma)
                 let left = set.permutation_product_next_eval;
                 // right = z_i(X) * (p(X) + delta^i * beta * X + gamma)
@@ -192,8 +191,7 @@ module halo2_verifier::permutation {
                         &crypto_algebra::sub(&crypto_algebra::one(), &crypto_algebra::add(l_last, l_blind))
                     )
                 );
-                i = i + 1;
-            }
+            });
         };
     }
 

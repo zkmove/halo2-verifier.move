@@ -1,4 +1,4 @@
-module halo2_verifier::i32 {
+module halo2_common::i32 {
 
     use std::error;
 

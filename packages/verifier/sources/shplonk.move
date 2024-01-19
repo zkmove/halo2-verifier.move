@@ -1,15 +1,14 @@
 module halo2_verifier::shplonk {
     use std::vector;
-
     use aptos_std::crypto_algebra::{Self, Element};
     use aptos_std::comparator::{compare_u8_vector, is_greater_than};
-
     use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
-    use halo2_verifier::msm;
-    use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::query::{Self, VerifierQuery, CommitmentReference};
+
+    use halo2_common::msm;
+    use halo2_common::params::{Self, Params};
+    use halo2_common::query::{Self, VerifierQuery, CommitmentReference};
+    use halo2_common::bn254_utils;
     use halo2_verifier::transcript::{Self, Transcript};
-    use halo2_verifier::bn254_utils;
 
     #[test_only]
     use aptos_std::crypto_algebra::{enable_cryptography_algebra_natives};
@@ -56,12 +55,9 @@ module halo2_verifier::shplonk {
         let outer_msm = msm::empty_msm();
         let r_outer_acc: Element<Fr> = crypto_algebra::zero();
 
-        let i = 0;
-        let set_len = vector::length(&rotation_sets);
         let power_of_v = crypto_algebra::one<Fr>();
-        while (i < set_len) {
-            let rotation_set = vector::borrow(&rotation_sets, i);
-
+        vector::enumerate_ref(&rotation_sets, |i, rotation_set| {
+            let rotation_set: &RotationSet = rotation_set;
             let diffs: vector<Element<Fr>> = vector::empty();
             vector::for_each_ref(&super_point_set, |point| {
                 let point: &Element<Fr> = point;
@@ -90,11 +86,9 @@ module halo2_verifier::shplonk {
             let inner_msm = msm::empty_msm();
             let r_inner_acc = crypto_algebra::zero();
 
-            let j = 0;
-            let commitment_len = vector::length(&rotation_set.commitments);
             let power_of_y = crypto_algebra::one<Fr>();
-            while (j < commitment_len) {
-                let commitment_data = vector::borrow(&rotation_set.commitments, j);
+            vector::for_each_ref(&rotation_set.commitments, |commitment_data| {
+                let commitment_data: &Commitment = commitment_data;
 
                 // calculate low degree equivalent
                 let r_x = lagrange_interpolate(rotation_set.points, commitment_data.evals);
@@ -105,16 +99,14 @@ module halo2_verifier::shplonk {
                 msm::add_msm(&mut inner_msm, &c);
 
                 power_of_y = crypto_algebra::mul(&power_of_y, &y);
-                j = j + 1;
-            };
+            });
 
             msm::scale(&mut inner_msm, &crypto_algebra::mul(&power_of_v, &z_diff_i));
             msm::add_msm(&mut outer_msm, &inner_msm);
             r_outer_acc = crypto_algebra::add(&r_outer_acc, &crypto_algebra::mul(&power_of_v, &crypto_algebra::mul(&r_inner_acc, &z_diff_i)));
 
             power_of_v = crypto_algebra::mul(&power_of_v, &v);
-            i = i + 1;
-        };
+        });
 
         let left = msm::empty_msm();
         msm::append_term(&mut left, crypto_algebra::one(), h2);
@@ -146,10 +138,7 @@ module halo2_verifier::shplonk {
         // (C_3, {r_2, r_3, r_4}),
         // ...
         let commitment_rotation_set_map: vector<CommitmentRotationSet> = vector::empty();
-        let i = 0;
-        let query_len = vector::length(queries);
-        while (i < query_len) {
-            let q = vector::borrow(queries, i);
+        vector::for_each_ref(queries, |q| {
             let point = *query::point(q);
             let commitment = *query::commitment(q);
             vector::push_back(&mut super_point_set, point);
@@ -167,19 +156,13 @@ module halo2_verifier::shplonk {
                     commitment,
                 });
             };
-
-            i = i + 1;
-        };
+        });
         
         // Implement btree for rotations in commitment_rotation_set_map
-        i = 0;
-        let map_len = vector::length(&commitment_rotation_set_map);
-        while (i < map_len) {
-            let set = vector::borrow_mut(&mut commitment_rotation_set_map, i);
+        vector::for_each_mut(&mut commitment_rotation_set_map, |set| {
+            let set: &mut CommitmentRotationSet = set;
             set.rotations = remove_duplicate_and_sort(&set.rotations);
-
-            i = i + 1;
-        };
+        });
 
         // Flatten rotation sets and collect commitments that opens against each commitment set
         // Example elements in the vector:
@@ -188,11 +171,8 @@ module halo2_verifier::shplonk {
         // {r_2, r_3, r_4} : [C_2, C_3],
         // ...
         let rotation_set_commitment_map: vector<RotationSetCommitment> = vector::empty();
-        i = 0;
-        let commitment_len = vector::length(&commitment_rotation_set_map);
-        while (i < commitment_len) {
-            let c = vector::borrow(&commitment_rotation_set_map, i);
-
+        vector::for_each_ref(&commitment_rotation_set_map, |c| {
+            let c: &CommitmentRotationSet = c;
             let (find, index) = vector::find(&rotation_set_commitment_map, |s| {
                 let s: RotationSetCommitment = *s;
                 bn254_utils::eq_elements<Fr>(&s.rotations, &c.rotations)
@@ -206,9 +186,7 @@ module halo2_verifier::shplonk {
                     commitments: vector[c.commitment],
                 });
             };
-
-            i = i + 1;
-        };
+        });
 
         let rotation_sets = vector::map_ref(&rotation_set_commitment_map, |rotation_set| {
             let rotation_set: RotationSetCommitment = *rotation_set;
@@ -253,31 +231,24 @@ module halo2_verifier::shplonk {
         };
 
         let denoms = vector::empty();
-        let j = 0;
-        while (j < points_len) {
-            let x_j = vector::borrow(&points, j);
-
+        vector::enumerate_ref(&points, |j, x_j| {
             let denom = vector::empty();
-            let k = 0;
-            while(k < points_len) {
-                let x_k = vector::borrow(&points, k);
+            
+            vector::enumerate_ref(&points, |k, x_k| {
                 if (k != j) {
                     vector::push_back(&mut denom, bn254_utils::invert(&crypto_algebra::sub(x_j, x_k)));
                 };
-
-                k = k + 1;
-            };
+            });
 
             vector::push_back(&mut denoms, denom);
-            j = j + 1;
-        };
+        });
 
         // Create final_poly with 0 points
-        let j = 0;
+        let i = 0;
         let final_poly: vector<Element<Fr>> = vector::empty();
-        while (j < points_len) {
+        while (i < points_len) {
             vector::push_back(&mut final_poly, crypto_algebra::zero());
-            j = j + 1;
+            i = i + 1;
         };
 
         let j = 0;
@@ -336,14 +307,11 @@ module halo2_verifier::shplonk {
             assert!(vector::length(&tmp) == vector::length(&points), 100);
             assert!(vector::length(&product) == vector::length(&points) - 1, 100);
 
-            let l = 0;
-            while(l < points_len) {
-                let final_coeff = vector::borrow_mut(&mut final_poly, l);
-                let interpolation_coeff = vector::borrow(&tmp, l);
+            vector::zip_mut(&mut final_poly, &mut tmp, |final_coeff, interpolation_coeff| {
+                let final_coeff: &mut Element<Fr> = final_coeff;
+                let interpolation_coeff: &Element<Fr> = &*interpolation_coeff;
                 *final_coeff = crypto_algebra::add(final_coeff, &crypto_algebra::mul(interpolation_coeff, eval));
-
-                l = l + 1;
-            };
+            });
             
             j = j + 1;
         };
@@ -352,29 +320,15 @@ module halo2_verifier::shplonk {
     }
 
     fun evaluate_vanishing_polynomial(points: vector<Element<Fr>>, z: Element<Fr>): Element<Fr> {
-        let root_len = vector::length(&points);
-        let i = 0;
-        let val = crypto_algebra::one<Fr>();
-        while (i < root_len) {
-            let point = vector::borrow(&points, i);
-            val = crypto_algebra::mul(&crypto_algebra::sub(&z, point), &val);
-            i = i + 1;
-        };
-
-        val
+        vector::fold(points, crypto_algebra::one<Fr>(), |val, point| {
+            crypto_algebra::mul(&crypto_algebra::sub(&z, &point), &val)
+        })
     }
 
     fun eval_polynomial(poly: vector<Element<Fr>>, point: Element<Fr>): Element<Fr> {
-        let poly_len = vector::length(&poly);
-        let i = 0;
-        let val = crypto_algebra::zero<Fr>();
-        while (i < poly_len) {
-            let coeff = vector::borrow(&poly, poly_len - i - 1);
-            val = crypto_algebra::add(&crypto_algebra::mul(&val, &point), coeff);
-            i = i + 1;
-        };
-
-        val
+        vector::foldr(poly, crypto_algebra::zero<Fr>(), |coeff, val| {
+            crypto_algebra::add(&crypto_algebra::mul(&val, &point), &coeff)
+        })
     }
 
     fun remove_duplicate_and_sort(tree: &vector<Element<Fr>>): vector<Element<Fr>> {

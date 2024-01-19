@@ -1,12 +1,11 @@
 module halo2_verifier::gwc {
     use std::vector;
-
     use aptos_std::crypto_algebra::{Self, Element};
-
     use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
-    use halo2_verifier::msm::{Self, MSM};
-    use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::query::{Self, VerifierQuery};
+
+    use halo2_common::msm::{Self, MSM};
+    use halo2_common::params::{Self, Params};
+    use halo2_common::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
     
     public fun verify(
@@ -29,13 +28,9 @@ module halo2_verifier::gwc {
         // witness_with_aux = u^0 * z_0 * w_0 + u^1 * z_1 * w_1 + u^2 * z_2 * w_2 + .. u^n * z_n * w_n
         let witness_with_aux = msm::empty_msm();
 
-
-        let i = 0;
         let power_of_u = crypto_algebra::one<Fr>();
 
-        while (i < set_len) {
-            let commitment_at_a_point = vector::borrow(&sets, i);
-            let w_i = vector::borrow(&w, i);
+        vector::zip_ref(&sets, &w, |commitment_at_a_point, w_i| {
             let z = query::point(vector::borrow(commitment_at_a_point, 0));
 
             // C(i) = sum_j(v^(j-1) * cm(j))
@@ -43,19 +38,14 @@ module halo2_verifier::gwc {
             // E(i) = sum_j(v^(j-1) * s(j))
             let eval_acc = crypto_algebra::zero<Fr>();
             {
-                let j = 0;
-                let query_len = vector::length(commitment_at_a_point);
                 let power_of_v = crypto_algebra::one<Fr>();
-                while (j < query_len) {
-                    let q = vector::borrow(commitment_at_a_point, j);
+                vector::for_each_ref(commitment_at_a_point, |q| {
                     let c = query::multiply(query::commitment(q), &power_of_v);
                     let eval = crypto_algebra::mul<Fr>(&power_of_v, query::eval(q));
                     msm::add_msm(&mut commitment_acc, &c);
                     eval_acc = crypto_algebra::add<Fr>(&eval_acc, &eval);
-
                     power_of_v = crypto_algebra::mul<Fr>(&power_of_v, &v);
-                    j = j + 1;
-                };
+                });
             };
             msm::scale(&mut commitment_acc, &power_of_u);
             msm::add_msm(&mut commitment_multi, &commitment_acc);
@@ -64,8 +54,7 @@ module halo2_verifier::gwc {
             msm::append_term(&mut witness, power_of_u, *w_i);
 
             power_of_u = crypto_algebra::mul(&power_of_u, &u);
-            i = i + 1;
-        };
+        });
 
         // then we verify:
         // e(witness, [x]@2) = e(commitment_multi + witness_with_aux - [eval_multi]@1, [1]@2)
@@ -96,10 +85,7 @@ module halo2_verifier::gwc {
 
     fun construct_intermediate_sets(queries: &vector<VerifierQuery>): vector<vector<VerifierQuery>> {
         let sets = vector::empty();
-        let query_len = vector::length(queries);
-        let i = 0;
-        while (i < query_len) {
-            let q = vector::borrow(queries, i);
+        vector::for_each_ref(queries, |q| {
             let point = query::point(q);
             let (find, index) = vector::find(&sets, |s| {
                 let s: &vector<VerifierQuery> = s;
@@ -110,9 +96,7 @@ module halo2_verifier::gwc {
             } else {
                 vector::push_back(&mut sets, vector::singleton(*q));
             };
-
-            i = i + 1;
-        };
+        });
         sets
     }
 }

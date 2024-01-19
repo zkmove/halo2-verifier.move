@@ -1,4 +1,4 @@
-module halo2_verifier::column {
+module halo2_common::column {
     /// use a u8 to represent fixed, instance, advice(phased) columns.
     /// advice columns only have 3 phases for now. we expect it shouldn't expand too many.
     /// and we encode fixed, instance type from 255.

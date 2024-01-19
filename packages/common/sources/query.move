@@ -1,14 +1,14 @@
-module halo2_verifier::query {
+module halo2_common::query {
     use std::option::{Self, Option};
     use aptos_std::crypto_algebra::{Self, Element};
 
     use aptos_std::bn254_algebra::{G1, Fr};
-    use halo2_verifier::msm::{Self, MSM};
+    use halo2_common::msm::{Self, MSM};
 
     use std::string::String;
 
     use aptos_std::string_utils;
-    use halo2_verifier::bn254_utils::{serialize_fr, serialize_g1_uncompressed};
+    use halo2_common::bn254_utils::{serialize_fr, serialize_g1_uncompressed};
 
     struct VerifierQuery has copy, drop {
         point: Element<Fr>,
