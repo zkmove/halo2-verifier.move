@@ -1,5 +1,6 @@
 //! Work with sparse multivariate polynomials.
 //use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ff::Field;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Error, Formatter},
@@ -7,7 +8,6 @@ use std::{
     ops::Deref,
     vec::Vec,
 };
-use ff::Field;
 
 mod sparse;
 pub use sparse::SparsePolynomial;

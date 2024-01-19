@@ -247,6 +247,7 @@ impl<F: Field, const W: usize, const H: usize> Circuit<F> for MyCircuit<F, W, H>
     }
 }
 
+#[allow(dead_code)]
 fn test_mock_prover<F: Ord + FromUniformBytes<64>, const W: usize, const H: usize>(
     k: u32,
     circuit: MyCircuit<F, W, H>,
@@ -274,6 +275,7 @@ fn test_mock_prover<F: Ord + FromUniformBytes<64>, const W: usize, const H: usiz
     };
 }
 
+#[allow(dead_code)]
 fn test_prover<C: CurveAffine, const W: usize, const H: usize>(
     k: u32,
     circuit: MyCircuit<C::Scalar, W, H>,
