@@ -1,11 +1,11 @@
-module halo2_verifier::expression {
+module halo2_common::expression {
     use std::vector;
 
     use aptos_std::bn254_algebra::Fr;
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_utils;
-    use halo2_verifier::multivariate_poly::{Self, MultiVariatePoly, Term, SparseTerm, variable_index, power};
+    use halo2_common::bn254_utils;
+    use halo2_common::multivariate_poly::{Self, MultiVariatePoly, Term, SparseTerm, variable_index, power};
 
     struct Expression has store, drop {
         poly: MultiVariatePoly<u16>,

@@ -1,12 +1,11 @@
 module halo2_verifier::gwc {
     use std::vector;
-
     use aptos_std::crypto_algebra::{Self, Element};
-
     use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
-    use halo2_verifier::msm::{Self, MSM};
-    use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::query::{Self, VerifierQuery};
+
+    use halo2_common::msm::{Self, MSM};
+    use halo2_common::params::{Self, Params};
+    use halo2_common::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
     
     public fun verify(

@@ -1,4 +1,4 @@
-module halo2_verifier::vec_utils {
+module halo2_common::vec_utils {
     use std::error;
     use std::vector;
 

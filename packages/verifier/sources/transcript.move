@@ -2,16 +2,15 @@
 /// Had to deal with the different serialization of curve point between halo2 and arkworks.
 module halo2_verifier::transcript {
     use std::vector;
-    use aptos_std::crypto_algebra::Element;
-
-    use halo2_verifier::bn254_utils;
-    use aptos_std::bn254_algebra::{Fr, G1};
-    use halo2_verifier::plain_keccak::{Self};
     use std::option;
-    use halo2_verifier::plain_keccak::PlainKeccak;
+    use aptos_std::crypto_algebra::Element;
+    use aptos_std::bn254_algebra::{Fr, G1};
+
+    use halo2_common::bn254_utils;
+    use halo2_common::plain_keccak::{Self};
+    use halo2_common::plain_keccak::PlainKeccak;
+
     const U256_BYTE_LEN: u64 = 32;
-
-
     /// Prefix to a prover's message soliciting a challenge
     const KECCAK256_PREFIX_CHALLENGE: u8 = 0;
     /// First prefix to a prover's message soliciting a challenge

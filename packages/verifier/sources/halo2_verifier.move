@@ -1,26 +1,25 @@
 module halo2_verifier::halo2_verifier {
+    use std::option;
     use std::vector::{Self, map_ref, map, enumerate_ref};
-
     use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
 
-    use halo2_verifier::bn254_utils;
-    use halo2_verifier::column;
-    use halo2_verifier::column_query::{Self, ColumnQuery};
-    use halo2_verifier::domain::{Self, Domain};
-    use halo2_verifier::expression::{Self, Expression};
+    use halo2_common::bn254_utils::{Self, deserialize_g1, deserialize_fr};
+    use halo2_common::column;
+    use halo2_common::column_query::{Self, ColumnQuery};
+    use halo2_common::domain::{Self, Domain};
+    use halo2_common::expression::{Self, Expression};
+    use halo2_common::i32;
+    use halo2_common::params::Params;
+    use halo2_common::query::{Self, VerifierQuery};
+    use halo2_common::vec_utils::repeat;
+
     use halo2_verifier::gwc;
-    use halo2_verifier::i32;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
-    use halo2_verifier::params::Params;
     use halo2_verifier::permutation;
     use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
-    use halo2_verifier::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
-    use halo2_verifier::vec_utils::repeat;
-    use std::option;
-    use halo2_verifier::bn254_utils::{deserialize_g1, deserialize_fr};
     use halo2_verifier::shplonk;
 
     const INVALID_INSTANCES: u64 = 100;

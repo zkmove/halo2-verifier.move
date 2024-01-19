@@ -1,15 +1,14 @@
 module halo2_verifier::lookup {
     use std::vector::{Self, for_each_ref};
     use aptos_std::crypto_algebra::{Self, Element};
-
     use aptos_std::bn254_algebra::{G1, Fr};
-    use halo2_verifier::domain;
-    use halo2_verifier::expression::{Self, Expression};
+
+    use halo2_common::domain::{Self, Domain};
+    use halo2_common::expression::{Self, Expression};
+    use halo2_common::query::{Self, VerifierQuery};
+    use halo2_common::i32;
     use halo2_verifier::protocol::{Self, Protocol, Lookup};
-    use halo2_verifier::query::{Self, VerifierQuery};
-    use halo2_verifier::i32;
     use halo2_verifier::transcript::{Self, Transcript};
-    use halo2_verifier::domain::Domain;
 
     struct PermutationCommitments has copy, drop {
         permuted_input_commitment: Element<G1>,

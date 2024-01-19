@@ -1,15 +1,14 @@
 module halo2_verifier::shplonk {
     use std::vector;
-
     use aptos_std::crypto_algebra::{Self, Element};
     use aptos_std::comparator::{compare_u8_vector, is_greater_than};
-
     use aptos_std::bn254_algebra::{G1, G2, Gt, Fr};
-    use halo2_verifier::msm;
-    use halo2_verifier::params::{Self, Params};
-    use halo2_verifier::query::{Self, VerifierQuery, CommitmentReference};
+
+    use halo2_common::msm;
+    use halo2_common::params::{Self, Params};
+    use halo2_common::query::{Self, VerifierQuery, CommitmentReference};
+    use halo2_common::bn254_utils;
     use halo2_verifier::transcript::{Self, Transcript};
-    use halo2_verifier::bn254_utils;
 
     #[test_only]
     use aptos_std::crypto_algebra::{enable_cryptography_algebra_natives};

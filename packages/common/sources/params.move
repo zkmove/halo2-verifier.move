@@ -1,4 +1,4 @@
-module halo2_verifier::params {
+module halo2_common::params {
     use aptos_std::crypto_algebra::Element;
     use aptos_std::bn254_algebra::{G1, G2};
     struct Params has copy, drop {

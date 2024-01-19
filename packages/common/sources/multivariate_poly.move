@@ -1,4 +1,4 @@
-module halo2_verifier::multivariate_poly {
+module halo2_common::multivariate_poly {
     use std::vector;
 
     #[test_only]

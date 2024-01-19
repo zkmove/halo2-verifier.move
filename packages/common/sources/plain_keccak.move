@@ -1,4 +1,4 @@
-module halo2_verifier::plain_keccak {
+module halo2_common::plain_keccak {
     use std::vector;
     use aptos_std::aptos_hash;
 

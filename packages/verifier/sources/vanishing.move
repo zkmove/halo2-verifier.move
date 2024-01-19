@@ -1,11 +1,11 @@
 module halo2_verifier::vanishing {
     use std::vector;
     use aptos_std::crypto_algebra::{Self, Element};
-
-    use halo2_verifier::bn254_utils;
     use aptos_std::bn254_algebra::{G1, Fr};
-    use halo2_verifier::msm::{Self, MSM};
-    use halo2_verifier::query::{Self, VerifierQuery};
+
+    use halo2_common::bn254_utils;
+    use halo2_common::msm::{Self, MSM};
+    use halo2_common::query::{Self, VerifierQuery};
     use halo2_verifier::transcript::{Self, Transcript};
 
     struct Constructed has drop {
