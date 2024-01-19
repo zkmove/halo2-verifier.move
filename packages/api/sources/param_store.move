@@ -1,10 +1,9 @@
 module verifier_api::param_store {
-
-    use halo2_verifier::params::Params;
     use std::option;
-    use halo2_verifier::params;
-    use halo2_verifier::bn254_utils;
     use std::error;
+    
+    use halo2_common::bn254_utils;
+    use halo2_common::params::{Self, Params};
 
 
     const INVALID_CURVE_ENCODING: u64 = 1;

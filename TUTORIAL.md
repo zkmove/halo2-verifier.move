@@ -13,14 +13,16 @@ Execute the command under the project root. It will generate config file of apto
 aptos init --network devnet
 ```
 
-Next, we need to publish the halo2-verifier modules to aptos devnet under the new-generated profile account.
-The following commands will use aptos cli to compile and publish the two packages: `verifier` and `api`.
+Next, we need to publish the halo2-verifier & halo2-common modules to aptos devnet under the new-generated profile account.
+The following commands will use aptos cli to compile and publish the three packages: `common`, `verifier` and `api`.
 When first executing, it will fetch dependencies, which may need a little time. so be patient here.
 ``` shell
-cd packages/verifier
-aptos move publish --skip-fetch-latest-git-deps --named-addresses halo2_verifier=default
+cd packages/common
+aptos move publish --skip-fetch-latest-git-deps --named-addresses halo2_common=default
+cd ../verifier
+aptos move publish --skip-fetch-latest-git-deps --named-addresses halo2_common=default,halo2_verifier=default
 cd ../api
-aptos move publish --skip-fetch-latest-git-deps --named-addresses halo2_verifier=default,verifier_api=default
+aptos move publish --skip-fetch-latest-git-deps --named-addresses halo2_common=default,halo2_verifier=default,verifier_api=default
 ```
 
 Then, we can start to publish our circuit to chain ready for use in halo2-verifier.

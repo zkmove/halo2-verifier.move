@@ -5,6 +5,7 @@ authors = ["zkmove contributors"]
 
 [addresses]
 halo2_common = "_"
+
 [dev-addresses]
 halo2_common = "0x123"
 
