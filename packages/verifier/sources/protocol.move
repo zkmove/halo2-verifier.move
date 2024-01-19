@@ -17,15 +17,15 @@ module halo2_verifier::protocol {
     use halo2_common::multivariate_poly;
 
     #[test_only]
+    use std::bn254_algebra::{FormatFrMsb, Fr};
+    #[test_only]
+    use std::string::{Self, String};
+    #[test_only]
     use aptos_std::crypto_algebra::{Self, enable_cryptography_algebra_natives};
     #[test_only]
     use aptos_std::string_utils;
     #[test_only]
-    use halo2_verifier::multivariate_poly::{Term, MultiVariatePoly};
-    #[test_only]
-    use std::bn254_algebra::{FormatFrMsb, Fr};
-    #[test_only]
-    use std::string::{Self, String};
+    use halo2_common::multivariate_poly::{Term, MultiVariatePoly};
 
     const CurvePointLen: u64 = 32;
 

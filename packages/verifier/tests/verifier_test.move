@@ -6,8 +6,8 @@ module halo2_verifier::verifier_test {
 
     use aptos_std::crypto_algebra;
 
+    use halo2_common::params;
     use halo2_verifier::halo2_verifier;
-    use halo2_verifier::params;
     use halo2_verifier::protocol;
 
     // the following param data is generated from `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_16.srs`
