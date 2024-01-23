@@ -19,6 +19,14 @@ pub enum KZG {
     SHPLONK,
 }
 
+impl KZG {
+    pub fn to_u8(&self) -> u8 {
+        match self {
+            Self::SHPLONK => 0,
+            Self::GWC => 1,
+        }
+    }
+}
 impl std::fmt::Display for KZG {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

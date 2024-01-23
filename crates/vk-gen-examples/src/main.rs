@@ -275,6 +275,10 @@ fn main() -> anyhow::Result<()> {
                         arg_type: "hex".to_string(),
                         value: json!(HexEncodedBytes(proof.clone()).to_string()),
                     },
+                    ArgWithTypeJSON {
+                        arg_type: "u8".to_string(),
+                        value: json!(kzg.to_u8()),
+                    },
                 ],
             };
 

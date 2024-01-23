@@ -58,13 +58,13 @@ aptos move run --json-file VectorMul-publish-circuit.json
 Now, the circuit is published. We'll build a verify proof aptos txn and run it on aptos. 
 Run the command and replace the `verifier-address`/`param-address`/`circuit-address` with your aptos profile's address!
 ```shell
-cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b build-verify-proof-aptos-txn --example vector-mul --param-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b --circuit-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b
+cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b build-verify-proof-aptos-txn --example vector-mul --kzg gwc --param-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b --circuit-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b
 ```
 
 Then, submit the verify proof txn, you can see the verify txn is executed successfully.
 
 ```shell
-aptos move run --json-file VectorMul-verify-proof.json
+aptos move run --json-file VectorMul-verify-proof-gwc.json
 ```
 
 Finally! That's the whole experiment with halo2-verifier!

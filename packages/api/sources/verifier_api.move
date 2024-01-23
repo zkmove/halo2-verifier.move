@@ -45,6 +45,17 @@ module verifier_api::verifier_api {
         assert!(verify(param_address,circuit_address,instances,proof, 0), error::aborted(VERIFY_PROOF_FAILURE));
     }
 
+    /// verify proof with given kzg variant, 0: shplonk, 1: gwc
+    public entry fun verify_proof(
+        param_address: address,
+        circuit_address: address,
+        instances: vector<vector<vector<u8>>>,
+        proof: vector<u8>,
+        kzg_variant: u8,
+    ) acquires Circuit {
+        assert!(verify(param_address,circuit_address,instances,proof, kzg_variant), error::aborted(VERIFY_PROOF_FAILURE));
+    }
+
     /// verify a proof on the circuit in `circuit_address`
     public fun verify(
         param_address: address,
