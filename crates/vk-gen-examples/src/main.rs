@@ -251,8 +251,8 @@ fn main() -> anyhow::Result<()> {
             let instances: Vec<_> = instances.iter().map(|fr| fr.to_bytes().to_vec()).collect();
             let json = EntryFunctionArgumentsJSON {
                 function_id: format!(
-                    "{}::{}::{}",
-                    cli.verifier_address, cli.verifier_module, cli.verify_func
+                    "{}::{}::{}_{}",
+                    cli.verifier_address, cli.verifier_module, cli.verify_func, kzg
                 ),
                 type_args: vec![],
                 args: vec![
