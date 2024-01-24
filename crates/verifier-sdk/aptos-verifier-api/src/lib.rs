@@ -13,7 +13,7 @@ pub use shape_generator;
 
 const VERIFIER_MODULE: &str = "verifier_api";
 const PUBLISH_CIRCUIT: &str = "publish_circuit";
-const VERIFY_PROOF_FUNC: &str = "verify";
+const VERIFY_PROOF_FUNC: &str = "verify_proof";
 
 /// build publish protocol transaction payload for aptos.
 /// we only support kzg on bn254 for now.
