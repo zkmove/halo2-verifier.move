@@ -16,7 +16,7 @@ use std::env::current_dir;
 use std::fmt;
 use std::path::PathBuf;
 use vk_gen_examples::examples::{
-    circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul,
+    circuit_layout, is_zero, serialization, shuffle, simple_example, two_chip, vector_mul,
 };
 
 use vk_gen_examples::proof::{prove_with_keccak256, KZG};
@@ -63,6 +63,7 @@ struct BuildPublishVkAptosTxn {
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum Examples {
     CircuitLayout,
+    IsZero,
     Serialization,
     Shuffle,
     SimpleExample,
@@ -141,6 +142,10 @@ fn main() -> anyhow::Result<()> {
 
                     generate_circuit_info(&params, &circuit)?
                 }
+                Examples::IsZero => {
+                    let circuit = is_zero::get_example_circuit::<Fr>();
+                    generate_circuit_info(&params, &circuit)?
+                }
                 Examples::Serialization => {
                     let circuit = serialization::get_example_circuit();
                     generate_circuit_info(&params, &circuit.0)?
@@ -207,6 +212,13 @@ fn main() -> anyhow::Result<()> {
             let (proof, instances) = match example {
                 Examples::CircuitLayout => {
                     let circuit = circuit_layout::get_example_circuit::<Fr>();
+                    let vk = keygen_vk(&params, &circuit).unwrap();
+                    let pk = keygen_pk(&params, vk, &circuit).unwrap();
+                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
+                    (proof, vec![])
+                }
+                Examples::IsZero => {
+                    let circuit = is_zero::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
