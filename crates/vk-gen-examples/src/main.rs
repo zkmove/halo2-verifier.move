@@ -139,7 +139,7 @@ fn main() -> anyhow::Result<()> {
                 Examples::CircuitLayout => {
                     let circuit = circuit_layout::get_example_circuit::<Fr>();
 
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit)?
                 }
                 Examples::Serialization => {
                     let circuit = serialization::get_example_circuit();
@@ -147,7 +147,7 @@ fn main() -> anyhow::Result<()> {
                 }
                 Examples::Shuffle => {
                     let circuit = shuffle::get_example_circuit();
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit)?
                 }
                 Examples::SimpleExample => {
                     let circuit = simple_example::get_example_circuit();
@@ -206,49 +206,49 @@ fn main() -> anyhow::Result<()> {
             };
             let (proof, instances) = match example {
                 Examples::CircuitLayout => {
-                    let (circuit, instances) = circuit_layout::get_example_circuit::<Fr>();
+                    let circuit = circuit_layout::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
+                    (proof, vec![])
                 }
                 Examples::Serialization => {
                     let (circuit, instances) = serialization::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    (proof, vec![instances])
                 }
                 Examples::Shuffle => {
-                    let (circuit, instances) = shuffle::get_example_circuit::<Fr>();
+                    let circuit = shuffle::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
+                    (proof, vec![])
                 }
                 Examples::SimpleExample => {
                     let (circuit, instances) = simple_example::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    (proof, vec![instances])
                 }
                 Examples::TwoChip => {
                     let (circuit, instances) = two_chip::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    (proof, vec![instances])
                 }
                 Examples::VectorMul => {
                     let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, instances)
+                    (proof, vec![instances])
                 }
             };
-            let instances: Vec<_> = instances.iter().map(|fr| fr.to_bytes().to_vec()).collect();
+            //let instances: Vec<_> = instances.iter().map(|fr| fr.to_bytes().to_vec()).collect();
             let json = EntryFunctionArgumentsJSON {
                 function_id: format!(
                     "{}::{}::{}",
@@ -266,10 +266,14 @@ fn main() -> anyhow::Result<()> {
                     },
                     ArgWithTypeJSON {
                         arg_type: "hex".to_string(),
-                        value: json!(vec![instances
+                        value: json!(instances
                             .into_iter()
-                            .map(|i| HexEncodedBytes(i).to_string())
-                            .collect::<Vec<_>>()]),
+                            .map(|is| is
+                                .iter()
+                                .map(|fr| fr.to_bytes().to_vec())
+                                .map(|d| HexEncodedBytes(d).to_string())
+                                .collect::<Vec<_>>())
+                            .collect::<Vec<_>>()),
                     },
                     ArgWithTypeJSON {
                         arg_type: "hex".to_string(),
