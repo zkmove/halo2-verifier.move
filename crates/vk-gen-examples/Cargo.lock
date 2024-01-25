@@ -460,7 +460,7 @@ dependencies = [
  "blake2b_simd",
  "ff",
  "group",
- "halo2curves",
+ "halo2curves 0.3.2",
  "rand_chacha",
  "rand_core",
  "rayon",
@@ -482,6 +482,28 @@ dependencies = [
  "paste",
  "rand",
  "rand_core",
+ "static_assertions",
+ "subtle",
+]
+
+[[package]]
+name = "halo2curves"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3675880dc0cc7cd468943266297198a28f88210ba60ca5e0e04d121edf86b46"
+dependencies = [
+ "blake2b_simd",
+ "ff",
+ "group",
+ "lazy_static",
+ "num-bigint",
+ "num-traits",
+ "pairing",
+ "pasta_curves",
+ "paste",
+ "rand",
+ "rand_core",
+ "rayon",
  "static_assertions",
  "subtle",
 ]
@@ -628,6 +650,15 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "pairing"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81fec4625e73cf41ef4bb6846cafa6d44736525f442ba45e407c4a000a13996f"
+dependencies = [
+ "group",
+]
 
 [[package]]
 name = "pasta_curves"
@@ -996,6 +1027,7 @@ dependencies = [
  "ark-serialize",
  "clap",
  "halo2_proofs",
+ "halo2curves 0.6.0",
  "hex",
  "rand",
  "rand_core",

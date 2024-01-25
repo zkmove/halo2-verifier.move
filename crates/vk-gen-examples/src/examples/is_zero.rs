@@ -191,51 +191,53 @@ pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
     }
 }
 
-// fn main() {
-//     use halo2_proofs::dev::MockProver;
-//     use halo2curves::pasta::Fp;
+#[test]
+fn is_zero_circuit_test() {
+    use halo2_proofs::dev::MockProver;
+    use halo2curves::pasta::Fp;
 
-//     let k = 4;
+    let k = 4;
 
-//     // good case 0 : input == 0 and output ==1
-//     let circuit = MyCircuit {
-//         a: Value::known(Fp::ZERO),
-//         b: Value::known(Fp::ONE),
-//     };
-//     let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-//     assert_eq!(prover.verify(), Ok(()));
+    // good case 0 : input == 0 and output ==1
+    // good case 1 : (input == 2 and output == 0)
+    let a = [Fp::from(0), Fp::from(2)];
+    let b = [Fp::from(1), Fp::from(0)];
+    let circuit = MyCircuit {
+        a: a.iter().map(|&x| Value::known(x)).collect(),
+        b: b.iter().map(|&x| Value::known(x)).collect(),
+    };
+    let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+    assert_eq!(prover.verify(), Ok(()));
 
-//     // good case 1 : (input == 2 and output == 0)
-//     let circuit = MyCircuit {
-//         a: Value::known(Fp::from(2)),
-//         b: Value::known(Fp::from(0)),
-//     };
-//     let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-//     assert_eq!(prover.verify(), Ok(()));
+    // error case 2 : (input == 0 and output == 2)
+    // to ensure output is bool
+    let a = [Fp::from(0)];
+    let b = [Fp::from(2)];
+    let circuit = MyCircuit {
+        a: a.iter().map(|&x| Value::known(x)).collect(),
+        b: b.iter().map(|&x| Value::known(x)).collect(),
+    };
+    let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+    assert!(prover.verify().is_err());
 
-//     // error case 2 : (input == 0 and output == 2)
-//     // to ensure output is bool
-//     let circuit = MyCircuit {
-//         a: Value::known(Fp::ZERO),
-//         b: Value::known(Fp::from(2)),
-//     };
-//     let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-//     assert!(prover.verify().is_err());
+    // error case 3: (input == 0 and output == 0)
+    // to avoid both input and output is 0
+    let a = [Fp::from(0)];
+    let b = [Fp::from(0)];
+    let circuit = MyCircuit {
+        a: a.iter().map(|&x| Value::known(x)).collect(),
+        b: b.iter().map(|&x| Value::known(x)).collect(),
+    };
+    let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+    assert!(prover.verify().is_err());
 
-//     // error case 3: (input == 0 and output == 0)
-//     // to avoid both input and output is 0
-//     let circuit = MyCircuit {
-//         a: Value::known(Fp::ZERO),
-//         b: Value::known(Fp::ZERO),
-//     };
-//     let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-//     assert!(prover.verify().is_err());
-
-//     // error case 4: (input == 1 and output == 1)
-//     let circuit = MyCircuit {
-//         a: Value::known(Fp::ONE),
-//         b: Value::known(Fp::ONE),
-//     };
-//     let prover = MockProver::run(k, &circuit, vec![]).unwrap();
-//     assert!(prover.verify().is_err());
-// }
+    // error case 4: (input == 1 and output == 1)
+    let a = [Fp::from(1)];
+    let b = [Fp::from(1)];
+    let circuit = MyCircuit {
+        a: a.iter().map(|&x| Value::known(x)).collect(),
+        b: b.iter().map(|&x| Value::known(x)).collect(),
+    };
+    let prover = MockProver::run(k, &circuit, vec![]).unwrap();
+    assert!(prover.verify().is_err());
+}

@@ -1,9 +1,9 @@
 # is-zero
 
-Please implement a is-zero circuit based on Halo2. for example:
+Please implement a is-zero circuit based on Halo2.
 
 - case 1: input == 0, then output is 1(True) 
-- case 2: input == 2, then output is 0(False)
+- case 2: input != 0, then output is 0(False)
 
 ### halo2-verifier.move
 
@@ -15,7 +15,7 @@ There is an example: `crates/vk-gen-examples/src/examples/simple_example.rs`
 
 ### Trace log
 
-Please read carefully the [tutorial document](https://github.com/luxebeng/halo2-question/blob/main/TUTORIAL.md).
+Please read carefully the [tutorial document](https://github.com/zkmove/halo2-verifier.move/blob/main/TUTORIAL.md).
 
 Below is the trace log on how to verify based on halo2-verifier.move.
 
@@ -229,7 +229,16 @@ verify time: 5 ms
 }
 ```
 
+- Step 9. Transsaction detail can be found at devnet of [Aptos explorer](https://explorer.aptoslabs.com/?network=devnet).
+
+### Unit test
+    source code can be verified by `cargo test`.
+
+    ```
+        cargo test --package vk-gen-examples --lib -- examples::is_zero::is_zero_circuit_test --exact --nocapture
+    ```
+
 ### Tips
 - once repeat the verification, please remove .aptos/config.yaml.
-- please take care the folder to run command, for example, some command of "aptos run" need to run under root folder.
+- please take care the directory to run command, for example, some command of "aptos run" need to run under root directory of project.
 
