@@ -34,7 +34,7 @@ the existing param file `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_
 To view the kzg setup params, run the following cargo commands under directory `crates/vk-gen-examples`. 
 It will output the g1, g2, and s_g2.
 ```shell
-cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs
+cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs view-param
 ```
 
 We have to send a  create-params transcation to make the params available on aptos.
