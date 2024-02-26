@@ -1,6 +1,6 @@
 use crate::{CircuitInfo, Column, ColumnQuery};
-use halo2_proofs::arithmetic::CurveAffine;
-use halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_base::halo2_proofs::arithmetic::CurveAffine;
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
 use multipoly::multivariate::SparseTerm;
 
 pub struct SerializableCircuitInfo<C: CurveAffine> {

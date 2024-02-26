@@ -16,7 +16,7 @@ use std::env::current_dir;
 use std::fmt;
 use std::path::PathBuf;
 use vk_gen_examples::examples::{
-    circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul, zk_email,
+    circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul, // zk_email,
 };
 
 use vk_gen_examples::proof::{prove_with_keccak256, KZG};
@@ -68,7 +68,7 @@ pub enum Examples {
     SimpleExample,
     TwoChip,
     VectorMul,
-    ZkEmail,
+    // ZkEmail,
 }
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum KZGVariant {
@@ -162,10 +162,12 @@ fn main() -> anyhow::Result<()> {
                     let circuit = vector_mul::get_example_circuit();
                     generate_circuit_info(&params, &circuit.0)?
                 }
+                /*
                 Examples::ZkEmail => {
                     let circuit = zk_email::get_example_circuit();
                     generate_circuit_info(&params, &circuit.0)?
                 }
+                */
             };
             let data = serialize(circuit_info.into())?;
 
@@ -252,6 +254,7 @@ fn main() -> anyhow::Result<()> {
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
                     (proof, vec![instances])
                 }
+                /*
                 Examples::ZkEmail => {
                     let circuit = zk_email::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
@@ -259,6 +262,7 @@ fn main() -> anyhow::Result<()> {
                     let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
                     (proof, vec![])
                 }
+                 */
             };
             //let instances: Vec<_> = instances.iter().map(|fr| fr.to_bytes().to_vec()).collect();
             let json = EntryFunctionArgumentsJSON {
