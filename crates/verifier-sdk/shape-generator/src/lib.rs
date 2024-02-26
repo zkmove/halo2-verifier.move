@@ -2,14 +2,13 @@ pub mod serialize;
 
 use std::collections::BTreeMap;
 
-use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::FromUniformBytes;
-use halo2_proofs::plonk::{
+use halo2_base::halo2_proofs::arithmetic::{CurveAffine, Field};
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::plonk::{
     keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
 };
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::poly::Rotation as Halo2Rotation;
-
+use halo2_base::halo2_proofs::poly::commitment::Params;
+use halo2_base::halo2_proofs::poly::Rotation as Halo2Rotation;
 use multipoly::multivariate::{SparsePolynomial, SparseTerm, Term};
 use multipoly::DenseMVPolynomial;
 
@@ -46,8 +45,8 @@ pub struct Column {
     pub column_type: u8,
 }
 
-impl From<halo2_proofs::plonk::Column<Any>> for Column {
-    fn from(value: halo2_proofs::plonk::Column<Any>) -> Self {
+impl From<halo2_base::halo2_proofs::plonk::Column<Any>> for Column {
+    fn from(value: halo2_base::halo2_proofs::plonk::Column<Any>) -> Self {
         let column_type = match value.column_type() {
             Any::Advice(phase) => phase.phase(),
             Any::Fixed => 255,
@@ -66,8 +65,8 @@ pub struct Rotation {
     pub next: bool,
 }
 
-impl From<halo2_proofs::poly::Rotation> for Rotation {
-    fn from(value: halo2_proofs::poly::Rotation) -> Self {
+impl From<halo2_base::halo2_proofs::poly::Rotation> for Rotation {
+    fn from(value: halo2_base::halo2_proofs::poly::Rotation) -> Self {
         if value.0.is_negative() {
             Self {
                 rotation: value.0.unsigned_abs(),
@@ -134,7 +133,7 @@ where
             .advice_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),
@@ -142,7 +141,7 @@ where
             .instance_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),
@@ -150,7 +149,7 @@ where
             .fixed_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),

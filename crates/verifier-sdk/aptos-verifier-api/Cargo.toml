@@ -12,6 +12,6 @@ edition.workspace = true
 shape-generator.workspace=true
 serde.workspace=true
 serde_json.workspace=true
-halo2_proofs.workspace=true
+halo2-base.workspace=true
 hex.workspace=true
 rand_core.workspace=true
