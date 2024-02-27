@@ -1,17 +1,20 @@
-use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField, WithSmallOrderMulGroup};
-use halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
-use halo2_proofs::halo2curves::serde::SerdeObject;
-use halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
-use halo2_proofs::poly::commitment::{CommitmentScheme, ParamsProver, Prover, Verifier};
-use halo2_proofs::poly::kzg::commitment::{KZGCommitmentScheme, ParamsKZG};
-use halo2_proofs::poly::kzg::multiopen::{ProverGWC, VerifierGWC};
-use halo2_proofs::poly::{kzg, VerificationStrategy};
-use halo2_proofs::transcript::{
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
+use halo2_base::halo2_proofs::halo2curves::serde::SerdeObject;
+use halo2_base::halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
+use halo2_base::halo2_proofs::poly::commitment::{
+    CommitmentScheme, ParamsProver, Prover, Verifier,
+};
+use halo2_base::halo2_proofs::poly::kzg::commitment::{KZGCommitmentScheme, ParamsKZG};
+use halo2_base::halo2_proofs::poly::kzg::multiopen::{ProverGWC, VerifierGWC};
+use halo2_base::halo2_proofs::poly::{kzg, VerificationStrategy};
+use halo2_base::halo2_proofs::transcript::{
     Challenge255, Keccak256Read, Keccak256Write, TranscriptReadBuffer, TranscriptWriterBuffer,
 };
+use shape_generator::{FromUniformBytes, WithSmallOrderMulGroup};
 use std::fmt::Debug;
 
-pub use halo2_proofs::plonk::{keygen_pk, keygen_vk};
+pub use halo2_base::halo2_proofs::plonk::{keygen_pk, keygen_vk};
 use rand_core::OsRng;
 
 pub fn prove_with_gwc_and_keccak256<E, ConcreteCircuit>(

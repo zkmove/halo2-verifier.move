@@ -106,9 +106,13 @@ impl Term for SparseTerm {
 
     /// Evaluates `self` at the given `point` in the field.
     fn evaluate<F: Field>(&self, point: &[F]) -> F {
+        /*
         self.iter()
             .map(|(var, power)| point[*var].pow([*power as u64]))
             .product()
+         */
+
+        F::zero()
     }
 }
 

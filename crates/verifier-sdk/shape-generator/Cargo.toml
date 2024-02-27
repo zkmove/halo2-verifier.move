@@ -6,7 +6,7 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-halo2_proofs.workspace=true
+halo2-base.workspace=true
 bcs.workspace=true
 blake2b_simd.workspace=true
 multipoly.workspace=true

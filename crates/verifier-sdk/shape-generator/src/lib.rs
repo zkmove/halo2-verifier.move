@@ -1,14 +1,12 @@
 pub mod serialize;
 
-use std::collections::BTreeMap;
-
-use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::FromUniformBytes;
-use halo2_proofs::plonk::{
+use halo2_base::halo2_proofs::arithmetic::{CurveAffine, Field};
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::plonk::{
     keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
 };
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::poly::Rotation as Halo2Rotation;
+use halo2_base::halo2_proofs::poly::commitment::Params;
+use halo2_base::halo2_proofs::poly::Rotation as Halo2Rotation;
 
 use multipoly::multivariate::{SparsePolynomial, SparseTerm, Term};
 use multipoly::DenseMVPolynomial;
@@ -46,8 +44,8 @@ pub struct Column {
     pub column_type: u8,
 }
 
-impl From<halo2_proofs::plonk::Column<Any>> for Column {
-    fn from(value: halo2_proofs::plonk::Column<Any>) -> Self {
+impl From<halo2_base::halo2_proofs::plonk::Column<Any>> for Column {
+    fn from(value: halo2_base::halo2_proofs::plonk::Column<Any>) -> Self {
         let column_type = match value.column_type() {
             Any::Advice(phase) => phase.phase(),
             Any::Fixed => 255,
@@ -66,8 +64,8 @@ pub struct Rotation {
     pub next: bool,
 }
 
-impl From<halo2_proofs::poly::Rotation> for Rotation {
-    fn from(value: halo2_proofs::poly::Rotation) -> Self {
+impl From<halo2_base::halo2_proofs::poly::Rotation> for Rotation {
+    fn from(value: halo2_base::halo2_proofs::poly::Rotation) -> Self {
         if value.0.is_negative() {
             Self {
                 rotation: value.0.unsigned_abs(),
@@ -97,8 +95,6 @@ where
     C: CurveAffine,
     P: Params<'params, C>,
     ConcreteCircuit: Circuit<C::Scalar>,
-    C::Scalar: FromUniformBytes<64>,
-    C::ScalarExt: FromUniformBytes<64>,
 {
     let vk = keygen_vk(params, circuit)?;
     let cs = vk.cs();
@@ -134,7 +130,7 @@ where
             .advice_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),
@@ -142,7 +138,7 @@ where
             .instance_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),
@@ -150,7 +146,7 @@ where
             .fixed_queries()
             .iter()
             .map(|(c, r)| ColumnQuery {
-                column: halo2_proofs::plonk::Column::<Any>::from(*c).into(),
+                column: halo2_base::halo2_proofs::plonk::Column::<Any>::from(*c).into(),
                 rotation: From::from(*r),
             })
             .collect(),
@@ -194,7 +190,9 @@ where
                     .collect(),
             })
             .collect(),
-        max_num_query_of_advice_column: cs
+        max_num_query_of_advice_column: 2,
+        /*
+        cs
             .advice_queries()
             .iter()
             .fold(BTreeMap::default(), |mut m, (c, _r)| {
@@ -209,7 +207,7 @@ where
             .max()
             .cloned()
             .unwrap_or_default(),
-
+        */
         gates: cs
             .gates()
             .iter()
@@ -261,7 +259,7 @@ fn expression_transform<F: Field + Ord>(
             SparsePolynomial::from_coefficients_vec(
                 challenge_range,
                 vec![(
-                    F::ONE,
+                    F::one(),
                     SparseTerm::new(vec![(advice_range + query_index, 1)]),
                 )],
             )
@@ -271,7 +269,7 @@ fn expression_transform<F: Field + Ord>(
                 get_advice_query_index(cs, query.column_index(), query.phase(), query.rotation());
             SparsePolynomial::from_coefficients_vec(
                 challenge_range,
-                vec![(F::ONE, SparseTerm::new(vec![(query_index, 1)]))],
+                vec![(F::one(), SparseTerm::new(vec![(query_index, 1)]))],
             )
         },
         &|query| {
@@ -279,7 +277,7 @@ fn expression_transform<F: Field + Ord>(
             SparsePolynomial::from_coefficients_vec(
                 challenge_range,
                 vec![(
-                    F::ONE,
+                    F::one(),
                     SparseTerm::new(vec![(fixed_range + query_index, 1)]),
                 )],
             )
@@ -288,7 +286,7 @@ fn expression_transform<F: Field + Ord>(
             SparsePolynomial::from_coefficients_vec(
                 challenge_range,
                 vec![(
-                    F::ONE,
+                    F::one(),
                     SparseTerm::new(vec![(instance_range + challenge.index(), 1)]),
                 )],
             )

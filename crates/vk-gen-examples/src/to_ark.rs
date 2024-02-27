@@ -1,7 +1,7 @@
 use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ec::CurveConfig;
 use ark_serialize::CanonicalDeserialize;
-use halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_proofs::halo2curves::group::ff::PrimeField;
 use halo2_proofs::halo2curves::CurveAffine;
 
 pub trait IntoArk: CurveAffine {

@@ -6,8 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-shape-generator = {path = "../verifier-sdk/shape-generator" }
-clap = { version = "4.4.10",features = ["derive"] }
+clap = { version = "=4.2.1", features = ["derive"] }
+colored = { version = "=2.0.4" }
+cargo-platform = { version = "=0.1.5" }
+ahash = { version = "=0.8.4" }
+curve25519-dalek = { version = "=4.0.0" }
+bumpalo = { version = "=3.14.0" }
 anyhow = { version = "1.0.75" }
 serde = { version = "1" }
 serde_json = { version = "1" }
@@ -15,7 +19,10 @@ hex = { version = "0.4.3" }
 toml = { version = "0.8.8" }
 rand_core = { version = "0.6.4" }
 rand = { version = "0.8.5" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
 ark-bn254 = { version = "0.4.0" }
 ark-serialize = { version = "0.4" }
 ark-ec = { version = "0.4" }
+
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_02_02" }
+
+shape-generator = { path = "../verifier-sdk/shape-generator" }

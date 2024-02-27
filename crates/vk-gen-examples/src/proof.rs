@@ -1,4 +1,4 @@
-use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField, WithSmallOrderMulGroup};
+use halo2_proofs::halo2curves::group::ff::PrimeField;
 use halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
 use halo2_proofs::halo2curves::serde::SerdeObject;
 use halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
@@ -9,6 +9,7 @@ use halo2_proofs::poly::{kzg, VerificationStrategy};
 use halo2_proofs::transcript::{
     Challenge255, Keccak256Read, Keccak256Write, TranscriptReadBuffer, TranscriptWriterBuffer,
 };
+use shape_generator::{FromUniformBytes, WithSmallOrderMulGroup};
 use std::fmt::{Debug, Formatter};
 
 pub use halo2_proofs::plonk::{keygen_pk, keygen_vk};

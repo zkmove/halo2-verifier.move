@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_proofs::arithmetic::FieldExt;
+use halo2_proofs::halo2curves::group::ff::PrimeField;
 use halo2_proofs::{
     arithmetic::Field,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
@@ -9,7 +10,7 @@ use halo2_proofs::{
 };
 
 // ANCHOR: instructions
-trait NumericInstructions<F: Field>: Chip<F> {
+trait NumericInstructions<F: Field + FieldExt>: Chip<F> {
     /// Variable representing a number.
     type Num;
 
@@ -66,7 +67,7 @@ pub struct FieldConfig {
     s_mul: Selector,
 }
 
-impl<F: Field> FieldChip<F> {
+impl<F: Field + FieldExt> FieldChip<F> {
     fn construct(config: <Self as Chip<F>>::Config) -> Self {
         Self {
             config,
@@ -127,7 +128,7 @@ impl<F: Field> FieldChip<F> {
 // ANCHOR_END: chip-config
 
 // ANCHOR: chip-impl
-impl<F: Field> Chip<F> for FieldChip<F> {
+impl<F: Field + FieldExt> Chip<F> for FieldChip<F> {
     type Config = FieldConfig;
     type Loaded = ();
 
@@ -146,7 +147,7 @@ impl<F: Field> Chip<F> for FieldChip<F> {
 #[derive(Clone)]
 struct Number<F: Field>(AssignedCell<F, F>);
 
-impl<F: Field> NumericInstructions<F> for FieldChip<F> {
+impl<F: Field + FieldExt> NumericInstructions<F> for FieldChip<F> {
     type Num = Number<F>;
 
     fn load_private(
@@ -245,7 +246,7 @@ pub struct MyCircuit<F: Field> {
     b: Value<F>,
 }
 
-impl<F: Field> Circuit<F> for MyCircuit<F> {
+impl<F: Field + FieldExt> Circuit<F> for MyCircuit<F> {
     // Since we are using a single chip for everything, we can just reuse its config.
     type Config = FieldConfig;
     type FloorPlanner = SimpleFloorPlanner;
