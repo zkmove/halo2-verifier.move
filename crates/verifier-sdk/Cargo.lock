@@ -312,7 +312,7 @@ name = "multipoly"
 version = "0.1.0"
 dependencies = [
  "derivative",
- "ff",
+ "halo2-base",
  "num-traits",
  "rand",
 ]

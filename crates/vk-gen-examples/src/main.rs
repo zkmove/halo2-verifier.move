@@ -5,11 +5,11 @@ use shape_generator::generate_circuit_info;
 use shape_generator::serialize::serialize;
 
 use ark_serialize::CanonicalSerialize;
-use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
-use halo2_proofs::halo2curves::group::GroupEncoding;
-use halo2_proofs::plonk::{keygen_pk, keygen_vk};
-use halo2_proofs::poly::commitment::{Params, ParamsProver};
-use halo2_proofs::poly::kzg::commitment::ParamsKZG;
+use halo2_base::halo2_proofs::halo2curves::bn256::{Bn256, Fr};
+use halo2_base::halo2_proofs::halo2curves::group::GroupEncoding;
+use halo2_base::halo2_proofs::plonk::{keygen_pk, keygen_vk};
+use halo2_base::halo2_proofs::poly::commitment::{Params, ParamsProver};
+use halo2_base::halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env::current_dir;

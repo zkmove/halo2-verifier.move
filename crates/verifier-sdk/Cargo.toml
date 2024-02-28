@@ -34,6 +34,5 @@ halo2-ecc = { version = "0.2.2", default-features = false, features = [
 multipoly = { path = "./multipoly" }
 shape-generator = { path = "./shape-generator" }
 
-
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations//halo2.git", tag = "v2023_02_02" }

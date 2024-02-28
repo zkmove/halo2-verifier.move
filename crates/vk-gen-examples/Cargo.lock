@@ -536,7 +536,7 @@ version = "0.2.2"
 source = "git+https://github.com/axiom-crypto/halo2-lib.git?rev=9860acc#9860accef8289ec8e1ac850596842823edcf2c0f"
 dependencies = [
  "ff",
- "halo2_proofs 0.2.0 (git+https://github.com/privacy-scaling-explorations/halo2.git?tag=v2023_01_20)",
+ "halo2_proofs",
  "itertools",
  "num-bigint",
  "num-integer",
@@ -546,24 +546,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "halo2_proofs"
-version = "0.2.0"
-source = "git+https://github.com/privacy-scaling-explorations/halo2.git?tag=v2023_01_20#c7e42e41f8141745ba0b90213438f240d55cb347"
+name = "halo2-ecc"
+version = "0.2.2"
+source = "git+https://github.com/axiom-crypto/halo2-lib.git?rev=9860acc#9860accef8289ec8e1ac850596842823edcf2c0f"
 dependencies = [
- "blake2b_simd",
  "ff",
  "group",
- "halo2curves",
+ "halo2-base",
+ "itertools",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "rand",
+ "rand_chacha",
  "rand_core",
- "rayon",
- "sha3",
- "tracing",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "halo2_proofs"
 version = "0.2.0"
-source = "git+https://github.com/privacy-scaling-explorations/halo2.git?tag=v2023_02_02#0a8646b78286a13d320759b1c585262d6536dce4"
+source = "git+https://github.com/privacy-scaling-explorations//halo2.git?tag=v2023_02_02#0a8646b78286a13d320759b1c585262d6536dce4"
 dependencies = [
  "blake2b_simd",
  "ff",
@@ -702,7 +706,7 @@ name = "multipoly"
 version = "0.1.0"
 dependencies = [
  "derivative",
- "ff",
+ "halo2-base",
  "num-traits",
  "rand",
 ]
@@ -1127,7 +1131,8 @@ dependencies = [
  "clap",
  "colored",
  "curve25519-dalek",
- "halo2_proofs 0.2.0 (git+https://github.com/privacy-scaling-explorations/halo2.git?tag=v2023_02_02)",
+ "halo2-base",
+ "halo2-ecc",
  "hex",
  "rand",
  "rand_core",

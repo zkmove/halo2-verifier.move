@@ -1,3 +1,4 @@
+use halo2_base::halo2_proofs::arithmetic::FieldExt;
 use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
 use halo2_base::halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
 use halo2_base::halo2_proofs::halo2curves::serde::SerdeObject;
@@ -11,7 +12,6 @@ use halo2_base::halo2_proofs::poly::{kzg, VerificationStrategy};
 use halo2_base::halo2_proofs::transcript::{
     Challenge255, Keccak256Read, Keccak256Write, TranscriptReadBuffer, TranscriptWriterBuffer,
 };
-use shape_generator::{FromUniformBytes, WithSmallOrderMulGroup};
 use std::fmt::Debug;
 
 pub use halo2_base::halo2_proofs::plonk::{keygen_pk, keygen_vk};
@@ -30,8 +30,7 @@ where
     ConcreteCircuit: Circuit<E::Scalar>,
     <E as Engine>::Scalar: PrimeField,
     <E as Engine>::Scalar: Ord,
-    <E as Engine>::Scalar: WithSmallOrderMulGroup<3>,
-    <E as Engine>::Scalar: FromUniformBytes<64>,
+    <E as Engine>::Scalar: FieldExt,
 {
     prove_vm_circuit::<
         KZGCommitmentScheme<E>,
@@ -58,7 +57,7 @@ fn prove_vm_circuit<
 ) -> Vec<u8>
 where
     <Scheme as CommitmentScheme>::ParamsVerifier: 'params,
-    <Scheme as CommitmentScheme>::Scalar: WithSmallOrderMulGroup<3> + FromUniformBytes<64>,
+    <Scheme as CommitmentScheme>::Scalar: FieldExt,
 {
     let mut transcript = Keccak256Write::<_, _, Challenge255<_>>::init(vec![]);
     // Create a proof

@@ -1,6 +1,6 @@
 //! Work with sparse multivariate polynomials.
 //use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ff::Field;
+use halo2_base::halo2_proofs::arithmetic::Field;
 use std::{
     cmp::Ordering,
     fmt::{Debug, Error, Formatter},
@@ -106,13 +106,9 @@ impl Term for SparseTerm {
 
     /// Evaluates `self` at the given `point` in the field.
     fn evaluate<F: Field>(&self, point: &[F]) -> F {
-        /*
         self.iter()
-            .map(|(var, power)| point[*var].pow([*power as u64]))
-            .product()
-         */
-
-        F::zero()
+            .map(|(var, power)| point[*var].pow_vartime([*power as u64]))
+            .fold(F::one(), |acc, item| acc * item)
     }
 }
 

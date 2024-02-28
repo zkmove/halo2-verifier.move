@@ -7,7 +7,7 @@ use std::{
     vec::Vec,
 };
 
-use ff::Field;
+use halo2_base::halo2_proofs::arithmetic::Field;
 use num_traits::Zero;
 
 pub mod multivariate;

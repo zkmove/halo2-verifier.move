@@ -1,13 +1,13 @@
 pub mod serialize;
 
-use halo2_base::halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::arithmetic::{CurveAffine, Field, FieldExt};
 use halo2_base::halo2_proofs::plonk::{
     keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
 };
 use halo2_base::halo2_proofs::poly::commitment::Params;
 use halo2_base::halo2_proofs::poly::Rotation as Halo2Rotation;
 
+use halo2_base::utils::PrimeField;
 use multipoly::multivariate::{SparsePolynomial, SparseTerm, Term};
 use multipoly::DenseMVPolynomial;
 
@@ -95,6 +95,7 @@ where
     C: CurveAffine,
     P: Params<'params, C>,
     ConcreteCircuit: Circuit<C::Scalar>,
+    C::Scalar: FieldExt,
 {
     let vk = keygen_vk(params, circuit)?;
     let cs = vk.cs();
@@ -112,7 +113,7 @@ where
         hasher.update(s.as_bytes());
 
         // Hash in final Blake2bState
-        C::Scalar::from_uniform_bytes(hasher.finalize().as_array())
+        C::Scalar::from_bytes_wide(hasher.finalize().as_array())
     };
 
     let info = CircuitInfo {

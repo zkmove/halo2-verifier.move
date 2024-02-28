@@ -3,7 +3,7 @@ use crate::{
     multivariate::{SparseTerm, Term},
     DenseMVPolynomial, Polynomial,
 };
-use ff::Field;
+use halo2_base::halo2_proofs::arithmetic::Field;
 use num_traits::Zero;
 //use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use std::ops::{Deref, Mul, MulAssign};

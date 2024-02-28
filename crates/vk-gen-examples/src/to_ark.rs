@@ -1,8 +1,9 @@
 use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ec::CurveConfig;
 use ark_serialize::CanonicalDeserialize;
-use halo2_proofs::halo2curves::group::ff::PrimeField;
-use halo2_proofs::halo2curves::CurveAffine;
+use halo2_base::halo2_proofs::halo2curves::bn256::{G1Affine, G2Affine};
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::halo2curves::CurveAffine;
 
 pub trait IntoArk: CurveAffine {
     type ArkConfig: SWCurveConfig;
@@ -25,9 +26,9 @@ pub trait IntoArk: CurveAffine {
     }
 }
 
-impl IntoArk for halo2_proofs::halo2curves::bn256::G1Affine {
+impl IntoArk for G1Affine {
     type ArkConfig = ark_bn254::g1::Config;
 }
-impl IntoArk for halo2_proofs::halo2curves::bn256::G2Affine {
+impl IntoArk for G2Affine {
     type ArkConfig = ark_bn254::g2::Config;
 }

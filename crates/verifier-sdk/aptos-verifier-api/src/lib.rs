@@ -1,5 +1,6 @@
 use crate::types::{ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes};
 use halo2_base::halo2_proofs::halo2curves::bn256::{Bn256, Fr};
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
 use halo2_base::halo2_proofs::plonk::{Circuit, Error};
 use halo2_base::halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde_json::json;

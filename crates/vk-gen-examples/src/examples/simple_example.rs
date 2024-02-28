@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use halo2_proofs::arithmetic::FieldExt;
-use halo2_proofs::halo2curves::group::ff::PrimeField;
-use halo2_proofs::{
+use halo2_base::halo2_proofs::arithmetic::FieldExt;
+use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
+use halo2_base::halo2_proofs::{
     arithmetic::Field,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
     plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector},
