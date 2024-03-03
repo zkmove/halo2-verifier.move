@@ -12,10 +12,10 @@ use halo2_base::halo2_proofs::poly::commitment::{Params, ParamsProver};
 use halo2_base::halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::env::current_dir;
+use std::env::{self, current_dir};
 use std::fmt;
 use std::path::PathBuf;
-use vk_gen_examples::examples::simple_example;
+use vk_gen_examples::examples::{simple_example, zk_email};
 
 use vk_gen_examples::proof::{prove_with_keccak256, KZG};
 use vk_gen_examples::to_ark::IntoArk;
@@ -61,6 +61,7 @@ struct BuildPublishVkAptosTxn {
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum Examples {
     SimpleExample,
+    ZkEmail,
 }
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub enum KZGVariant {
@@ -85,6 +86,8 @@ struct BuildVerifyProofTxn {
 }
 
 fn main() -> anyhow::Result<()> {
+    dotenv::dotenv().ok();
+    
     let cli: Cli = Cli::parse();
     let mut param_file = std::fs::File::open(cli.param_path.as_path())?;
 
@@ -133,6 +136,10 @@ fn main() -> anyhow::Result<()> {
                     let circuit = simple_example::get_example_circuit();
                     generate_circuit_info(&params, &circuit.0)?
                 }
+                Examples::ZkEmail => {
+                    let circuit = zk_email::get_example_circuit();
+                    generate_circuit_info(&params, &circuit.0)?
+                }
             };
             let data = serialize(circuit_info.into())?;
 
@@ -179,6 +186,13 @@ fn main() -> anyhow::Result<()> {
             let (proof, instances) = match example {
                 Examples::SimpleExample => {
                     let (circuit, instances) = simple_example::get_example_circuit::<Fr>();
+                    let vk = keygen_vk(&params, &circuit).unwrap();
+                    let pk = keygen_pk(&params, vk, &circuit).unwrap();
+                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
+                    (proof, vec![instances])
+                }
+                Examples::ZkEmail => {
+                    let (circuit, instances) = zk_email::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);

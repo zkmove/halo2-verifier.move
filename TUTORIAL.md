@@ -44,10 +44,10 @@ aptos move run --function-id default::param_store::create --args hex:0x010000000
 ```
 
 Then, we are ready to publish a circuit!
-We're going to use example `vector-mul` in our vk-gen-examples.
+We're going to use example `zk-email` in our vk-gen-examples.
 Enter directory `crates/vk-gen-examples`, and run the cargo command, remember **replace the verifier-address with your aptos profile's address!**
 ```shell
-cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b build-publish-vk-aptos-txn --example vector-mul
+cargo run --release -- --param-path params/kzg_bn254_18.srs.srs --verifier-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-publish-vk-aptos-txn --example zk-email
 ```
 It will output a json file which you can take as input to `aptos move run`.
 
@@ -58,7 +58,7 @@ aptos move run --json-file VectorMul-publish-circuit.json
 Now, the circuit is published. We'll build a verify proof aptos txn and run it on aptos. 
 Run the command and replace the `verifier-address`/`param-address`/`circuit-address` with your aptos profile's address!
 ```shell
-cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b build-verify-proof-aptos-txn --example vector-mul --kzg gwc --param-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b --circuit-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b
+cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-verify-proof-aptos-txn --example zk-email --kzg gwc --param-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 --circuit-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256
 ```
 
 Then, submit the verify proof txn, you can see the verify txn is executed successfully.
