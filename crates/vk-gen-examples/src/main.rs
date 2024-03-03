@@ -87,7 +87,7 @@ struct BuildVerifyProofTxn {
 
 fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
-    
+
     let cli: Cli = Cli::parse();
     let mut param_file = std::fs::File::open(cli.param_path.as_path())?;
 
@@ -195,8 +195,9 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = zk_email::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
-                    (proof, vec![instances])
+                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
+                    let (circuit, instances) = zk_email::get_example_circuit::<Fr>();
+                    (proof, instances)
                 }
             };
             //let instances: Vec<_> = instances.iter().map(|fr| fr.to_bytes().to_vec()).collect();

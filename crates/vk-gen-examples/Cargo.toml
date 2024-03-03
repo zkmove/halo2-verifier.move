@@ -32,6 +32,15 @@ halo2-ecc = { version = "0.2.2", default-features = false, features = [
     "halo2-pse",
     "display",
 ], git = "https://github.com/axiom-crypto/halo2-lib.git", rev = "9860acc" }
+snark-verifier = { git = "https://github.com/zkemail/snark-verifier.git", version = "0.1.0", branch = "main", default-features = false, features = [
+    "loader_halo2",
+    "halo2-pse",
+] }
+snark-verifier-sdk = { git = "https://github.com/zkemail/snark-verifier.git", version = "0.0.1", branch = "main", default-features = false, features = [
+    "loader_halo2",
+    "halo2-pse",
+] }
+
 halo2-zk-email = { git = "https://github.com/zhmolly/halo2-zk-email", rev = "d3306d3" }
 
 shape-generator = { path = "../verifier-sdk/shape-generator" }
@@ -41,6 +50,7 @@ tokio = "1.36.0"
 cfdkim = { version = "0.3.0", git = "https://github.com/SoraSuegami/dkim.git" }
 slog = "2.7.0"
 rsa = { version = "0.9.6", features = ["serde", "sha2"] }
+
 
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
 halo2_proofs = { git = "https://github.com/privacy-scaling-explorations//halo2.git", tag = "v2023_02_02" }
