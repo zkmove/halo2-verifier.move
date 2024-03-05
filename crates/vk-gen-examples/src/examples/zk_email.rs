@@ -40,6 +40,6 @@ pub fn get_example_circuit<F: PrimeField<Repr = [u8; 32]> + FieldExt>(
     let public_key_n = BigUint::from_radix_le(&public_key.n().clone().to_radix_le(16), 16).unwrap();
 
     let circuit = DefaultEmailVerifyCircuit::<F>::new(email_bytes, public_key_n);
-    let instances = circuit.instances();
+    let instances: Vec<Vec<F>> = circuit.instances();
     (circuit, instances)
 }

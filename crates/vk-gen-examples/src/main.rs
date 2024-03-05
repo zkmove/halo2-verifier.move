@@ -195,8 +195,10 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = zk_email::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
-                    let (circuit, instances) = zk_email::get_example_circuit::<Fr>();
+
+                    let _instances: Vec<&[Fr]> = instances.iter().map(|v| v.as_slice()).collect();
+                    let proof =
+                        prove_with_keccak256(circuit, _instances.as_slice(), &params, pk, kzg);
                     (proof, instances)
                 }
             };

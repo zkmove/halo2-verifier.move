@@ -141,15 +141,16 @@ where
     let prove_start = std::time::Instant::now();
 
     let rng = rand::rngs::mock::StepRng::new(0, 1);
-    create_proof::<Scheme, P, _, _, _, _>(
+
+    let ret = create_proof::<Scheme, P, _, _, _, _>(
         params,
         &pk,
         &[circuit],
         &[instance],
         rng,
         &mut transcript,
-    )
-    .expect("proof generation should not fail");
+    );
+
     let proof: Vec<u8> = transcript.finalize();
     println!("proof size {} bytes", proof.len());
     let prove_time = std::time::Instant::now().duration_since(prove_start);
