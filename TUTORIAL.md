@@ -34,20 +34,20 @@ the existing param file `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_
 To view the kzg setup params, run the following cargo commands under directory `crates/vk-gen-examples`. 
 It will output the g1, g2, and s_g2.
 ```shell
-cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs view-param
+cargo run --release -- --param-path params/kzg_bn254_18.srs view-param
 ```
 
 We have to send a  create-params transcation to make the params available on aptos.
 Copy paste the `g1`, `g2`, `s_g2` as aptos args, resulting the following aptos command: 
 ```shell
-aptos move run --function-id default::param_store::create --args hex:0x0100000000000000000000000000000000000000000000000000000000000000 hex:0xedf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e19 hex:e4115200acc86e7670c83ded726335def098657fe8668323e9e41e6781b83b0a9d83b54bbb00215323ce6d7f9d7f331a286d7707d03f7dbdd3125c6163588d13
+aptos move run --function-id default::param_store::create --args hex:0x0100000000000000000000000000000000000000000000000000000000000000 hex:0xedf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e19 hex:0x0016e2a0605f771222637bae45148c8faebb4598ee98f30f20f790a0c3c8e02a7bf78bf67c4aac19dcc690b9ca0abef445d9a576c92ad6041e6ef1413ca92a17
 ```
 
 Then, we are ready to publish a circuit!
 We're going to use example `zk-email` in our vk-gen-examples.
 Enter directory `crates/vk-gen-examples`, and run the cargo command, remember **replace the verifier-address with your aptos profile's address!**
 ```shell
-cargo run --release -- --param-path params/kzg_bn254_18.srs --verifier-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-publish-vk-aptos-txn --example zk-email
+cargo run --release -- --param-path params/kzg_bn254_18.srs --verifier-address 0x7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-publish-vk-aptos-txn --example zk-email
 ```
 It will output a json file which you can take as input to `aptos move run`.
 
@@ -58,7 +58,7 @@ aptos move run --json-file VectorMul-publish-circuit.json
 Now, the circuit is published. We'll build a verify proof aptos txn and run it on aptos. 
 Run the command and replace the `verifier-address`/`param-address`/`circuit-address` with your aptos profile's address!
 ```shell
-cargo run --release -- --param-path params/kzg_bn254_18.srs --verifier-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-verify-proof-aptos-txn --example zk-email --kzg gwc --param-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 --circuit-address 7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256
+cargo run --release -- --param-path params/kzg_bn254_18.srs --verifier-address 0x7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 build-verify-proof-aptos-txn --example zk-email --kzg gwc --param-address 0x7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256 --circuit-address 0x7b613c28a60c691c8ee874a0310fd0dc14e0706b406dab38a6f82493a187a256
 ```
 
 Then, submit the verify proof txn, you can see the verify txn is executed successfully.

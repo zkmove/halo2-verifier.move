@@ -1,13 +1,12 @@
+use std::env::set_var;
 use std::fs::File;
-use std::str::FromStr;
-use std::{env::set_var, marker::PhantomData};
 
-use halo2_base::halo2_proofs::arithmetic::{Field, FieldExt};
+use halo2_base::halo2_proofs::arithmetic::FieldExt;
 use halo2_base::halo2_proofs::halo2curves::group::ff::PrimeField;
 
 use ark_serialize::Read;
 use cfdkim::{resolve_public_key, DkimPublicKey};
-use halo2_zk_email::{default_config_params, DefaultEmailVerifyCircuit, EMAIL_VERIFY_CONFIG_ENV};
+use halo2_zk_email::{DefaultEmailVerifyCircuit, EMAIL_VERIFY_CONFIG_ENV};
 use rsa::traits::PublicKeyParts;
 use snark_verifier_sdk::CircuitExt;
 use tokio::runtime::Runtime;
