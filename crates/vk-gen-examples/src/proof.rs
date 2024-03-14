@@ -150,6 +150,7 @@ where
         rng,
         &mut transcript,
     );
+    println!("verify ret: {:?}", ret);
 
     let proof: Vec<u8> = transcript.finalize();
     println!("proof size {} bytes", proof.len());

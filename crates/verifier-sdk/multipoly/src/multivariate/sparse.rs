@@ -79,18 +79,13 @@ impl<F: Field + Ord> Polynomial<F> for SparsePolynomial<F, SparseTerm> {
     /// ```
     fn evaluate(&self, point: &Vec<F>) -> F {
         assert!(point.len() >= self.num_vars, "Invalid evaluation domain");
-
-        /*
         if self.is_zero() {
-            return F::ZERO;
+            return F::zero();
         }
         self.terms
             .iter()
             .map(|(coeff, term)| *coeff * term.evaluate(point))
-            .sum()
-         */
-
-        return F::zero();
+            .fold(F::zero(), |sum, point| sum + point)
     }
 }
 

@@ -1,5 +1,7 @@
 pub mod serialize;
 
+use std::collections::BTreeMap;
+
 use halo2_base::halo2_proofs::arithmetic::{CurveAffine, Field, FieldExt};
 use halo2_base::halo2_proofs::plonk::{
     keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
@@ -191,9 +193,7 @@ where
                     .collect(),
             })
             .collect(),
-        max_num_query_of_advice_column: 2,
-        /*
-        cs
+        max_num_query_of_advice_column: cs
             .advice_queries()
             .iter()
             .fold(BTreeMap::default(), |mut m, (c, _r)| {
@@ -208,7 +208,6 @@ where
             .max()
             .cloned()
             .unwrap_or_default(),
-        */
         gates: cs
             .gates()
             .iter()
