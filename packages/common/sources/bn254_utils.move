@@ -178,19 +178,17 @@ module halo2_common::bn254_utils {
     public fun deserialize_g1_from_halo2(e: vector<u8>): Option<Element<G1>> {
         let last_u8 = vector::pop_back(&mut e);
         //last_u8 = swap_bit(last_u8, 6, 7);
-        let is_identity = (last_u8 >>7) == 1;
-        if (is_identity) {
+        let y_sign = last_u8 >>7;
+        if (y_sign == 1) {
             option::some(crypto_algebra::zero())
         } else {
-            let y_sign = (last_u8 >> 6);
-            // erase the last two bits.
-            last_u8 = (last_u8 << 2) >> 2;
+            // erase the last bit.
+            last_u8 = (last_u8 << 1) >> 1;
             vector::push_back(&mut e, last_u8);
             let x = option::destroy_some(crypto_algebra::deserialize<Fq, FormatFqLsb>(&e));
             // we have to compute the y, and compare the sign of the y to the y_sign.
             // if they are eqaul, it means the y is ok.
             // or else, it's -y.
-
 
             let y_2 = crypto_algebra::add(&crypto_algebra::mul( &crypto_algebra::sqr(&x), &x), &crypto_algebra::from_u64(3)); // y^2 = x^3 + 3
             let y = option::destroy_some( sqrt_fq(&y_2));
