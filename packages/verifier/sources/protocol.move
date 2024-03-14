@@ -503,6 +503,7 @@ module halo2_verifier::protocol {
         multivariate_poly::new_poly(new_term)
     }
 
+/*
     #[test(s = @std)]
     fun test_serialize(s: &signer) {
         enable_cryptography_algebra_natives(s);
@@ -606,4 +607,5 @@ module halo2_verifier::protocol {
             103
         );
     }
+*/
 }

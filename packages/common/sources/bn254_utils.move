@@ -179,13 +179,17 @@ module halo2_common::bn254_utils {
         let last_u8 = vector::pop_back(&mut e);
         //last_u8 = swap_bit(last_u8, 6, 7);
         let y_sign = last_u8 >>7;
-        if (y_sign == 1) {
+    
+        // erase the last bit.
+        last_u8 = (last_u8 << 1) >> 1;
+        vector::push_back(&mut e, last_u8);
+        let x = option::destroy_some(crypto_algebra::deserialize<Fq, FormatFqLsb>(&e));
+
+        // x.is_zero() & (!ysign)
+        if ((crypto_algebra::eq(&x, &crypto_algebra::zero())) && (y_sign == 0)) {
             option::some(crypto_algebra::zero())
-        } else {
-            // erase the last bit.
-            last_u8 = (last_u8 << 1) >> 1;
-            vector::push_back(&mut e, last_u8);
-            let x = option::destroy_some(crypto_algebra::deserialize<Fq, FormatFqLsb>(&e));
+        }
+        else {
             // we have to compute the y, and compare the sign of the y to the y_sign.
             // if they are eqaul, it means the y is ok.
             // or else, it's -y.
