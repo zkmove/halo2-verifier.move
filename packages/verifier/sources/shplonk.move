@@ -15,17 +15,17 @@ module halo2_verifier::shplonk {
 
     #[test_only]
     use std::option;
-    
+
     struct CommitmentRotationSet has copy, drop {
         rotations: vector<Element<Fr>>,
         commitment: CommitmentReference,
     }
-    
+
     struct RotationSetCommitment has copy, drop {
         rotations: vector<Element<Fr>>,
         commitments: vector<CommitmentReference>,
     }
-    
+
     struct Commitment has copy, drop {
         commitment: CommitmentReference,
         evals: vector<Element<Fr>>,
@@ -157,7 +157,7 @@ module halo2_verifier::shplonk {
                 });
             };
         });
-        
+
         // Implement btree for rotations in commitment_rotation_set_map
         vector::for_each_mut(&mut commitment_rotation_set_map, |set| {
             let set: &mut CommitmentRotationSet = set;
@@ -195,12 +195,12 @@ module halo2_verifier::shplonk {
                 let commitment: CommitmentReference = *commitment;
                 let evals = vector::map_ref(&rotations, |rotation| {
                     let rotation: Element<Fr> = *rotation;
-                    
+
                     let (_, index) = vector::find(queries, |q| {
                         let q: &VerifierQuery = q;
                         query::eq_commit_reference(&commitment, query::commitment(q)) && crypto_algebra::eq(&rotation, query::point(q))
                     });
-                    
+
                     *query::eval(vector::borrow(queries, index))
                 });
 
@@ -215,7 +215,7 @@ module halo2_verifier::shplonk {
                 points: rotations
             }
         });
-        
+
         super_point_set = remove_duplicate_and_sort(&super_point_set);
 
         (rotation_sets, super_point_set)
@@ -231,17 +231,21 @@ module halo2_verifier::shplonk {
         };
 
         let denoms = vector::empty();
-        vector::enumerate_ref(&points, |j, x_j| {
+        let j = 0;
+        while (j < vector::length(&points)) {
+            let x_j = vector::borrow(&points, j);
+            let k = 0;
             let denom = vector::empty();
-            
-            vector::enumerate_ref(&points, |k, x_k| {
+            while (k < vector::length(&points)) {
+                let x_k = vector::borrow(&points, k);
                 if (k != j) {
                     vector::push_back(&mut denom, bn254_utils::invert(&crypto_algebra::sub(x_j, x_k)));
                 };
-            });
-
+                k = k + 1;
+            };
             vector::push_back(&mut denoms, denom);
-        });
+            j = j + 1;
+        };
 
         // Create final_poly with 0 points
         let i = 0;
@@ -289,7 +293,7 @@ module halo2_verifier::shplonk {
 
                         let c = vector::borrow_mut(&mut product, t);
                         *c = crypto_algebra::add(&crypto_algebra::mul(a, &crypto_algebra::mul(&crypto_algebra::neg(denom), x_k)), &crypto_algebra::mul(b, denom));
-                        
+
                         t = t + 1;
                     };
 
@@ -312,7 +316,7 @@ module halo2_verifier::shplonk {
                 let interpolation_coeff: &Element<Fr> = &*interpolation_coeff;
                 *final_coeff = crypto_algebra::add(final_coeff, &crypto_algebra::mul(interpolation_coeff, eval));
             });
-            
+
             j = j + 1;
         };
 
@@ -391,7 +395,7 @@ module halo2_verifier::shplonk {
                 option::destroy_some(bn254_utils::deserialize_fr(&x"0900000000000000000000000000000000000000000000000000000000000000")),
             )
         ];
-        
+
         let (rotation_sets, super_point_set) = construct_intermediate_sets(&queries);
         assert!(vector::length(&super_point_set) == vector::length(&queries), 100);
         // Used same g1 elements
