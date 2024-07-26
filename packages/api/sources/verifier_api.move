@@ -24,10 +24,13 @@ module verifier_api::verifier_api {
         gates: vector<vector<u8>>,
         lookups_input_exprs: vector<vector<u8>>,
         lookups_table_exprs: vector<vector<u8>>,
+        shuffle_input_exprs: vector<vector<u8>>,
+        shuffle_exprs: vector<vector<u8>>,
     ) {
         let proto = protocol::from_bytes(
             general_info, advice_queries, instance_queries, fixed_queries, permutation_columns,
-            fields_pool, gates, lookups_input_exprs, lookups_table_exprs
+            fields_pool, gates, lookups_input_exprs, lookups_table_exprs, shuffle_input_exprs,
+            shuffle_exprs
         );
         move_to(sender, Circuit { protocol: proto });
     }

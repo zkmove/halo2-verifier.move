@@ -16,8 +16,9 @@ module halo2_verifier::halo2_verifier {
 
     use halo2_verifier::gwc;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
+    use halo2_verifier::shuffle;
     use halo2_verifier::permutation;
-    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, blinding_factors, num_advice_columns};
+    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, Shuffle, blinding_factors, num_advice_columns};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
@@ -128,6 +129,11 @@ module halo2_verifier::halo2_verifier {
             protocol::num_permutation_z(protocol)
         );
         let lookups_committed = lookup_read_product_commitments(lookups_permuted, &mut transcript);
+        let shuffles_committed = shuffle_read_product_commitments(
+            &mut transcript,
+            num_proof,
+            protocol::num_shuffle(protocol)
+        );
         let vanishing = vanishing::read_commitments_before_y(&mut transcript);
         let y = transcript::squeeze_challenge(&mut transcript);
         let vanishing = vanishing::read_commitments_after_y(
@@ -224,6 +230,15 @@ module halo2_verifier::halo2_verifier {
             }
         );
 
+        let shuffles_evaluated = map_ref<vector<shuffle::Commited>, vector<shuffle::Evaluated>>(
+            &shuffles_committed,
+            |commited| {
+                map_ref<shuffle::Commited, shuffle::Evaluated>(commited, |c| {
+                    shuffle::evaluate(c, &mut transcript)
+                })
+            }
+        );
+
         let vanishing = {
             // -(blinding_factor+1)..=0
             let blinding_factors = blinding_factors(protocol);
@@ -286,6 +301,18 @@ module halo2_verifier::halo2_verifier {
                     &theta, &beta, &gamma,
                     &mut expressions,
                 );
+                evaluate_shuffles(
+                    vector::borrow(&shuffles_evaluated, i),
+                    protocol::shuffles(protocol),
+                    &coeff_pool,
+                    vector::borrow(&advice_evals, i),
+                    &fixed_evals,
+                    vector::borrow(&instance_evals, i),
+                    &challenges,
+                    &l_0, &l_last, &l_blind,
+                    &theta, &gamma,
+                    &mut expressions,
+                );
                 i = i + 1;
             };
 
@@ -298,6 +325,7 @@ module halo2_verifier::halo2_verifier {
         {
             vector::reverse(&mut permutations_evaluated);
             vector::reverse(&mut lookups_evaluated);
+            vector::reverse(&mut shuffles_evaluated);
             let i = 0;
             while (i < num_proof) {
                 queries(protocol,
@@ -308,6 +336,7 @@ module halo2_verifier::halo2_verifier {
                     vector::borrow(&advice_evals, i),
                     vector::pop_back(&mut permutations_evaluated),
                     vector::pop_back(&mut lookups_evaluated),
+                    vector::pop_back(&mut shuffles_evaluated),
                 );
                 i = i + 1;
             };
@@ -378,6 +407,26 @@ module halo2_verifier::halo2_verifier {
         map(lookups_permuted, |lookups| map(lookups, |l| lookup::read_product_commitment(l, transcript)))
     }
 
+    fun shuffle_read_product_commitments(
+        transcript: &mut Transcript,
+        num_proof: u64,
+        num_shuffle: u64
+    ): vector<vector<shuffle::Commited>> {
+        let shuffles = vector::empty(); // (A, S)
+        let i = 0;
+        while (i < num_proof) {
+            let j = 0;
+            let result = vector::empty();
+            while (j < num_shuffle) {
+                vector::push_back(&mut result, shuffle::shuffles_read_product_commitments(transcript));
+                j = j + 1;
+            };
+            vector::push_back(&mut shuffles, result);
+            i = i + 1;
+        };
+        shuffles
+    }
+
     fun permutation_read_product_commitments(
         transcript: &mut Transcript,
         num_proof: u64,
@@ -403,7 +452,9 @@ module halo2_verifier::halo2_verifier {
         advice_commitments: &vector<Element<G1>>,
         advice_evals: &vector<Element<Fr>>,
         permutation: permutation::Evaluted,
-        lookups: vector<lookup::Evaluated>
+        lookups: vector<lookup::Evaluated>,
+        shuffles: vector<shuffle::Evaluated>,
+
     ) {
         /*
         // instance queries
@@ -437,6 +488,7 @@ module halo2_verifier::halo2_verifier {
 
         permutation::queries(permutation, queries, protocol, domain, x);
         lookup::queries(&lookups, queries, protocol, domain, x);
+        shuffle::queries(&shuffles, queries, protocol, domain, x);
     }
 
     fun evaluate_gates(
@@ -478,6 +530,34 @@ module halo2_verifier::halo2_verifier {
                 advice_evals,
                 fixed_evals,
                 instance_evals, challenges, l_0, l_last, l_blind, theta, beta, gamma,
+                results
+            );
+        });
+    }
+
+    fun evaluate_shuffles(
+        shuffle_evaluates: &vector<shuffle::Evaluated>,
+        shuffle: &vector<Shuffle>,
+        coeff_pool: &vector<Element<Fr>>,
+        advice_evals: &vector<Element<Fr>>,
+        fixed_evals: &vector<Element<Fr>>,
+        instance_evals: &vector<Element<Fr>>,
+        challenges: &vector<Element<Fr>>,
+        l_0: &Element<Fr>,
+        l_last: &Element<Fr>,
+        l_blind: &Element<Fr>,
+        theta: &Element<Fr>,
+        gamma: &Element<Fr>,
+        results: &mut vector<Element<Fr>>,
+    ) {
+        vector::zip_ref(shuffle_evaluates, shuffle, | shuffle_evaluate, s| {
+            shuffle::expression(
+                shuffle_evaluate,
+                s,
+                coeff_pool,
+                advice_evals,
+                fixed_evals,
+                instance_evals, challenges, l_0, l_last, l_blind, theta, gamma,
                 results
             );
         });

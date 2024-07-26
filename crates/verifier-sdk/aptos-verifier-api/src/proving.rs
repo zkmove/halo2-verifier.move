@@ -1,4 +1,6 @@
-use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField, WithSmallOrderMulGroup};
+use halo2_proofs::arithmetic::CurveAffine;
+use halo2_proofs::halo2curves::CurveExt;
+use halo2_proofs::halo2curves::ff::{FromUniformBytes, WithSmallOrderMulGroup};
 use halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
 use halo2_proofs::halo2curves::serde::SerdeObject;
 use halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
@@ -16,19 +18,18 @@ use rand_core::OsRng;
 
 pub fn prove_with_gwc_and_keccak256<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
-    instance: &[&[E::Scalar]],
+    instance: &[&[E::Fr]],
     params: &ParamsKZG<E>,
     pk: ProvingKey<E::G1Affine>,
 ) -> Vec<u8>
 where
     E: Engine + Debug + MultiMillerLoop,
-    E::G1Affine: SerdeObject,
-    E::G2Affine: SerdeObject,
-    ConcreteCircuit: Circuit<E::Scalar>,
-    <E as Engine>::Scalar: PrimeField,
-    <E as Engine>::Scalar: Ord,
-    <E as Engine>::Scalar: WithSmallOrderMulGroup<3>,
-    <E as Engine>::Scalar: FromUniformBytes<64>,
+    E::G1Affine:
+        SerdeObject + CurveAffine<ScalarExt = <E as Engine>::Fr, CurveExt = <E as Engine>::G1>,
+    E::G1: CurveExt<AffineExt = E::G1Affine>,
+    E::G2Affine: SerdeObject + CurveAffine,
+    ConcreteCircuit: Circuit<E::Fr>,
+    <E as Engine>::Fr: Ord + WithSmallOrderMulGroup<3> + FromUniformBytes<64>,
 {
     prove_vm_circuit::<
         KZGCommitmentScheme<E>,

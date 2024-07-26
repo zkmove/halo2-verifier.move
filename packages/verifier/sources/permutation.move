@@ -216,7 +216,9 @@ module halo2_verifier::permutation {
         });
 
         // Open it at \omega^{last} x for all but the last set
-        vector::pop_back(&mut self.sets);
+        if (vector::length(& self.sets) > 0) {
+            vector::pop_back(&mut self.sets);
+        };
         let Evaluted { sets } = self;
         for_each_reverse(sets, |set| {
             let s: PermutationEvaluatedSet = set;

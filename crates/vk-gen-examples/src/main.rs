@@ -16,7 +16,7 @@ use std::env::current_dir;
 use std::fmt;
 use std::path::PathBuf;
 use vk_gen_examples::examples::{
-    circuit_layout, serialization, shuffle, simple_example, two_chip, vector_mul,
+    circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
 
 use vk_gen_examples::proof::{prove_with_keccak256, KZG};
@@ -65,6 +65,7 @@ pub enum Examples {
     CircuitLayout,
     Serialization,
     Shuffle,
+    ShuffleApi,
     SimpleExample,
     TwoChip,
     VectorMul,
@@ -149,6 +150,10 @@ fn main() -> anyhow::Result<()> {
                     let circuit = shuffle::get_example_circuit();
                     generate_circuit_info(&params, &circuit)?
                 }
+                Examples::ShuffleApi => {
+                    let circuit = shuffle_api::get_example_circuit();
+                    generate_circuit_info(&params, &circuit)?
+                }
                 Examples::SimpleExample => {
                     let circuit = simple_example::get_example_circuit();
                     generate_circuit_info(&params, &circuit.0)?
@@ -221,6 +226,13 @@ fn main() -> anyhow::Result<()> {
                 }
                 Examples::Shuffle => {
                     let circuit = shuffle::get_example_circuit::<Fr>();
+                    let vk = keygen_vk(&params, &circuit).unwrap();
+                    let pk = keygen_pk(&params, vk, &circuit).unwrap();
+                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
+                    (proof, vec![])
+                }
+                Examples::ShuffleApi => {
+                    let circuit = shuffle_api::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
                     let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);

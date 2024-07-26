@@ -33,6 +33,7 @@ pub struct CircuitInfo<C: CurveAffine> {
     fixed_queries: Vec<ColumnQuery>,
     permutation_columns: Vec<Column>,
     lookups: Vec<Lookup<C::Scalar>>,
+    shuffles: Vec<Shuffle<C::Scalar>>,
 }
 
 #[derive(Debug)]
@@ -85,6 +86,11 @@ impl From<halo2_proofs::poly::Rotation> for Rotation {
 pub struct Lookup<F: Field> {
     pub input_exprs: Vec<MultiVariatePolynomial<F>>,
     pub table_exprs: Vec<MultiVariatePolynomial<F>>,
+}
+#[derive(Debug)]
+pub struct Shuffle<F: Field> {
+    pub input_exprs: Vec<MultiVariatePolynomial<F>>,
+    pub shuffle_exprs: Vec<MultiVariatePolynomial<F>>,
 }
 
 pub type MultiVariatePolynomial<F> = SparsePolynomial<F, SparseTerm>;
@@ -180,6 +186,40 @@ where
                     .collect(),
                 table_exprs: l
                     .table_expressions()
+                    .iter()
+                    .map(|e| {
+                        expression_transform(
+                            cs,
+                            e,
+                            cs.advice_queries().len(),
+                            cs.fixed_queries().len(),
+                            cs.instance_queries().len(),
+                            cs.challenge_phase().len(),
+                        )
+                    })
+                    .collect(),
+            })
+            .collect(),
+        shuffles: cs
+            .shuffles()
+            .iter()
+            .map(|s| Shuffle {
+                input_exprs: s
+                    .input_expressions()
+                    .iter()
+                    .map(|e| {
+                        expression_transform(
+                            cs,
+                            e,
+                            cs.advice_queries().len(),
+                            cs.fixed_queries().len(),
+                            cs.instance_queries().len(),
+                            cs.challenge_phase().len(),
+                        )
+                    })
+                    .collect(),
+                shuffle_exprs: s
+                    .shuffle_expressions()
                     .iter()
                     .map(|e| {
                         expression_transform(
