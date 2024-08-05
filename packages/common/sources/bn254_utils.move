@@ -52,16 +52,16 @@ module halo2_common::bn254_utils {
         871749566700742666,
     ];
 
-    public fun sqrt_fq(self: &Element<Fq>): Option<Element<Fq>> {
-        let tmp = pow(self, &FQ_SQRT_PRE_COMP);
-        if (crypto_algebra::eq(&crypto_algebra::sqr(&tmp), self)) {
+    public fun sqrt_fq(e: &Element<Fq>): Option<Element<Fq>> {
+        let tmp = pow(e, &FQ_SQRT_PRE_COMP);
+        if (crypto_algebra::eq(&crypto_algebra::sqr(&tmp), e)) {
             option::some(tmp)
         } else {
             option::none()
         }
     }
 
-    fun pow<F>(self: &Element<F>, exp: &vector<u64>): Element<F> {
+    fun pow<F>(e: &Element<F>, exp: &vector<u64>): Element<F> {
         let result = crypto_algebra::one<F>();
         let j = vector::length(exp);
         // if we never meet bit with 1, don't bother to sqr.
@@ -77,7 +77,7 @@ module halo2_common::bn254_utils {
                 };
                 // the i bit is 1
                 if(((num >> i) & 1) == 1) {
-                    result = crypto_algebra::mul(&result, self);
+                    result = crypto_algebra::mul(&result, e);
                     meet_one = true;
                 };
 
@@ -91,7 +91,7 @@ module halo2_common::bn254_utils {
         }
     }
 
-    public fun pow_u32<F>(self: &Element<F>, num: u32): Element<F> {
+    public fun pow_u32<F>(e: &Element<F>, num: u32): Element<F> {
         let result = crypto_algebra::one<F>();
         let i = 32u8;
         // if we never meet bit with 1, don't bother to sqr.
@@ -103,7 +103,7 @@ module halo2_common::bn254_utils {
             };
             // the i bit is 1
             if(((num >> i) & 1) == 1) {
-                result = crypto_algebra::mul(&result, self);
+                result = crypto_algebra::mul(&result, e);
                 meet_one = true;
             };
 
@@ -237,16 +237,16 @@ module halo2_common::bn254_utils {
         crypto_algebra::deserialize<G2, FormatG2Compr>(e)
     }
 
-    public fun eq_elements<T>(self: &vector<Element<T>>, other: &vector<Element<T>>): bool {
+    public fun eq_elements<T>(e: &vector<Element<T>>, other: &vector<Element<T>>): bool {
 
-        let elements_len = vector::length(self);
+        let elements_len = vector::length(e);
         if(elements_len != vector::length(other)) {
             return false
         };
 
         let i = 0;
         while (i < elements_len) {
-            let e_1 = vector::borrow(self, i);
+            let e_1 = vector::borrow(e, i);
             let e_2 = vector::borrow(other, i);
             if(!crypto_algebra::eq<T>(e_1, e_2)) {
                 return false

@@ -231,21 +231,19 @@ module halo2_verifier::shplonk {
         };
 
         let denoms = vector::empty();
-        let j = 0;
-        while (j < vector::length(&points)) {
-            let x_j = vector::borrow(&points, j);
-            let k = 0;
+        vector::enumerate_ref(&points, |j, x_j| {
+            // dummy code added to avoid compile issue.
+            let _j : u64 = j;
             let denom = vector::empty();
-            while (k < vector::length(&points)) {
-                let x_k = vector::borrow(&points, k);
+
+            vector::enumerate_ref(&points, |k, x_k| {
                 if (k != j) {
                     vector::push_back(&mut denom, bn254_utils::invert(&crypto_algebra::sub(x_j, x_k)));
                 };
-                k = k + 1;
-            };
+            });
+
             vector::push_back(&mut denoms, denom);
-            j = j + 1;
-        };
+        });
 
         // Create final_poly with 0 points
         let i = 0;
