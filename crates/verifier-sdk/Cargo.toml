@@ -22,7 +22,7 @@ rand_core = { version = "0.6" }
 serde = { version = "1" }
 serde_json = { version = "1" }
 hex = { version = "0.4.3" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v2023_04_20" }
+halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v0.3.0" }
 bcs = { version = "0.1.6" }
 blake2b_simd = { version = "1" }
 

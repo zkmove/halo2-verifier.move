@@ -171,10 +171,10 @@ module halo2_verifier::lookup {
         acc
     }
 
-    public fun queries(self: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, _protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
+    public fun queries(e: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, _protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
         let x_inv = domain::rotate_omega(domain, x, &i32::neg_from(1));
         let x_next = domain::rotate_omega(domain, x, &i32::from(1));
-        for_each_ref(self, |evaluated| {
+        for_each_ref(e, |evaluated| {
             let eval: &Evaluated = evaluated;
             // Open lookup product commitment at x
             vector::push_back(queries, query::new_commitment(eval.commited.product_commitment, *x, eval.product_eval));

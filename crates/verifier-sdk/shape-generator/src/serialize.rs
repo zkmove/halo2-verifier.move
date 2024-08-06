@@ -23,6 +23,8 @@ pub struct SerializableCircuitInfo<C: CurveAffine> {
     gates: Vec<IndexedMultiVariatePolynomial>,
     lookups_input_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
     lookups_table_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
+    shuffles_input_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
+    shuffles_exprs: Vec<Vec<IndexedMultiVariatePolynomial>>,
 }
 
 type IndexedMultiVariatePolynomial = Vec<(u16, SparseTerm)>;
@@ -55,6 +57,7 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
             fixed_queries,
             permutation_columns,
             lookups,
+            shuffles,
         }: CircuitInfo<C>,
     ) -> Self {
         let mut fields_pool: Vec<C::Scalar> = Vec::new();
@@ -109,6 +112,44 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
                 (inputs, tables)
             },
         );
+        let shuffles_len = shuffles.len();
+        let (shuffles_input, shuffles_shuffle) = shuffles.into_iter().fold(
+            (
+                Vec::with_capacity(shuffles_len),
+                Vec::with_capacity(shuffles_len),
+            ),
+            |(mut shuffle_inputs, mut shuffles), s| {
+                shuffle_inputs.push(
+                    s.input_exprs
+                        .into_iter()
+                        .map(|expr| {
+                            expr.terms
+                                .iter()
+                                .map(|(coff, t)| {
+                                    let new_coff = index_element(&mut fields_pool, *coff);
+                                    (new_coff as u16, t.clone())
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
+                );
+                shuffles.push(
+                    s.shuffle_exprs
+                        .into_iter()
+                        .map(|expr| {
+                            expr.terms
+                                .iter()
+                                .map(|(coff, t)| {
+                                    let new_coff = index_element(&mut fields_pool, *coff);
+                                    (new_coff as u16, t.clone())
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
+                );
+                (shuffle_inputs, shuffles)
+            },
+        );
 
         Self {
             k,
@@ -127,6 +168,8 @@ impl<C: CurveAffine> From<CircuitInfo<C>> for SerializableCircuitInfo<C> {
             gates,
             lookups_input_exprs: inputs,
             lookups_table_exprs: tables,
+            shuffles_input_exprs: shuffles_input,
+            shuffles_exprs: shuffles_shuffle,
             fields_pool,
             vk_transcript_repr,
             fixed_commitments,
@@ -205,6 +248,16 @@ pub fn serialize<C: CurveAffine>(
         .iter()
         .map(serialize_lookup_exprs)
         .collect();
+    let shuffles_input_exprs = circuit_info
+        .shuffles_input_exprs
+        .iter()
+        .map(serialize_lookup_exprs)
+        .collect();
+    let shuffles_shuffle_exprs = circuit_info
+        .shuffles_exprs
+        .iter()
+        .map(serialize_lookup_exprs)
+        .collect();
     Ok(vec![
         general_info,
         advice_queries,
@@ -215,6 +268,8 @@ pub fn serialize<C: CurveAffine>(
         gates,
         lookups_input_exprs,
         lookups_table_exprs,
+        shuffles_input_exprs,
+        shuffles_shuffle_exprs,
     ])
 }
 

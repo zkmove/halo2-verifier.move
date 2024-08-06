@@ -62,12 +62,17 @@ module halo2_verifier::protocol {
         fields_pool: vector<vector<u8>>,
         gates: vector<Expression>,
         lookups: vector<Lookup>,
+        shuffles: vector<Shuffle>,
     }
 
 
     struct Lookup has store, drop {
         input_expressions: vector<Expression>,
         table_expressions: vector<Expression>,
+    }
+    struct Shuffle has store, drop {
+        input_expressions: vector<Expression>,
+        shuffle_expressions: vector<Expression>,
     }
 
     // --- Protocol Deserialzation start ---
@@ -84,6 +89,8 @@ module halo2_verifier::protocol {
         gates: vector<vector<u8>>,
         lookups_input_exprs: vector<vector<u8>>,
         lookups_table_exprs: vector<vector<u8>>,
+        shuffles_input_exprs: vector<vector<u8>>,
+        shuffles_exprs: vector<vector<u8>>,
     ): Protocol {
         let challenge_phase = vector::pop_back(&mut general_info);
         let advice_column_phase = vector::pop_back(&mut general_info);
@@ -119,6 +126,14 @@ module halo2_verifier::protocol {
             table_expressions: q,
         }));
 
+        let shuffles = vector::empty();
+        let shuffles_input_exprs = vector::map_ref(&shuffles_input_exprs, |q| deserialize_lookup_exprs(q));
+        let shuffles_exprs = vector::map_ref(&shuffles_exprs, |q| deserialize_lookup_exprs(q));
+        vector::zip(shuffles_input_exprs, shuffles_exprs, |p, q| vector::push_back(&mut shuffles, Shuffle {
+            input_expressions: p,
+            shuffle_expressions: q,
+        }));
+
         let protocol = Protocol {
             vk_transcript_repr: serialize_fr(&vk_repr),
             fixed_commitments: map_ref(&fixed_commitments, |c| serialize_g1(c)),
@@ -137,6 +152,7 @@ module halo2_verifier::protocol {
             fields_pool,
             gates,
             lookups,
+            shuffles,
         };
         protocol
     }
@@ -300,6 +316,10 @@ module halo2_verifier::protocol {
         &protocol.lookups
     }
 
+    public fun shuffles(protocol: &Protocol): &vector<Shuffle> {
+        &protocol.shuffles
+    }
+
     public fun gates(protocol: &Protocol): &vector<Expression> {
         &protocol.gates
     }
@@ -314,6 +334,14 @@ module halo2_verifier::protocol {
 
     public fun table_exprs(self: &Lookup): &vector<Expression> {
         &self.table_expressions
+    }
+
+    public fun shuffle_input_exprs(self: &Shuffle): &vector<Expression> {
+        &self.input_expressions
+    }
+
+    public fun shuffle_exprs(self: &Shuffle): &vector<Expression> {
+        &self.shuffle_expressions
     }
 
     public fun blinding_factors(protocol: &Protocol): u64 {
@@ -404,6 +432,10 @@ module halo2_verifier::protocol {
 
     public fun num_lookup(protocol: &Protocol): u64 {
         vector::length(&protocol.lookups)
+    }
+
+    public fun num_shuffle(protocol: &Protocol): u64 {
+        vector::length(&protocol.shuffles)
     }
 
     public fun permutation_chunk_size(protocol: &Protocol): u32 {
@@ -546,6 +578,12 @@ module halo2_verifier::protocol {
             ],
             vector[
                 x"05000000000002000000020000000100000009000000010000000100020000000100000001000000080000000100000001000200000000000000010000000700000001000000010003000000030000000100000004000000010000000600000001000000010003000000000000000100000001000000010000000a00000001000000"
+            ],
+            vector[
+                x"0100000012000000010000000100010000000000000001000000"
+            ],
+            vector[
+                x"0100000012000000010000000100010000000500000001000000"
             ],
             vector[
                 x"0100000012000000010000000100010000000000000001000000"
