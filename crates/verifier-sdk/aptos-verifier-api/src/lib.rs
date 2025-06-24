@@ -1,11 +1,11 @@
 use crate::types::{ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes};
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::ff::PrimeField;
-use halo2_proofs::plonk::{Circuit, Error};
+use halo2_proofs::plonk::{Circuit};
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde_json::json;
 use shape_generator::generate_circuit_info;
-use shape_generator::serialize::serialize;
+use anyhow::{Error, Result};
 
 pub mod proving;
 pub mod types;
@@ -29,7 +29,7 @@ where
 {
     let protocol = generate_circuit_info(params, circuit)?;
 
-    let data = serialize(protocol.into()).unwrap();
+    let data = protocol.serialize()?;
 
     let args: Vec<_> = data
         .into_iter()

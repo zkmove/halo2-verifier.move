@@ -2,7 +2,6 @@ extern crate core;
 
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
 use shape_generator::generate_circuit_info;
-use shape_generator::serialize::serialize;
 
 use ark_serialize::CanonicalSerialize;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
@@ -167,7 +166,7 @@ fn main() -> anyhow::Result<()> {
                     generate_circuit_info(&params, &circuit.0)?
                 }
             };
-            let data = serialize(circuit_info.into())?;
+            let data = circuit_info.serialize()?;
 
             let args: Vec<_> = data
                 .into_iter()

@@ -153,7 +153,7 @@ where
         match expr {
             Expression::Constant(f) => {
                 let bytes = encode_field::<C>(f);
-                constant_map.entry(bytes.clone()).or_insert_with(|| {
+                constant_map.entry(bytes).or_insert_with(|| {
                     let idx = fields_pool.len() as u32;
                     fields_pool.push(*f);
                     idx
@@ -171,7 +171,7 @@ where
             }
             Expression::Scaled(e, f) => {
                 let bytes = encode_field::<C>(f);
-                constant_map.entry(bytes.clone()).or_insert_with(|| {
+                constant_map.entry(bytes).or_insert_with(|| {
                     let idx = fields_pool.len() as u32;
                     fields_pool.push(*f);
                     idx
@@ -187,84 +187,125 @@ where
         use_u8_index_for_fields: bool,
         use_u8_index_for_query: bool,
         cs: &ConstraintSystem<C::Scalar>,
-    ) -> IndexedExpression<C::Scalar> {
+    ) -> Result<IndexedExpression<C::Scalar>, Error> {
         match expr {
             Expression::Constant(f) => {
                 let bytes = encode_field::<C>(f);
-                let index = *constant_map.get(&bytes).expect("Constant not found");
-                if use_u8_index_for_fields {
+                let index = *constant_map.get(&bytes).ok_or(Error::Synthesis)?;
+                let idx = if use_u8_index_for_fields {
                     if index >= 256 {
-                        panic!("Index too large for u8: {}", index);
+                        return Err(Error::Synthesis);
                     }
-                    IndexedExpression::ConstantIndex(IndexType::U8(index as u8), PhantomData)
+                    IndexType::U8(index as u8)
                 } else {
-                    IndexedExpression::ConstantIndex(IndexType::U32(index), PhantomData)
-                }
+                    IndexType::U32(index)
+                };
+                Ok(IndexedExpression::ConstantIndex(idx, PhantomData))
             }
-            Expression::Selector(s) => IndexedExpression::Selector(*s),
+            Expression::Selector(s) => Ok(IndexedExpression::Selector(*s)),
             Expression::Fixed(q) => {
-                let index = get_fixed_query_index(cs, q.column_index(), q.rotation());
-                if use_u8_index_for_query {
+                let index = get_fixed_query_index(cs, q.column_index(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
                     if index >= 256 {
-                        panic!("Index too large for u8: {}", index);
+                        return Err(Error::Synthesis);
                     }
-                    IndexedExpression::Fixed(IndexType::U8(index as u8))
+                    IndexType::U8(index as u8)
                 } else {
-                    IndexedExpression::Fixed(IndexType::U32(index as u32))
-                }
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Fixed(idx))
             }
             Expression::Advice(q) => {
-                let index = get_advice_query_index(cs, q.column_index(), q.phase(), q.rotation());
-                if use_u8_index_for_query {
+                let index = get_advice_query_index(cs, q.column_index(), q.phase(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
                     if index >= 256 {
-                        panic!("Index too large for u8: {}", index);
+                        return Err(Error::Synthesis);
                     }
-                    IndexedExpression::Advice(IndexType::U8(index as u8))
+                    IndexType::U8(index as u8)
                 } else {
-                    IndexedExpression::Advice(IndexType::U32(index as u32))
-                }
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Advice(idx))
             }
             Expression::Instance(q) => {
-                let index = get_instance_query_index(cs, q.column_index(), q.rotation());
-                if use_u8_index_for_query {
+                let index = get_instance_query_index(cs, q.column_index(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
                     if index >= 256 {
-                        panic!("Index too large for u8: {}", index);
+                        return Err(Error::Synthesis);
                     }
-                    IndexedExpression::Instance(IndexType::U8(index as u8))
+                    IndexType::U8(index as u8)
                 } else {
-                    IndexedExpression::Instance(IndexType::U32(index as u32))
-                }
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Instance(idx))
             }
-            Expression::Challenge(c) => IndexedExpression::Challenge(*c),
-            Expression::Negated(e) => IndexedExpression::Negated(Box::new(to_indexed_expression::<C>(
-                e,
-                constant_map,
-                use_u8_index_for_fields,
-                use_u8_index_for_query,
-                cs,
-            ))),
+            Expression::Challenge(c) => Ok(IndexedExpression::Challenge(*c)),
+            Expression::Negated(e) => {
+                let e_expr = to_indexed_expression::<C>(
+                    e,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Negated(Box::new(e_expr)))
+            }
             Expression::Sum(a, b) => {
-                let a_expr = to_indexed_expression::<C>(a, constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                let b_expr = to_indexed_expression::<C>(b, constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                IndexedExpression::Sum(Box::new(a_expr), Box::new(b_expr))
+                let a_expr = to_indexed_expression::<C>(
+                    a,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                let b_expr = to_indexed_expression::<C>(
+                    b,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Sum(Box::new(a_expr), Box::new(b_expr)))
             }
             Expression::Product(a, b) => {
-                let a_expr = to_indexed_expression::<C>(a, constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                let b_expr = to_indexed_expression::<C>(b, constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                IndexedExpression::Product(Box::new(a_expr), Box::new(b_expr))
+                let a_expr = to_indexed_expression::<C>(
+                    a,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                let b_expr = to_indexed_expression::<C>(
+                    b,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Product(
+                    Box::new(a_expr),
+                    Box::new(b_expr),
+                ))
             }
             Expression::Scaled(e, f) => {
                 let bytes = encode_field::<C>(f);
-                let index = *constant_map.get(&bytes).expect("Constant not found");
-                let e_expr = to_indexed_expression::<C>(e, constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                if use_u8_index_for_fields {
+                let index = *constant_map.get(&bytes).ok_or(Error::Synthesis)?;
+                let idx = if use_u8_index_for_fields {
                     if index >= 256 {
-                        panic!("Index too large for u8: {}", index);
+                        return Err(Error::Synthesis);
                     }
-                    IndexedExpression::Scaled(Box::new(e_expr), IndexType::U8(index as u8))
+                    IndexType::U8(index as u8)
                 } else {
-                    IndexedExpression::Scaled(Box::new(e_expr), IndexType::U32(index))
-                }
+                    IndexType::U32(index)
+                };
+                let e_expr = to_indexed_expression::<C>(
+                    e,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Scaled(Box::new(e_expr), idx))
             }
         }
     }
@@ -299,67 +340,108 @@ where
     let gates: Vec<Gate<C::Scalar>> = cs
         .gates()
         .iter()
-        .enumerate()
-        .map(|(gate_idx, g)| {
+        .map(|g| {
             let polys: Vec<IndexedExpression<C::Scalar>> = g
                 .polynomials()
                 .iter()
-                .enumerate()
-                .map(|(poly_idx, e)| {
-                    let indexed_expr =
-                        to_indexed_expression::<C>(e, &constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs);
-                    // println!("Gate {}, Polynomial {}: {:?}", gate_idx, poly_idx, indexed_expr);
-                    indexed_expr
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
                 })
-                .collect();
-            Gate {
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Gate {
                 polys,
                 _phantom: PhantomData,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Error>>()?;
 
     let lookups: Vec<Lookup<C::Scalar>> = cs
         .lookups()
         .iter()
-        .map(|l| Lookup {
-            input_exprs: l
+        .map(|l| {
+            let input_exprs: Vec<IndexedExpression<C::Scalar>> = l
                 .input_expressions()
                 .iter()
-                .map(|e| to_indexed_expression::<C>(e, &constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs))
-                .collect(),
-            table_exprs: l
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let table_exprs: Vec<IndexedExpression<C::Scalar>> = l
                 .table_expressions()
                 .iter()
-                .map(|e| to_indexed_expression::<C>(e, &constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs))
-                .collect(),
-            _phantom: PhantomData,
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Lookup {
+                input_exprs,
+                table_exprs,
+                _phantom: PhantomData,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Error>>()?;
 
     let shuffles: Vec<Shuffle<C::Scalar>> = cs
         .shuffles()
         .iter()
-        .map(|s| Shuffle {
-            input_exprs: s
+        .map(|s| {
+            let input_exprs: Vec<IndexedExpression<C::Scalar>> = s
                 .input_expressions()
                 .iter()
-                .map(|e| to_indexed_expression::<C>(e, &constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs))
-                .collect(),
-            shuffle_exprs: s
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let shuffle_exprs: Vec<IndexedExpression<C::Scalar>> = s
                 .shuffle_expressions()
                 .iter()
-                .map(|e| to_indexed_expression::<C>(e, &constant_map, use_u8_index_for_fields, use_u8_index_for_query, cs))
-                .collect(),
-            _phantom: PhantomData,
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Shuffle {
+                input_exprs,
+                shuffle_exprs,
+                _phantom: PhantomData,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Error>>()?;
 
     let info = CircuitInfo {
         vk_transcript_repr: vk_repr,
         fixed_commitments: vk.fixed_commitments().clone(),
         permutation_commitments: vk.permutation().commitments().clone(),
-        k: (params.k() as u8),
+        k: params.k() as u8,
         cs_degree: cs.degree() as u32,
         num_fixed_columns: cs.num_fixed_columns() as u64,
         num_instance_columns: cs.num_instance_columns() as u64,
@@ -461,7 +543,9 @@ impl<C: CurveAffine> CircuitInfo<C> {
         let gates = self
             .gates
             .iter()
-            .map(|g| serialize_exprs::<C>(&g.polys, use_u8_index_for_fields, use_u8_index_for_query))
+            .map(|g| {
+                serialize_exprs::<C>(&g.polys, use_u8_index_for_fields, use_u8_index_for_query)
+            })
             .collect();
         let advice_queries = self
             .advice_queries
@@ -469,7 +553,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
             .map(serialize_column_query)
             .collect();
         let instance_queries = self
-            .advice_queries
+            .instance_queries
             .iter()
             .map(serialize_column_query)
             .collect();
@@ -486,22 +570,46 @@ impl<C: CurveAffine> CircuitInfo<C> {
         let lookups_input_exprs = self
             .lookups
             .iter()
-            .map(|l| serialize_exprs::<C>(&l.input_exprs, use_u8_index_for_fields, use_u8_index_for_query))
+            .map(|l| {
+                serialize_exprs::<C>(
+                    &l.input_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
             .collect();
         let lookups_table_exprs = self
             .lookups
             .iter()
-            .map(|l| serialize_exprs::<C>(&l.table_exprs, use_u8_index_for_fields, use_u8_index_for_query))
+            .map(|l| {
+                serialize_exprs::<C>(
+                    &l.table_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
             .collect();
         let shuffles_input_exprs = self
             .shuffles
             .iter()
-            .map(|s| serialize_exprs::<C>(&s.input_exprs, use_u8_index_for_fields, use_u8_index_for_query))
+            .map(|s| {
+                serialize_exprs::<C>(
+                    &s.input_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
             .collect();
         let shuffles_shuffle_exprs = self
             .shuffles
             .iter()
-            .map(|s| serialize_exprs::<C>(&s.shuffle_exprs, use_u8_index_for_fields, use_u8_index_for_query))
+            .map(|s| {
+                serialize_exprs::<C>(
+                    &s.shuffle_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
             .collect();
         let result = vec![
             general_info,
@@ -553,9 +661,31 @@ fn serialize_exprs<C: CurveAffine>(
     bytes.push(if use_u8_index_for_fields { 0 } else { 1 });
     bytes.push(if use_u8_index_for_query { 0 } else { 1 });
     for expr in exprs {
-        serialize_expression::<C>(expr, &mut bytes, use_u8_index_for_fields, use_u8_index_for_query);
+        serialize_expression::<C>(
+            expr,
+            &mut bytes,
+            use_u8_index_for_fields,
+            use_u8_index_for_query,
+        );
     }
     bytes
+}
+
+fn serialize_index(buffer: &mut Vec<u8>, index: &IndexType, use_u8: bool) {
+    match index {
+        IndexType::U8(idx) => {
+            if !use_u8 {
+                panic!("Expected u32 index, found u8");
+            }
+            buffer.push(*idx);
+        }
+        IndexType::U32(idx) => {
+            if use_u8 {
+                panic!("Expected u8 index, found u32");
+            }
+            buffer.extend(idx.to_le_bytes());
+        }
+    }
 }
 
 fn serialize_expression<C: CurveAffine>(
@@ -567,72 +697,20 @@ fn serialize_expression<C: CurveAffine>(
     match expr {
         IndexedExpression::ConstantIndex(index, _) => {
             buffer.push(0x00);
-            match index {
-                IndexType::U8(idx) => {
-                    if !use_u8_index_for_fields {
-                        panic!("Expected u32 index, found u8");
-                    }
-                    buffer.push(*idx);
-                }
-                IndexType::U32(idx) => {
-                    if use_u8_index_for_fields {
-                        panic!("Expected u8 index, found u32");
-                    }
-                    buffer.extend(idx.to_le_bytes());
-                }
-            }
+            serialize_index(buffer, index, use_u8_index_for_fields);
         }
         IndexedExpression::Selector(_) => panic!("Selectors should be optimized out"),
         IndexedExpression::Fixed(index) => {
             buffer.push(0x02);
-            match index {
-                IndexType::U8(idx) => {
-                    if !use_u8_index_for_query {
-                        panic!("Expected u32 index, found u8");
-                    }
-                    buffer.push(*idx);
-                }
-                IndexType::U32(idx) => {
-                    if use_u8_index_for_query {
-                        panic!("Expected u8 index, found u32");
-                    }
-                    buffer.extend(idx.to_le_bytes());
-                }
-            }
+            serialize_index(buffer, index, use_u8_index_for_query);
         }
         IndexedExpression::Advice(index) => {
             buffer.push(0x03);
-            match index {
-                IndexType::U8(idx) => {
-                    if !use_u8_index_for_query {
-                        panic!("Expected u32 index, found u8");
-                    }
-                    buffer.push(*idx);
-                }
-                IndexType::U32(idx) => {
-                    if use_u8_index_for_query {
-                        panic!("Expected u8 index, found u32");
-                    }
-                    buffer.extend(idx.to_le_bytes());
-                }
-            }
+            serialize_index(buffer, index, use_u8_index_for_query);
         }
         IndexedExpression::Instance(index) => {
             buffer.push(0x04);
-            match index {
-                IndexType::U8(idx) => {
-                    if !use_u8_index_for_query {
-                        panic!("Expected u32 index, found u8");
-                    }
-                    buffer.push(*idx);
-                }
-                IndexType::U32(idx) => {
-                    if use_u8_index_for_query {
-                        panic!("Expected u8 index, found u32");
-                    }
-                    buffer.extend(idx.to_le_bytes());
-                }
-            }
+            serialize_index(buffer, index, use_u8_index_for_query);
         }
         IndexedExpression::Challenge(challenge) => {
             buffer.push(0x05);
@@ -640,7 +718,12 @@ fn serialize_expression<C: CurveAffine>(
         }
         IndexedExpression::Negated(expr) => {
             buffer.push(0x06);
-            serialize_expression::<C>(expr, buffer, use_u8_index_for_fields, use_u8_index_for_query);
+            serialize_expression::<C>(
+                expr,
+                buffer,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+            );
         }
         IndexedExpression::Sum(a, b) => {
             buffer.push(0x07);
@@ -654,21 +737,13 @@ fn serialize_expression<C: CurveAffine>(
         }
         IndexedExpression::Scaled(expr, index) => {
             buffer.push(0x09);
-            serialize_expression::<C>(expr, buffer, use_u8_index_for_fields, use_u8_index_for_query);
-            match index {
-                IndexType::U8(idx) => {
-                    if !use_u8_index_for_fields {
-                        panic!("Expected u32 index, found u8");
-                    }
-                    buffer.push(*idx);
-                }
-                IndexType::U32(idx) => {
-                    if use_u8_index_for_fields {
-                        panic!("Expected u8 index, found u32");
-                    }
-                    buffer.extend(idx.to_le_bytes());
-                }
-            }
+            serialize_expression::<C>(
+                expr,
+                buffer,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+            );
+            serialize_index(buffer, index, use_u8_index_for_fields);
         }
     }
 }
@@ -694,7 +769,7 @@ pub(crate) fn get_advice_query_index<F: Field>(
     column_index: usize,
     phase: u8,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.advice_queries().iter().enumerate() {
         if (
             query_column.index(),
@@ -702,38 +777,38 @@ pub(crate) fn get_advice_query_index<F: Field>(
             rotation,
         ) == (column_index, phase, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-    panic!("get_advice_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }
 
 pub(crate) fn get_fixed_query_index<F: Field>(
     cs: &ConstraintSystem<F>,
     column_index: usize,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.fixed_queries().iter().enumerate() {
         if (query_column.index(), query_column.column_type(), rotation)
             == (column_index, &Fixed, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-    panic!("get_fixed_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }
 
 pub(crate) fn get_instance_query_index<F: Field>(
     cs: &ConstraintSystem<F>,
     column_index: usize,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.instance_queries().iter().enumerate() {
         if (query_column.index(), query_column.column_type(), rotation)
             == (column_index, &Instance, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-    panic!("get_instance_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }
