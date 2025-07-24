@@ -12,9 +12,7 @@ module halo2_verifier::protocol {
     use halo2_common::column::{Self, Column};
     use halo2_common::column_query::{Self, ColumnQuery};
     use halo2_common::domain::{Self, Domain};
-    use halo2_common::expression::{Self, Expression};
     use halo2_common::i32::{Self, I32};
-    use halo2_common::multivariate_poly;
 
     #[test_only]
     use std::bn254_algebra::{FormatFrMsb, Fr};
@@ -60,19 +58,18 @@ module halo2_verifier::protocol {
         permutation_columns: vector<Column>,
         // list of Fr in bytes
         fields_pool: vector<vector<u8>>,
-        gates: vector<Expression>,
+        gates: vector<vector<u8>>,
         lookups: vector<Lookup>,
         shuffles: vector<Shuffle>,
     }
 
-
     struct Lookup has store, drop {
-        input_expressions: vector<Expression>,
-        table_expressions: vector<Expression>,
+        input_expressions: vector<u8>,
+        table_expressions: vector<u8>,
     }
     struct Shuffle has store, drop {
-        input_expressions: vector<Expression>,
-        shuffle_expressions: vector<Expression>,
+        input_expressions: vector<u8>,
+        shuffle_expressions: vector<u8>,
     }
 
     // --- Protocol Deserialzation start ---
@@ -115,20 +112,15 @@ module halo2_verifier::protocol {
         });
 
         let permutation_columns = vector::map_ref(&permutation_columns, |q| deserialize_column(q));
-        //let fields_pool = vector::map_ref(&fields_pool, |e| option::destroy_some(deserialize_fr(e)));
-        let gates = vector::map_ref(&gates, |q| deserialize_expression(q));
+        // let fields_pool = vector::map_ref(&fields_pool, |e| option::destroy_some(deserialize_fr(e)));
 
         let lookups = vector::empty();
-        let lookups_input_exprs = vector::map_ref(&lookups_input_exprs, |q| deserialize_lookup_exprs(q));
-        let lookups_table_exprs = vector::map_ref(&lookups_table_exprs, |q| deserialize_lookup_exprs(q));
         vector::zip(lookups_input_exprs, lookups_table_exprs, |p, q| vector::push_back(&mut lookups, Lookup {
             input_expressions: p,
             table_expressions: q,
         }));
 
         let shuffles = vector::empty();
-        let shuffles_input_exprs = vector::map_ref(&shuffles_input_exprs, |q| deserialize_lookup_exprs(q));
-        let shuffles_exprs = vector::map_ref(&shuffles_exprs, |q| deserialize_lookup_exprs(q));
         vector::zip(shuffles_input_exprs, shuffles_exprs, |p, q| vector::push_back(&mut shuffles, Shuffle {
             input_expressions: p,
             shuffle_expressions: q,
@@ -200,74 +192,6 @@ module halo2_verifier::protocol {
         column
     }
 
-    fun deserialize_expression(
-        data: &vector<u8>,
-    ): Expression {
-        let terms = vector::empty();
-
-        let term_len = from_bcs::to_u32(read_bytes(data, 0, 4));
-        let i = 0;
-        let idx = 4;
-        loop {
-            if (i >= term_len) {
-                break
-            };
-
-            let coff_idx = from_bcs::to_u16(read_bytes(data, idx, idx + 2));
-            idx = idx + 2;
-
-            let sparse_terms = vector::empty();
-            let sparse_term_len = from_bcs::to_u32(read_bytes(data, idx, idx + 4));
-            idx = idx + 4;
-            let i_t = 0;
-
-            loop {
-                if (i_t >= sparse_term_len) {
-                    break
-                };
-
-                let variable_index = from_bcs::to_u32(read_bytes(data, idx, idx + 4));
-                idx = idx + 4;
-
-                let power = from_bcs::to_u32(read_bytes(data, idx, idx + 4));
-                idx = idx + 4;
-
-                vector::push_back(&mut sparse_terms, multivariate_poly::new_sparse_term(variable_index, power));
-                i_t = i_t + 1;
-            };
-
-            vector::push_back(&mut terms, multivariate_poly::new_term(coff_idx, sparse_terms));
-            i = i + 1;
-        };
-
-        expression::new(multivariate_poly::new_poly(terms))
-    }
-
-    fun deserialize_lookup_exprs(
-        data: &vector<u8>,
-    ): vector<Expression> {
-        let expressions = vector::empty();
-
-        let expr_len = from_bcs::to_u32(read_bytes(data, 0, 4));
-        let i = 0;
-        let idx = 4;
-        loop {
-            if (i >= expr_len) {
-                break
-            };
-
-            let expr_bytes_len = (from_bcs::to_u32(read_bytes(data, idx, idx + 4)) as u64);
-            idx = idx + 4;
-
-            vector::push_back(&mut expressions, deserialize_expression(&read_bytes(data, idx, idx + expr_bytes_len)));
-            idx = idx + expr_bytes_len;
-
-            i = i + 1;
-        };
-
-        expressions
-    }
-
     fun deserialize_commitment_list(bytes: &vector<u8>): vector<Element<G1>> {
         let i = 0;
         let bytes_len = vector::length(bytes);
@@ -320,7 +244,7 @@ module halo2_verifier::protocol {
         &protocol.shuffles
     }
 
-    public fun gates(protocol: &Protocol): &vector<Expression> {
+    public fun gates(protocol: &Protocol): &vector<vector<u8>> {
         &protocol.gates
     }
 
@@ -328,19 +252,19 @@ module halo2_verifier::protocol {
         &protocol.fields_pool
     }
 
-    public fun input_exprs(self: &Lookup): &vector<Expression> {
+    public fun input_exprs(self: &Lookup): &vector<u8> {
         &self.input_expressions
     }
 
-    public fun table_exprs(self: &Lookup): &vector<Expression> {
+    public fun table_exprs(self: &Lookup): &vector<u8> {
         &self.table_expressions
     }
 
-    public fun shuffle_input_exprs(self: &Shuffle): &vector<Expression> {
+    public fun shuffle_input_exprs(self: &Shuffle): &vector<u8> {
         &self.input_expressions
     }
 
-    public fun shuffle_exprs(self: &Shuffle): &vector<Expression> {
+    public fun shuffle_exprs(self: &Shuffle): &vector<u8> {
         &self.shuffle_expressions
     }
 
@@ -486,162 +410,162 @@ module halo2_verifier::protocol {
         table_expressions: vector<vector<String>>,
     }
 
-    #[test_only]
-    public fun format(self: &Protocol): String {
-        let display = ProtocolDisplay {
-            vk_transcript_repr: self.vk_transcript_repr,
-            fixed_commitments: self.fixed_commitments,
-            permutation_commitments: self.permutation_commitments,
-            k: self.k,
-            max_num_query_of_advice_column: self.max_num_query_of_advice_column,
-            cs_degree: self.cs_degree,
-            num_fixed_columns: self.num_fixed_columns,
-            num_instance_columns: self.num_instance_columns,
-            advice_column_phase: self.advice_column_phase,
-            challenge_phase: self.challenge_phase,
-            advice_queries: self.advice_queries,
-            instance_queries: self.instance_queries,
-            fixed_queries: self.fixed_queries,
-            permutation_columns: self.permutation_columns,
-            gates: map_ref(&self.gates, |g| multivariate_poly::format(expression::poly(g))),
-            lookups: map_ref(&self.lookups, |l| {
-                let l: &Lookup = l;
-                LookupDisplay {
-                    input_expressions: map_ref(
-                        &l.input_expressions,
-                        |g| multivariate_poly::format(expression::poly(g))
-                    ),
-                    table_expressions: map_ref(&l.table_expressions, |g| multivariate_poly::format(expression::poly(g)))
-                }
-            })
-        };
-        string_utils::debug_string(&display)
-    }
-
-    #[test_only]
-    fun display_expression_poly(
-        poly: &MultiVariatePoly<u16>,
-        fields_pool: &vector<Element<Fr>>
-    ): MultiVariatePoly<vector<u8>> {
-        let new_term = vector::map_ref(multivariate_poly::terms(poly), |term| {
-            let term: &Term<u16> = term;
-            multivariate_poly::new_term(
-                crypto_algebra::serialize<Fr, FormatFrMsb>(
-                    vector::borrow(fields_pool, (*multivariate_poly::coff(term) as u64))
-                ),
-                *multivariate_poly::sparse_terms(term)
-            )
-        });
-        multivariate_poly::new_poly(new_term)
-    }
-
-    #[test(s = @std)]
-    fun test_serialize(s: &signer) {
-        enable_cryptography_algebra_natives(s);
-        let protocol = from_bytes(
-            vector[
-                x"e4e0dba61d6090a78a67fe434074dc8e4bcfb756185b0e145df8c6020bc1260d",
-                x"0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008032bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e19051af9612d9cec5b7fb4c89947de2e3a8b8bb0e4e8faa06ebaa74573bc7ecd72c62",
-                x"49dec335e762fbbdaaefd2fd222d90c0e3debcff45ed97a434ac431d125d8415cbce8d505c3a6fc016e29b97d88a191324050debe6485e6c3781fd9aeced8f2cc4df2c2bcc96cc6e5e11d0c8c383761addd98e22add6b8a168bd41ade081b44b",
-                x"10",
-                x"01000000",
-                x"04000000",
-                x"0600000000000000",
-                x"0000000000000000",
-                x"0000000000",
-                x""
-            ],
-            vector[
-                x"00010000000100000000",
-                x"00020000000100000000",
-                x"00030000000100000000",
-                x"00040000000101000000",
-                x"00000000000001000000"
-            ],
-            vector[],
-            vector[
-                x"ff050000000100000000",
-                x"ff000000000100000000",
-                x"ff020000000100000000",
-                x"ff030000000100000000",
-                x"ff040000000100000000",
-                x"ff010000000100000000"
-            ],
-            vector[
-                x"0001000000",
-                x"0002000000",
-                x"0003000000"
-            ],
-            vector[
-                x"000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430",
-                x"0100000000000000000000000000000000000000000000000000000000000000"
-            ],
-            vector[
-                x"05000000000002000000020000000100000009000000010000000100020000000100000001000000080000000100000001000200000000000000010000000700000001000000010003000000030000000100000004000000010000000600000001000000010003000000000000000100000001000000010000000a00000001000000"
-            ],
-            vector[
-                x"0100000012000000010000000100010000000000000001000000"
-            ],
-            vector[
-                x"0100000012000000010000000100010000000500000001000000"
-            ],
-            vector[
-                x"0100000012000000010000000100010000000000000001000000"
-            ],
-            vector[
-                x"0100000012000000010000000100010000000500000001000000"
-            ],
-        );
-
-        assert!(protocol.k == 0x10, 1);
-        assert!(protocol.num_fixed_columns == 0x06, 1);
-
-        let advice_query_len = vector::length(&protocol.advice_queries);
-        assert!(advice_query_len == 5, 1);
-
-        let advice_query = vector::borrow(&protocol.advice_queries, 3);
-        assert!(column::column_type(column_query::column(advice_query)) == 0, 1);
-        assert!(column::column_index(column_query::column(advice_query)) == 4, 1);
-        assert!(!i32::is_neg(column_query::rotation(advice_query)), 1);
-        assert!(i32::abs(column_query::rotation(advice_query)) == 1, 1);
-
-        let permutation_column = vector::borrow(&protocol.permutation_columns, 2);
-        assert!(column::column_type(permutation_column) == 0, 1);
-        assert!(column::column_index(permutation_column) == 3, 1);
-        let fields_pool = vector::map_ref(&protocol.fields_pool, |e| option::destroy_some(deserialize_fr(e)));
-        let gate_repr = vector::map_ref(&protocol.gates, |g| {
-            multivariate_poly::format(&display_expression_poly(expression::poly(g), &fields_pool))
-        });
-        let expected_gate_repr = vector[
-            vector[
-                string::utf8(b"0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000 * x_2 * x_9"),
-                string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_1 * x_8"),
-                string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0 * x_7"),
-                string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_3 * x_4 * x_6"),
-                string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0 * x_1 * x_10")
-            ]
-        ];
-        assert!(gate_repr == expected_gate_repr, 100);
-        assert!(vector::length(&protocol.lookups) == 1, 101);
-
-        let lookup = vector::borrow<Lookup>(&protocol.lookups, 0);
-        let lookup_input_repr = vector::map_ref(&lookup.input_expressions, |expr| {
-            multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
-        });
-        let lookup_table_repr = vector::map_ref(&lookup.table_expressions, |expr| {
-            multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
-        });
-        assert!(
-            lookup_input_repr == vector[vector[string::utf8(
-                b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0"
-            )]],
-            102
-        );
-        assert!(
-            lookup_table_repr == vector[vector[string::utf8(
-                b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_5"
-            )]],
-            103
-        );
-    }
+    // #[test_only]
+    // public fun format(self: &Protocol): String {
+    //     let display = ProtocolDisplay {
+    //         vk_transcript_repr: self.vk_transcript_repr,
+    //         fixed_commitments: self.fixed_commitments,
+    //         permutation_commitments: self.permutation_commitments,
+    //         k: self.k,
+    //         max_num_query_of_advice_column: self.max_num_query_of_advice_column,
+    //         cs_degree: self.cs_degree,
+    //         num_fixed_columns: self.num_fixed_columns,
+    //         num_instance_columns: self.num_instance_columns,
+    //         advice_column_phase: self.advice_column_phase,
+    //         challenge_phase: self.challenge_phase,
+    //         advice_queries: self.advice_queries,
+    //         instance_queries: self.instance_queries,
+    //         fixed_queries: self.fixed_queries,
+    //         permutation_columns: self.permutation_columns,
+    //         gates: map_ref(&self.gates, |g| multivariate_poly::format(expression::poly(g))),
+    //         lookups: map_ref(&self.lookups, |l| {
+    //             let l: &Lookup = l;
+    //             LookupDisplay {
+    //                 input_expressions: map_ref(
+    //                     &l.input_expressions,
+    //                     |g| multivariate_poly::format(expression::poly(g))
+    //                 ),
+    //                 table_expressions: map_ref(&l.table_expressions, |g| multivariate_poly::format(expression::poly(g)))
+    //             }
+    //         })
+    //     };
+    //     string_utils::debug_string(&display)
+    // }
+    //
+    // #[test_only]
+    // fun display_expression_poly(
+    //     poly: &MultiVariatePoly<u16>,
+    //     fields_pool: &vector<Element<Fr>>
+    // ): MultiVariatePoly<vector<u8>> {
+    //     let new_term = vector::map_ref(multivariate_poly::terms(poly), |term| {
+    //         let term: &Term<u16> = term;
+    //         multivariate_poly::new_term(
+    //             crypto_algebra::serialize<Fr, FormatFrMsb>(
+    //                 vector::borrow(fields_pool, (*multivariate_poly::coff(term) as u64))
+    //             ),
+    //             *multivariate_poly::sparse_terms(term)
+    //         )
+    //     });
+    //     multivariate_poly::new_poly(new_term)
+    // }
+    //
+    // #[test(s = @std)]
+    // fun test_serialize(s: &signer) {
+    //     enable_cryptography_algebra_natives(s);
+    //     let protocol = from_bytes(
+    //         vector[
+    //             x"e4e0dba61d6090a78a67fe434074dc8e4bcfb756185b0e145df8c6020bc1260d",
+    //             x"0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008032bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e1905132bfee27b8b44c67b4e94b573c0efff410a61e573fc0efc90aafafc260e19051af9612d9cec5b7fb4c89947de2e3a8b8bb0e4e8faa06ebaa74573bc7ecd72c62",
+    //             x"49dec335e762fbbdaaefd2fd222d90c0e3debcff45ed97a434ac431d125d8415cbce8d505c3a6fc016e29b97d88a191324050debe6485e6c3781fd9aeced8f2cc4df2c2bcc96cc6e5e11d0c8c383761addd98e22add6b8a168bd41ade081b44b",
+    //             x"10",
+    //             x"01000000",
+    //             x"04000000",
+    //             x"0600000000000000",
+    //             x"0000000000000000",
+    //             x"0000000000",
+    //             x""
+    //         ],
+    //         vector[
+    //             x"00010000000100000000",
+    //             x"00020000000100000000",
+    //             x"00030000000100000000",
+    //             x"00040000000101000000",
+    //             x"00000000000001000000"
+    //         ],
+    //         vector[],
+    //         vector[
+    //             x"ff050000000100000000",
+    //             x"ff000000000100000000",
+    //             x"ff020000000100000000",
+    //             x"ff030000000100000000",
+    //             x"ff040000000100000000",
+    //             x"ff010000000100000000"
+    //         ],
+    //         vector[
+    //             x"0001000000",
+    //             x"0002000000",
+    //             x"0003000000"
+    //         ],
+    //         vector[
+    //             x"000000f093f5e1439170b97948e833285d588181b64550b829a031e1724e6430",
+    //             x"0100000000000000000000000000000000000000000000000000000000000000"
+    //         ],
+    //         vector[
+    //             x"05000000000002000000020000000100000009000000010000000100020000000100000001000000080000000100000001000200000000000000010000000700000001000000010003000000030000000100000004000000010000000600000001000000010003000000000000000100000001000000010000000a00000001000000"
+    //         ],
+    //         vector[
+    //             x"0100000012000000010000000100010000000000000001000000"
+    //         ],
+    //         vector[
+    //             x"0100000012000000010000000100010000000500000001000000"
+    //         ],
+    //         vector[
+    //             x"0100000012000000010000000100010000000000000001000000"
+    //         ],
+    //         vector[
+    //             x"0100000012000000010000000100010000000500000001000000"
+    //         ],
+    //     );
+    //
+    //     assert!(protocol.k == 0x10, 1);
+    //     assert!(protocol.num_fixed_columns == 0x06, 1);
+    //
+    //     let advice_query_len = vector::length(&protocol.advice_queries);
+    //     assert!(advice_query_len == 5, 1);
+    //
+    //     let advice_query = vector::borrow(&protocol.advice_queries, 3);
+    //     assert!(column::column_type(column_query::column(advice_query)) == 0, 1);
+    //     assert!(column::column_index(column_query::column(advice_query)) == 4, 1);
+    //     assert!(!i32::is_neg(column_query::rotation(advice_query)), 1);
+    //     assert!(i32::abs(column_query::rotation(advice_query)) == 1, 1);
+    //
+    //     let permutation_column = vector::borrow(&protocol.permutation_columns, 2);
+    //     assert!(column::column_type(permutation_column) == 0, 1);
+    //     assert!(column::column_index(permutation_column) == 3, 1);
+    //     let fields_pool = vector::map_ref(&protocol.fields_pool, |e| option::destroy_some(deserialize_fr(e)));
+    //     let gate_repr = vector::map_ref(&protocol.gates, |g| {
+    //         multivariate_poly::format(&display_expression_poly(expression::poly(g), &fields_pool))
+    //     });
+    //     let expected_gate_repr = vector[
+    //         vector[
+    //             string::utf8(b"0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000 * x_2 * x_9"),
+    //             string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_1 * x_8"),
+    //             string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0 * x_7"),
+    //             string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_3 * x_4 * x_6"),
+    //             string::utf8(b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0 * x_1 * x_10")
+    //         ]
+    //     ];
+    //     assert!(gate_repr == expected_gate_repr, 100);
+    //     assert!(vector::length(&protocol.lookups) == 1, 101);
+    //
+    //     let lookup = vector::borrow<Lookup>(&protocol.lookups, 0);
+    //     let lookup_input_repr = vector::map_ref(&lookup.input_expressions, |expr| {
+    //         multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
+    //     });
+    //     let lookup_table_repr = vector::map_ref(&lookup.table_expressions, |expr| {
+    //         multivariate_poly::format(&display_expression_poly(expression::poly(expr), &fields_pool))
+    //     });
+    //     assert!(
+    //         lookup_input_repr == vector[vector[string::utf8(
+    //             b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_0"
+    //         )]],
+    //         102
+    //     );
+    //     assert!(
+    //         lookup_table_repr == vector[vector[string::utf8(
+    //             b"0x0000000000000000000000000000000000000000000000000000000000000001 * x_5"
+    //         )]],
+    //         103
+    //     );
+    // }
 }

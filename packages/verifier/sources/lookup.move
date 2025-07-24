@@ -4,11 +4,11 @@ module halo2_verifier::lookup {
     use aptos_std::bn254_algebra::{G1, Fr};
 
     use halo2_common::domain::{Self, Domain};
-    use halo2_common::expression::{Self, Expression};
     use halo2_common::query::{Self, VerifierQuery};
     use halo2_common::i32;
     use halo2_verifier::protocol::{Self, Protocol, Lookup};
     use halo2_verifier::transcript::{Self, Transcript};
+    use halo2_verifier::evaluator::compress_exprs;
 
     struct PermutationCommitments has copy, drop {
         permuted_input_commitment: Element<G1>,
@@ -90,7 +90,7 @@ module halo2_verifier::lookup {
                 &self.product_eval,
                 &crypto_algebra::mul(
                     &crypto_algebra::add(
-                        &compress_expressions(
+                        &compress_exprs(
                             protocol::input_exprs(lookup),
                             coeff_pool,
                             advice_evals,
@@ -102,7 +102,7 @@ module halo2_verifier::lookup {
                         beta
                     ),
                     &crypto_algebra::add(
-                        &compress_expressions(
+                        &compress_exprs(
                             protocol::table_exprs(lookup),
                             coeff_pool,
                             advice_evals,
@@ -143,32 +143,6 @@ module halo2_verifier::lookup {
                     &crypto_algebra::sub(&self.permuted_input_eval, &self.permuted_input_inv_eval)),
             ));
 
-    }
-
-    fun compress_expressions(exprs: &vector<Expression>,
-                             coeff_pool: &vector<Element<Fr>>,
-                             advice_evals: &vector<Element<Fr>>,
-                             fixed_evals: &vector<Element<Fr>>,
-                             instance_evals: &vector<Element<Fr>>,
-                             challenges: &vector<Element<Fr>>,
-                             theta: &Element<Fr>
-    ): Element<Fr> {
-        let acc = crypto_algebra::zero();
-        let i = 0;
-        let len = vector::length(exprs);
-        while (i < len) {
-            let eval = expression::evaluate(
-                vector::borrow(exprs, i),
-                coeff_pool,
-                advice_evals,
-                fixed_evals,
-                instance_evals,
-                challenges
-            );
-            acc = crypto_algebra::add(&crypto_algebra::mul(theta, &acc), &eval);
-            i = i + 1;
-        };
-        acc
     }
 
     public fun queries(e: &vector<Evaluated>, queries: &mut vector<VerifierQuery>, _protocol: &Protocol, domain: &Domain, x: &Element<Fr>) {
