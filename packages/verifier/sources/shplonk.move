@@ -259,46 +259,49 @@ module halo2_verifier::shplonk {
             let eval = vector::borrow(&evals, j);
 
             let tmp = vector[crypto_algebra::one()];
-            let product = vector::empty();
 
             let k = 0;
             let denom_idx = 0;
-            while(k < points_len) {
-
+            while (k < points_len) {
                 if (k != j) {
                     let x_k = vector::borrow(&points, k);
-                    let denom = vector::borrow(denoms, denom_idx);
+                    let denom = vector::borrow(denoms, denom_idx); // alpha = denom
 
-                    let t = 0;
-                    let product_len = vector::length(&product);
-                    let tmp_len = vector::length(&tmp);
-                    while(t < tmp_len + 1) {
-                        if(t >= product_len) {
-                            vector::push_back(&mut product, crypto_algebra::zero());
-                        };
+                    let denom_xk = crypto_algebra::mul(denom, x_k);
 
-                        let a = if (t < tmp_len) {
-                            vector::borrow(&tmp, t)
-                        } else {
-                            &crypto_algebra::zero()
-                        };
+                    let len = vector::length(&tmp);
+                    if (len == 0) { // edge case for empty, but shouldn't happen
+                        abort 101;
+                    };
+                    let d = len - 1;
 
-                        let b = if (t == 0) {
-                            &crypto_algebra::zero()
-                        } else {
-                            vector::borrow(&tmp, t - 1)
-                        };
+                    // Compute and push the new highest coefficient: denom * tmp[d]
+                    let high_coeff = crypto_algebra::mul(denom, vector::borrow(&tmp, d));
+                    vector::push_back(&mut tmp, high_coeff);
 
-                        let c = vector::borrow_mut(&mut product, t);
-                        *c = crypto_algebra::add(&crypto_algebra::mul(a, &crypto_algebra::mul(&crypto_algebra::neg(denom), x_k)), &crypto_algebra::mul(b, denom));
+                    // Update from high to low (i = d down to 1)
+                    let i = d;
+                    while (i >= 1) {
+                        let prev = vector::borrow(&tmp, i - 1);
+                        let curr = vector::borrow(&tmp, i);
 
-                        t = t + 1;
+                        let alpha_prev = crypto_algebra::mul(denom, prev);
+                        let denom_xk_curr = crypto_algebra::mul(&denom_xk, curr);
+                        let new_val = crypto_algebra::sub(&alpha_prev, &denom_xk_curr);
+
+                        let mut_val = vector::borrow_mut(&mut tmp, i);
+                        *mut_val = new_val;
+
+                        if (i == 0) { break; }; // Prevent underflow
+                        i = i - 1;
                     };
 
-                    // swap tmp & product
-                    let tmp2 = tmp;
-                    tmp = product;
-                    product = tmp2;
+                    // Update lowest coefficient: -denom_xk * tmp[0]
+                    let curr0 = vector::borrow(&tmp, 0);
+                    let denom_xk_curr0 = crypto_algebra::mul(&denom_xk, curr0);
+                    let new_val0 = crypto_algebra::neg(&denom_xk_curr0);
+                    let mut_val0 = vector::borrow_mut(&mut tmp, 0);
+                    *mut_val0 = new_val0;
 
                     denom_idx = denom_idx + 1;
                 };
@@ -306,8 +309,7 @@ module halo2_verifier::shplonk {
                 k = k + 1;
             };
 
-            assert!(vector::length(&tmp) == vector::length(&points), 100);
-            assert!(vector::length(&product) == vector::length(&points) - 1, 100);
+            assert!(vector::length(&tmp) == points_len, 100);
 
             vector::zip_mut(&mut final_poly, &mut tmp, |final_coeff, interpolation_coeff| {
                 let final_coeff: &mut Element<Fr> = final_coeff;
