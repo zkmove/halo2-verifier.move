@@ -1,8 +1,8 @@
 use halo2_proofs::arithmetic::CurveAffine;
-use halo2_proofs::halo2curves::CurveExt;
 use halo2_proofs::halo2curves::ff::{FromUniformBytes, WithSmallOrderMulGroup};
 use halo2_proofs::halo2curves::pairing::{Engine, MultiMillerLoop};
 use halo2_proofs::halo2curves::serde::SerdeObject;
+use halo2_proofs::halo2curves::CurveExt;
 use halo2_proofs::plonk::{create_proof, verify_proof, Circuit, ProvingKey};
 use halo2_proofs::poly::commitment::{CommitmentScheme, ParamsProver, Prover, Verifier};
 use halo2_proofs::poly::kzg::commitment::{KZGCommitmentScheme, ParamsKZG};

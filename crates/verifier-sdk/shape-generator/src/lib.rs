@@ -1,39 +1,33 @@
-pub mod serialize;
-
-use std::collections::BTreeMap;
-
 use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::FromUniformBytes;
+use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField};
 use halo2_proofs::plonk::{
-    keygen_vk, Any, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
+    keygen_vk, Any, Challenge, Circuit, ConstraintSystem, Error, Expression, Fixed, Instance,
+    Selector,
 };
-use halo2_proofs::poly::commitment::Params;
-use halo2_proofs::poly::Rotation as Halo2Rotation;
-
-use multipoly::multivariate::{SparsePolynomial, SparseTerm, Term};
-use multipoly::DenseMVPolynomial;
+use halo2_proofs::poly::{commitment::Params, Rotation as Halo2Rotation};
+use std::collections::{BTreeMap, HashMap};
+use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct CircuitInfo<C: CurveAffine> {
-    vk_transcript_repr: C::Scalar,
-    fixed_commitments: Vec<C>,
-    permutation_commitments: Vec<C>,
-
-    k: u8,
-    max_num_query_of_advice_column: u32,
-    cs_degree: u32,
-    num_fixed_columns: u64,
-    num_instance_columns: u64,
-    advice_column_phase: Vec<u8>,
-    challenge_phase: Vec<u8>,
-    gates: Vec<Vec<MultiVariatePolynomial<C::Scalar>>>,
-
-    advice_queries: Vec<ColumnQuery>,
-    instance_queries: Vec<ColumnQuery>,
-    fixed_queries: Vec<ColumnQuery>,
-    permutation_columns: Vec<Column>,
-    lookups: Vec<Lookup<C::Scalar>>,
-    shuffles: Vec<Shuffle<C::Scalar>>,
+    pub vk_transcript_repr: C::Scalar,
+    pub fixed_commitments: Vec<C>,
+    pub permutation_commitments: Vec<C>,
+    pub k: u8,
+    pub max_num_query_of_advice_column: u32,
+    pub cs_degree: u32,
+    pub num_fixed_columns: u64,
+    pub num_instance_columns: u64,
+    pub advice_column_phase: Vec<u8>,
+    pub challenge_phase: Vec<u8>,
+    pub fields_pool: Vec<C::Scalar>,
+    pub gates: Vec<Gate<C::Scalar>>,
+    pub advice_queries: Vec<ColumnQuery>,
+    pub instance_queries: Vec<ColumnQuery>,
+    pub fixed_queries: Vec<ColumnQuery>,
+    pub permutation_columns: Vec<Column>,
+    pub lookups: Vec<Lookup<C::Scalar>>,
+    pub shuffles: Vec<Shuffle<C::Scalar>>,
 }
 
 #[derive(Debug)]
@@ -41,6 +35,7 @@ pub struct ColumnQuery {
     pub column: Column,
     pub rotation: Rotation,
 }
+
 #[derive(Debug)]
 pub struct Column {
     pub index: u32,
@@ -50,7 +45,7 @@ pub struct Column {
 impl From<halo2_proofs::plonk::Column<Any>> for Column {
     fn from(value: halo2_proofs::plonk::Column<Any>) -> Self {
         let column_type = match value.column_type() {
-            Any::Advice(phase) => phase.phase(),
+            Any::Advice(advice) => advice.phase(),
             Any::Fixed => 255,
             Any::Instance => 244,
         };
@@ -82,19 +77,108 @@ impl From<halo2_proofs::poly::Rotation> for Rotation {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct Gate<F: Field> {
+    pub polys: Vec<IndexedExpression<F>>,
+    _phantom: PhantomData<F>,
+}
+
 #[derive(Debug)]
 pub struct Lookup<F: Field> {
-    pub input_exprs: Vec<MultiVariatePolynomial<F>>,
-    pub table_exprs: Vec<MultiVariatePolynomial<F>>,
+    pub input_exprs: Vec<IndexedExpression<F>>,
+    pub table_exprs: Vec<IndexedExpression<F>>,
+    _phantom: PhantomData<F>,
 }
+
 #[derive(Debug)]
 pub struct Shuffle<F: Field> {
-    pub input_exprs: Vec<MultiVariatePolynomial<F>>,
-    pub shuffle_exprs: Vec<MultiVariatePolynomial<F>>,
+    pub input_exprs: Vec<IndexedExpression<F>>,
+    pub shuffle_exprs: Vec<IndexedExpression<F>>,
+    _phantom: PhantomData<F>,
 }
 
-pub type MultiVariatePolynomial<F> = SparsePolynomial<F, SparseTerm>;
+#[derive(Debug, Clone, Copy)]
+pub enum IndexType {
+    U8(u8),
+    U32(u32),
+}
 
+impl IndexType {
+    pub fn value(&self) -> u32 {
+        match self {
+            IndexType::U8(v) => *v as u32,
+            IndexType::U32(v) => *v,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum IndexedExpression<F: Field> {
+    ConstantIndex(IndexType, PhantomData<F>),
+    Selector(Selector),
+    Fixed(IndexType),
+    Advice(IndexType),
+    Instance(IndexType),
+    Challenge(Challenge),
+    Negated(Box<IndexedExpression<F>>),
+    Sum(Box<IndexedExpression<F>>, Box<IndexedExpression<F>>),
+    Product(Box<IndexedExpression<F>>, Box<IndexedExpression<F>>),
+    Scaled(Box<IndexedExpression<F>>, IndexType),
+}
+impl<F: Field> IndexedExpression<F> {
+    fn write_identifier<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        match self {
+            IndexedExpression::ConstantIndex(index, _) => {
+                write!(writer, "constant_index[{}]", index.value())
+            }
+            IndexedExpression::Selector(selector) => {
+                write!(writer, "selector[{}]", selector.index())
+            }
+            IndexedExpression::Fixed(index) => {
+                write!(writer, "fixed_query[{}]", index.value())
+            }
+            IndexedExpression::Advice(index) => {
+                write!(writer, "advice_query[{}]", index.value())
+            }
+            IndexedExpression::Instance(index) => {
+                write!(writer, "instance_query[{}]", index.value())
+            }
+            IndexedExpression::Challenge(challenge) => {
+                write!(writer, "challenge[{}]", challenge.index())
+            }
+            IndexedExpression::Negated(a) => {
+                writer.write_all(b"(-")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Sum(a, b) => {
+                writer.write_all(b"(")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b"+")?;
+                b.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Product(a, b) => {
+                writer.write_all(b"(")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b"*")?;
+                b.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Scaled(expr, index) => {
+                expr.write_identifier(writer)?;
+                write!(writer, "*constant_index[{}]", index.value())
+            }
+        }
+    }
+
+    pub fn identifier(&self) -> String {
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        self.write_identifier(&mut cursor).unwrap();
+        String::from_utf8(cursor.into_inner()).unwrap()
+    }
+}
 pub fn generate_circuit_info<'params, C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
@@ -108,34 +192,324 @@ where
 {
     let vk = keygen_vk(params, circuit)?;
     let cs = vk.cs();
-    // as halo2 dones'nt expose vk's transcript_repr,
-    // we had to copy the code here.
     let vk_repr = {
         let mut hasher = blake2b_simd::Params::new()
             .hash_length(64)
             .personal(b"Halo2-Verify-Key")
             .to_state();
-
         let s = format!("{:?}", vk.pinned());
-
         hasher.update(&(s.len() as u64).to_le_bytes());
         hasher.update(s.as_bytes());
-
-        // Hash in final Blake2bState
         C::Scalar::from_uniform_bytes(hasher.finalize().as_array())
     };
+
+    let mut fields_pool: Vec<C::Scalar> = Vec::new();
+    let mut constant_map: HashMap<Vec<u8>, u32> = HashMap::new();
+
+    fn collect_fields<C: CurveAffine>(
+        expr: &Expression<C::Scalar>,
+        fields_pool: &mut Vec<C::Scalar>,
+        constant_map: &mut HashMap<Vec<u8>, u32>,
+    ) {
+        match expr {
+            Expression::Constant(f) => {
+                let bytes = encode_field::<C>(f);
+                constant_map.entry(bytes).or_insert_with(|| {
+                    let idx = fields_pool.len() as u32;
+                    fields_pool.push(*f);
+                    idx
+                });
+            }
+            Expression::Selector(_)
+            | Expression::Fixed(_)
+            | Expression::Advice(_)
+            | Expression::Instance(_)
+            | Expression::Challenge(_) => {}
+            Expression::Negated(e) => collect_fields::<C>(e, fields_pool, constant_map),
+            Expression::Sum(a, b) | Expression::Product(a, b) => {
+                collect_fields::<C>(a, fields_pool, constant_map);
+                collect_fields::<C>(b, fields_pool, constant_map);
+            }
+            Expression::Scaled(e, f) => {
+                let bytes = encode_field::<C>(f);
+                constant_map.entry(bytes).or_insert_with(|| {
+                    let idx = fields_pool.len() as u32;
+                    fields_pool.push(*f);
+                    idx
+                });
+                collect_fields::<C>(e, fields_pool, constant_map);
+            }
+        }
+    }
+
+    fn to_indexed_expression<C: CurveAffine>(
+        expr: &Expression<C::Scalar>,
+        constant_map: &HashMap<Vec<u8>, u32>,
+        use_u8_index_for_fields: bool,
+        use_u8_index_for_query: bool,
+        cs: &ConstraintSystem<C::Scalar>,
+    ) -> Result<IndexedExpression<C::Scalar>, Error> {
+        match expr {
+            Expression::Constant(f) => {
+                let bytes = encode_field::<C>(f);
+                let index = *constant_map.get(&bytes).ok_or(Error::Synthesis)?;
+                let idx = if use_u8_index_for_fields {
+                    if index >= 256 {
+                        return Err(Error::Synthesis);
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index)
+                };
+                Ok(IndexedExpression::ConstantIndex(idx, PhantomData))
+            }
+            Expression::Selector(s) => Ok(IndexedExpression::Selector(*s)),
+            Expression::Fixed(q) => {
+                let index = get_fixed_query_index(cs, q.column_index(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
+                    if index >= 256 {
+                        return Err(Error::Synthesis);
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Fixed(idx))
+            }
+            Expression::Advice(q) => {
+                let index = get_advice_query_index(cs, q.column_index(), q.phase(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
+                    if index >= 256 {
+                        return Err(Error::Synthesis);
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Advice(idx))
+            }
+            Expression::Instance(q) => {
+                let index = get_instance_query_index(cs, q.column_index(), q.rotation())?;
+                let idx = if use_u8_index_for_query {
+                    if index >= 256 {
+                        return Err(Error::Synthesis);
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index as u32)
+                };
+                Ok(IndexedExpression::Instance(idx))
+            }
+            Expression::Challenge(c) => Ok(IndexedExpression::Challenge(*c)),
+            Expression::Negated(e) => {
+                let e_expr = to_indexed_expression::<C>(
+                    e,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Negated(Box::new(e_expr)))
+            }
+            Expression::Sum(a, b) => {
+                let a_expr = to_indexed_expression::<C>(
+                    a,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                let b_expr = to_indexed_expression::<C>(
+                    b,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Sum(Box::new(a_expr), Box::new(b_expr)))
+            }
+            Expression::Product(a, b) => {
+                let a_expr = to_indexed_expression::<C>(
+                    a,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                let b_expr = to_indexed_expression::<C>(
+                    b,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Product(
+                    Box::new(a_expr),
+                    Box::new(b_expr),
+                ))
+            }
+            Expression::Scaled(e, f) => {
+                let bytes = encode_field::<C>(f);
+                let index = *constant_map.get(&bytes).ok_or(Error::Synthesis)?;
+                let idx = if use_u8_index_for_fields {
+                    if index >= 256 {
+                        return Err(Error::Synthesis);
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index)
+                };
+                let e_expr = to_indexed_expression::<C>(
+                    e,
+                    constant_map,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                    cs,
+                )?;
+                Ok(IndexedExpression::Scaled(Box::new(e_expr), idx))
+            }
+        }
+    }
+
+    for gate in cs.gates() {
+        for poly in gate.polynomials() {
+            collect_fields::<C>(poly, &mut fields_pool, &mut constant_map);
+        }
+    }
+    for lookup in cs.lookups() {
+        for expr in lookup.input_expressions() {
+            collect_fields::<C>(expr, &mut fields_pool, &mut constant_map);
+        }
+        for expr in lookup.table_expressions() {
+            collect_fields::<C>(expr, &mut fields_pool, &mut constant_map);
+        }
+    }
+    for shuffle in cs.shuffles() {
+        for expr in shuffle.input_expressions() {
+            collect_fields::<C>(expr, &mut fields_pool, &mut constant_map);
+        }
+        for expr in shuffle.shuffle_expressions() {
+            collect_fields::<C>(expr, &mut fields_pool, &mut constant_map);
+        }
+    }
+
+    let use_u8_index_for_fields = fields_pool.len() < 256;
+    let use_u8_index_for_query = cs.advice_queries().len() < 256
+        && cs.fixed_queries().len() < 256
+        && cs.instance_queries().len() < 256;
+
+    let gates: Vec<Gate<C::Scalar>> = cs
+        .gates()
+        .iter()
+        .map(|g| {
+            let polys: Vec<IndexedExpression<C::Scalar>> = g
+                .polynomials()
+                .iter()
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Gate {
+                polys,
+                _phantom: PhantomData,
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+
+    let lookups: Vec<Lookup<C::Scalar>> = cs
+        .lookups()
+        .iter()
+        .map(|l| {
+            let input_exprs: Vec<IndexedExpression<C::Scalar>> = l
+                .input_expressions()
+                .iter()
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let table_exprs: Vec<IndexedExpression<C::Scalar>> = l
+                .table_expressions()
+                .iter()
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Lookup {
+                input_exprs,
+                table_exprs,
+                _phantom: PhantomData,
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+
+    let shuffles: Vec<Shuffle<C::Scalar>> = cs
+        .shuffles()
+        .iter()
+        .map(|s| {
+            let input_exprs: Vec<IndexedExpression<C::Scalar>> = s
+                .input_expressions()
+                .iter()
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let shuffle_exprs: Vec<IndexedExpression<C::Scalar>> = s
+                .shuffle_expressions()
+                .iter()
+                .map(|e| {
+                    to_indexed_expression::<C>(
+                        e,
+                        &constant_map,
+                        use_u8_index_for_fields,
+                        use_u8_index_for_query,
+                        cs,
+                    )
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            Ok(Shuffle {
+                input_exprs,
+                shuffle_exprs,
+                _phantom: PhantomData,
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
 
     let info = CircuitInfo {
         vk_transcript_repr: vk_repr,
         fixed_commitments: vk.fixed_commitments().clone(),
         permutation_commitments: vk.permutation().commitments().clone(),
-        k: (params.k() as u8), // we expect k would not be too large.
+        k: params.k() as u8,
         cs_degree: cs.degree() as u32,
         num_fixed_columns: cs.num_fixed_columns() as u64,
         num_instance_columns: cs.num_instance_columns() as u64,
         advice_column_phase: cs.advice_column_phase(),
         challenge_phase: cs.challenge_phase(),
-
+        fields_pool,
+        gates,
         advice_queries: cs
             .advice_queries()
             .iter()
@@ -166,74 +540,8 @@ where
             .iter()
             .map(|c| From::from(*c))
             .collect(),
-        lookups: cs
-            .lookups()
-            .iter()
-            .map(|l| Lookup {
-                input_exprs: l
-                    .input_expressions()
-                    .iter()
-                    .map(|e| {
-                        expression_transform(
-                            cs,
-                            e,
-                            cs.advice_queries().len(),
-                            cs.fixed_queries().len(),
-                            cs.instance_queries().len(),
-                            cs.challenge_phase().len(),
-                        )
-                    })
-                    .collect(),
-                table_exprs: l
-                    .table_expressions()
-                    .iter()
-                    .map(|e| {
-                        expression_transform(
-                            cs,
-                            e,
-                            cs.advice_queries().len(),
-                            cs.fixed_queries().len(),
-                            cs.instance_queries().len(),
-                            cs.challenge_phase().len(),
-                        )
-                    })
-                    .collect(),
-            })
-            .collect(),
-        shuffles: cs
-            .shuffles()
-            .iter()
-            .map(|s| Shuffle {
-                input_exprs: s
-                    .input_expressions()
-                    .iter()
-                    .map(|e| {
-                        expression_transform(
-                            cs,
-                            e,
-                            cs.advice_queries().len(),
-                            cs.fixed_queries().len(),
-                            cs.instance_queries().len(),
-                            cs.challenge_phase().len(),
-                        )
-                    })
-                    .collect(),
-                shuffle_exprs: s
-                    .shuffle_expressions()
-                    .iter()
-                    .map(|e| {
-                        expression_transform(
-                            cs,
-                            e,
-                            cs.advice_queries().len(),
-                            cs.fixed_queries().len(),
-                            cs.instance_queries().len(),
-                            cs.challenge_phase().len(),
-                        )
-                    })
-                    .collect(),
-            })
-            .collect(),
+        lookups,
+        shuffles,
         max_num_query_of_advice_column: cs
             .advice_queries()
             .iter()
@@ -249,105 +557,281 @@ where
             .max()
             .cloned()
             .unwrap_or_default(),
-
-        gates: cs
-            .gates()
-            .iter()
-            .map(|g| {
-                g.polynomials()
-                    .iter()
-                    .map(|e| {
-                        expression_transform(
-                            cs,
-                            e,
-                            cs.advice_queries().len(),
-                            cs.fixed_queries().len(),
-                            cs.instance_queries().len(),
-                            cs.challenge_phase().len(),
-                        )
-                    })
-                    .collect()
-            })
-            .collect(),
     };
     Ok(info)
 }
 
-/// basicly, we treat every queries and challenges as a variable, so there will be `advice_queries_len+fixed_queries_len+instance_queries_len+challenges_len` variables.
-/// and the orders should be the same as that in `expression.move`.
-fn expression_transform<F: Field + Ord>(
-    cs: &ConstraintSystem<F>,
-    expr: &Expression<F>,
-    advice_queries_len: usize,
-    fixed_queries_len: usize,
-    instance_queries_len: usize,
-    challenges_len: usize,
-) -> SparsePolynomial<F, SparseTerm> {
-    let advice_range = advice_queries_len;
-    let fixed_range = advice_range + fixed_queries_len;
-    let instance_range = fixed_range + instance_queries_len;
-    let challenge_range = instance_range + challenges_len;
-
-    expr.evaluate(
-        &|c| {
-            SparsePolynomial::from_coefficients_vec(
-                challenge_range,
-                vec![(c, SparseTerm::default())],
-            )
-        },
-        &|_| panic!("virtual selectors are removed during optimization"),
-        &|query| {
-            let query_index = get_fixed_query_index(cs, query.column_index(), query.rotation());
-            SparsePolynomial::from_coefficients_vec(
-                challenge_range,
-                vec![(
-                    F::ONE,
-                    SparseTerm::new(vec![(advice_range + query_index, 1)]),
-                )],
-            )
-        },
-        &|query| {
-            let query_index =
-                get_advice_query_index(cs, query.column_index(), query.phase(), query.rotation());
-            SparsePolynomial::from_coefficients_vec(
-                challenge_range,
-                vec![(F::ONE, SparseTerm::new(vec![(query_index, 1)]))],
-            )
-        },
-        &|query| {
-            let query_index = get_instance_query_index(cs, query.column_index(), query.rotation());
-            SparsePolynomial::from_coefficients_vec(
-                challenge_range,
-                vec![(
-                    F::ONE,
-                    SparseTerm::new(vec![(fixed_range + query_index, 1)]),
-                )],
-            )
-        },
-        &|challenge| {
-            SparsePolynomial::from_coefficients_vec(
-                challenge_range,
-                vec![(
-                    F::ONE,
-                    SparseTerm::new(vec![(instance_range + challenge.index(), 1)]),
-                )],
-            )
-        },
-        &|a| -a,
-        &|a, b| a + b,
-        &|a, b| &a * &b,
-        &|a, scalar| a * &scalar,
-    )
+fn encode_field<C: CurveAffine>(f: &C::Scalar) -> Vec<u8> {
+    PrimeField::to_repr(f).as_ref().to_vec()
 }
 
-/// because halo2 doesn't expose these function, we had to copy them here.
-/// TODO; pr to halo2 to expose these functions
+impl<C: CurveAffine> CircuitInfo<C> {
+    pub fn serialize(&self) -> bcs::Result<Vec<Vec<Vec<u8>>>> {
+        let vk_repr = PrimeField::to_repr(&self.vk_transcript_repr)
+            .as_ref()
+            .to_vec();
+        let fixed_commitments = self
+            .fixed_commitments
+            .iter()
+            .flat_map(|c| c.to_bytes().as_ref().to_vec())
+            .collect();
+        let permutation_commitments = self
+            .permutation_commitments
+            .iter()
+            .flat_map(|c| c.to_bytes().as_ref().to_vec())
+            .collect();
+        let use_u8_index_for_fields = self.fields_pool.len() < 256;
+        let use_u8_index_for_query = self.advice_queries.len() < 256
+            && self.fixed_queries.len() < 256
+            && self.instance_queries.len() < 256;
+        let general_info = vec![
+            vk_repr,
+            fixed_commitments,
+            permutation_commitments,
+            bcs::to_bytes(&self.k)?,
+            bcs::to_bytes(&self.max_num_query_of_advice_column)?,
+            bcs::to_bytes(&self.cs_degree)?,
+            bcs::to_bytes(&self.num_fixed_columns)?,
+            bcs::to_bytes(&self.num_instance_columns)?,
+            self.advice_column_phase.clone(),
+            self.challenge_phase.clone(),
+        ];
+        let fields_pool = self
+            .fields_pool
+            .iter()
+            .map(|f| encode_field::<C>(f))
+            .collect();
+        let gates = self
+            .gates
+            .iter()
+            .map(|g| {
+                serialize_exprs::<C>(&g.polys, use_u8_index_for_fields, use_u8_index_for_query)
+            })
+            .collect();
+        let advice_queries = self
+            .advice_queries
+            .iter()
+            .map(serialize_column_query)
+            .collect();
+        let instance_queries = self
+            .instance_queries
+            .iter()
+            .map(serialize_column_query)
+            .collect();
+        let fixed_queries = self
+            .fixed_queries
+            .iter()
+            .map(serialize_column_query)
+            .collect();
+        let permutation_columns = self
+            .permutation_columns
+            .iter()
+            .map(serialize_column)
+            .collect();
+        let lookups_input_exprs = self
+            .lookups
+            .iter()
+            .map(|l| {
+                serialize_exprs::<C>(
+                    &l.input_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
+            .collect();
+        let lookups_table_exprs = self
+            .lookups
+            .iter()
+            .map(|l| {
+                serialize_exprs::<C>(
+                    &l.table_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
+            .collect();
+        let shuffles_input_exprs = self
+            .shuffles
+            .iter()
+            .map(|s| {
+                serialize_exprs::<C>(
+                    &s.input_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
+            .collect();
+        let shuffles_shuffle_exprs = self
+            .shuffles
+            .iter()
+            .map(|s| {
+                serialize_exprs::<C>(
+                    &s.shuffle_exprs,
+                    use_u8_index_for_fields,
+                    use_u8_index_for_query,
+                )
+            })
+            .collect();
+        let result = vec![
+            general_info,
+            advice_queries,
+            instance_queries,
+            fixed_queries,
+            permutation_columns,
+            fields_pool,
+            gates,
+            lookups_input_exprs,
+            lookups_table_exprs,
+            shuffles_input_exprs,
+            shuffles_shuffle_exprs,
+        ];
+
+        let item_names = vec![
+            "General Info",
+            "Advice Queries",
+            "Instance Queries",
+            "Fixed Queries",
+            "Permutation Columns",
+            "Fields Pool",
+            "Gates",
+            "Lookups Input Expressions",
+            "Lookups Table Expressions",
+            "Shuffles Input Expressions",
+            "Shuffles Shuffle Expressions",
+        ];
+
+        for (i, (item, name)) in result.iter().zip(item_names.iter()).enumerate() {
+            let total_size: usize = item.iter().map(|nested| nested.len()).sum();
+            let lengths = item.len();
+            println!(
+                "Item {} ({}): total size = {}, lengths = {:?}",
+                i, name, total_size, lengths
+            );
+        }
+
+        Ok(result)
+    }
+}
+
+fn serialize_exprs<C: CurveAffine>(
+    exprs: &[IndexedExpression<C::Scalar>],
+    use_u8_index_for_fields: bool,
+    use_u8_index_for_query: bool,
+) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.push(if use_u8_index_for_fields { 0 } else { 1 });
+    bytes.push(if use_u8_index_for_query { 0 } else { 1 });
+    for expr in exprs {
+        serialize_expression::<C>(
+            expr,
+            &mut bytes,
+            use_u8_index_for_fields,
+            use_u8_index_for_query,
+        );
+    }
+    bytes
+}
+
+fn serialize_index(buffer: &mut Vec<u8>, index: &IndexType, use_u8: bool) {
+    match index {
+        IndexType::U8(idx) => {
+            if !use_u8 {
+                panic!("Expected u32 index, found u8");
+            }
+            buffer.push(*idx);
+        }
+        IndexType::U32(idx) => {
+            if use_u8 {
+                panic!("Expected u8 index, found u32");
+            }
+            buffer.extend(idx.to_le_bytes());
+        }
+    }
+}
+
+fn serialize_expression<C: CurveAffine>(
+    expr: &IndexedExpression<C::Scalar>,
+    buffer: &mut Vec<u8>,
+    use_u8_index_for_fields: bool,
+    use_u8_index_for_query: bool,
+) {
+    match expr {
+        IndexedExpression::ConstantIndex(index, _) => {
+            buffer.push(0x00);
+            serialize_index(buffer, index, use_u8_index_for_fields);
+        }
+        IndexedExpression::Selector(_) => panic!("Selectors should be optimized out"),
+        IndexedExpression::Fixed(index) => {
+            buffer.push(0x02);
+            serialize_index(buffer, index, use_u8_index_for_query);
+        }
+        IndexedExpression::Advice(index) => {
+            buffer.push(0x03);
+            serialize_index(buffer, index, use_u8_index_for_query);
+        }
+        IndexedExpression::Instance(index) => {
+            buffer.push(0x04);
+            serialize_index(buffer, index, use_u8_index_for_query);
+        }
+        IndexedExpression::Challenge(challenge) => {
+            buffer.push(0x05);
+            let index = challenge.index() as u32;
+            buffer.extend(index.to_le_bytes());
+        }
+        IndexedExpression::Negated(expr) => {
+            buffer.push(0x06);
+            serialize_expression::<C>(
+                expr,
+                buffer,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+            );
+        }
+        IndexedExpression::Sum(a, b) => {
+            buffer.push(0x07);
+            serialize_expression::<C>(a, buffer, use_u8_index_for_fields, use_u8_index_for_query);
+            serialize_expression::<C>(b, buffer, use_u8_index_for_fields, use_u8_index_for_query);
+        }
+        IndexedExpression::Product(a, b) => {
+            buffer.push(0x08);
+            serialize_expression::<C>(a, buffer, use_u8_index_for_fields, use_u8_index_for_query);
+            serialize_expression::<C>(b, buffer, use_u8_index_for_fields, use_u8_index_for_query);
+        }
+        IndexedExpression::Scaled(expr, index) => {
+            buffer.push(0x09);
+            serialize_expression::<C>(
+                expr,
+                buffer,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+            );
+            serialize_index(buffer, index, use_u8_index_for_fields);
+        }
+    }
+}
+
+fn serialize_column_query(q: &ColumnQuery) -> Vec<u8> {
+    let mut bytes = vec![];
+    bytes.push(q.column.column_type);
+    bytes.extend(q.column.index.to_le_bytes());
+    bytes.push(q.rotation.next.into());
+    bytes.extend(q.rotation.rotation.to_le_bytes());
+    bytes
+}
+
+fn serialize_column(column: &Column) -> Vec<u8> {
+    let mut bytes = vec![];
+    bytes.push(column.column_type);
+    bytes.extend(column.index.to_le_bytes());
+    bytes
+}
+
 pub(crate) fn get_advice_query_index<F: Field>(
     cs: &ConstraintSystem<F>,
     column_index: usize,
     phase: u8,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.advice_queries().iter().enumerate() {
         if (
             query_column.index(),
@@ -355,41 +839,38 @@ pub(crate) fn get_advice_query_index<F: Field>(
             rotation,
         ) == (column_index, phase, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-
-    panic!("get_advice_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }
 
 pub(crate) fn get_fixed_query_index<F: Field>(
     cs: &ConstraintSystem<F>,
     column_index: usize,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.fixed_queries().iter().enumerate() {
         if (query_column.index(), query_column.column_type(), rotation)
             == (column_index, &Fixed, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-
-    panic!("get_fixed_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }
 
 pub(crate) fn get_instance_query_index<F: Field>(
     cs: &ConstraintSystem<F>,
     column_index: usize,
     at: Halo2Rotation,
-) -> usize {
+) -> Result<usize, Error> {
     for (index, (query_column, rotation)) in cs.instance_queries().iter().enumerate() {
         if (query_column.index(), query_column.column_type(), rotation)
             == (column_index, &Instance, &at)
         {
-            return index;
+            return Ok(index);
         }
     }
-
-    panic!("get_instance_query_index called for non-existent query");
+    Err(Error::Synthesis)
 }

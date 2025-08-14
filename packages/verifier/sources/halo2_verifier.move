@@ -8,7 +8,6 @@ module halo2_verifier::halo2_verifier {
     use halo2_common::column;
     use halo2_common::column_query::{Self, ColumnQuery};
     use halo2_common::domain::{Self, Domain};
-    use halo2_common::expression::{Self, Expression};
     use halo2_common::i32;
     use halo2_common::params::Params;
     use halo2_common::query::{Self, VerifierQuery};
@@ -22,6 +21,11 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
+    use halo2_verifier::evaluator;
+    // use std::debug;
+    // use std::string::{Self, String, utf8};
+    // use std::bn254_algebra::FormatFrLsb;
+
 
     const INVALID_INSTANCES: u64 = 100;
     const SHPLONK: u8 = 0;
@@ -492,7 +496,7 @@ module halo2_verifier::halo2_verifier {
     }
 
     fun evaluate_gates(
-        gates: &vector<Expression>,
+        gates: &vector<vector<u8>>,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -500,9 +504,11 @@ module halo2_verifier::halo2_verifier {
         challenges: &vector<Element<Fr>>,
         results: &mut vector<Element<Fr>>,
     ) {
-        vector::for_each_ref(gates, |expr| {
-            vector::push_back(results,
-                expression::evaluate(expr, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges))
+        vector::for_each_ref(gates, |exprs| {
+            let eval_result = evaluator::evaluate_exprs(exprs, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges);
+            vector::for_each_ref(&eval_result, |item| {
+                vector::push_back(results, *item);
+            });
         });
     }
 

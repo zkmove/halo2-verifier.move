@@ -53,7 +53,8 @@ module halo2_common::bn254_utils {
     ];
 
     public fun sqrt_fq(e: &Element<Fq>): Option<Element<Fq>> {
-        let tmp = pow(e, &FQ_SQRT_PRE_COMP);
+        // let tmp = pow(e, &FQ_SQRT_PRE_COMP);
+        let tmp = crypto_algebra::pow(e, &FQ_SQRT_PRE_COMP);
         if (crypto_algebra::eq(&crypto_algebra::sqr(&tmp), e)) {
             option::some(tmp)
         } else {
