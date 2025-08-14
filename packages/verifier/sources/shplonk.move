@@ -271,7 +271,7 @@ module halo2_verifier::shplonk {
 
                     let len = vector::length(&tmp);
                     if (len == 0) { // edge case for empty, but shouldn't happen
-                        abort 101;
+                        abort 101
                     };
                     let d = len - 1;
 
@@ -292,7 +292,7 @@ module halo2_verifier::shplonk {
                         let mut_val = vector::borrow_mut(&mut tmp, i);
                         *mut_val = new_val;
 
-                        if (i == 0) { break; }; // Prevent underflow
+                        if (i == 0) { break }; // Prevent underflow
                         i = i - 1;
                     };
 

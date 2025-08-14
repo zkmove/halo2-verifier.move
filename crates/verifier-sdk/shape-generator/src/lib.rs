@@ -45,7 +45,7 @@ pub struct Column {
 impl From<halo2_proofs::plonk::Column<Any>> for Column {
     fn from(value: halo2_proofs::plonk::Column<Any>) -> Self {
         let column_type = match value.column_type() {
-            Any::Advice(phase) => phase.phase(),
+            Any::Advice(advice) => advice.phase(),
             Any::Fixed => 255,
             Any::Instance => 244,
         };
@@ -104,6 +104,15 @@ pub enum IndexType {
     U32(u32),
 }
 
+impl IndexType {
+    pub fn value(&self) -> u32 {
+        match self {
+            IndexType::U8(v) => *v as u32,
+            IndexType::U32(v) => *v,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum IndexedExpression<F: Field> {
     ConstantIndex(IndexType, PhantomData<F>),
@@ -117,7 +126,59 @@ pub enum IndexedExpression<F: Field> {
     Product(Box<IndexedExpression<F>>, Box<IndexedExpression<F>>),
     Scaled(Box<IndexedExpression<F>>, IndexType),
 }
+impl<F: Field> IndexedExpression<F> {
+    fn write_identifier<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        match self {
+            IndexedExpression::ConstantIndex(index, _) => {
+                write!(writer, "constant_index[{}]", index.value())
+            }
+            IndexedExpression::Selector(selector) => {
+                write!(writer, "selector[{}]", selector.index())
+            }
+            IndexedExpression::Fixed(index) => {
+                write!(writer, "fixed_query[{}]", index.value())
+            }
+            IndexedExpression::Advice(index) => {
+                write!(writer, "advice_query[{}]", index.value())
+            }
+            IndexedExpression::Instance(index) => {
+                write!(writer, "instance_query[{}]", index.value())
+            }
+            IndexedExpression::Challenge(challenge) => {
+                write!(writer, "challenge[{}]", challenge.index())
+            }
+            IndexedExpression::Negated(a) => {
+                writer.write_all(b"(-")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Sum(a, b) => {
+                writer.write_all(b"(")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b"+")?;
+                b.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Product(a, b) => {
+                writer.write_all(b"(")?;
+                a.write_identifier(writer)?;
+                writer.write_all(b"*")?;
+                b.write_identifier(writer)?;
+                writer.write_all(b")")
+            }
+            IndexedExpression::Scaled(expr, index) => {
+                expr.write_identifier(writer)?;
+                write!(writer, "*constant_index[{}]", index.value())
+            }
+        }
+    }
 
+    pub fn identifier(&self) -> String {
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        self.write_identifier(&mut cursor).unwrap();
+        String::from_utf8(cursor.into_inner()).unwrap()
+    }
+}
 pub fn generate_circuit_info<'params, C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
@@ -714,7 +775,8 @@ fn serialize_expression<C: CurveAffine>(
         }
         IndexedExpression::Challenge(challenge) => {
             buffer.push(0x05);
-            buffer.extend(challenge.index().to_le_bytes());
+            let index = challenge.index() as u32;
+            buffer.extend(index.to_le_bytes());
         }
         IndexedExpression::Negated(expr) => {
             buffer.push(0x06);

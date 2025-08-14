@@ -22,6 +22,10 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
     use halo2_verifier::evaluator;
+    // use std::debug;
+    // use std::string::{Self, String, utf8};
+    // use std::bn254_algebra::FormatFrLsb;
+
 
     const INVALID_INSTANCES: u64 = 100;
     const SHPLONK: u8 = 0;

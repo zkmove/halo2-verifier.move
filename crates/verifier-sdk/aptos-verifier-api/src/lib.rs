@@ -1,11 +1,11 @@
 use crate::types::{ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes};
+use anyhow::{Error, Result};
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::ff::PrimeField;
-use halo2_proofs::plonk::{Circuit};
+use halo2_proofs::plonk::Circuit;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde_json::json;
 use shape_generator::generate_circuit_info;
-use anyhow::{Error, Result};
 
 pub mod proving;
 pub mod types;
