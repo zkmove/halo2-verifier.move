@@ -1,5 +1,5 @@
 pub mod examples;
 
-pub mod proof;
+pub mod proofs;
 
 pub mod to_ark;

@@ -1,7 +1,10 @@
 use halo2_proofs::halo2curves::ff::{Field, PrimeField};
 use halo2_proofs::{
     circuit::{Cell, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{Advice, Assigned, Circuit, Column, ConstraintSystem, Error, Fixed, TableColumn},
+    plonk::{
+        Advice, Assigned, Circuit, Column, ConstraintSystem, ErrorFront as Error, Fixed,
+        TableColumn,
+    },
     poly::Rotation,
 };
 

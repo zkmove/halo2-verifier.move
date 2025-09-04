@@ -4,7 +4,9 @@ use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::{
     arithmetic::Field,
     circuit::{AssignedCell, Chip, Layouter, Region, SimpleFloorPlanner, Value},
-    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector},
+    plonk::{
+        Advice, Circuit, Column, ConstraintSystem, ErrorFront as Error, Fixed, Instance, Selector,
+    },
     poly::Rotation,
 };
 

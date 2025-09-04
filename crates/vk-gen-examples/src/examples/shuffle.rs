@@ -4,7 +4,10 @@ use halo2_proofs::{
     circuit::{floor_planner::V1, Layouter, Value},
     dev::{metadata, FailureLocation, MockProver, VerifyFailure},
     halo2curves::ff::{BatchInvert, FromUniformBytes},
-    plonk::*,
+    plonk::{
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Challenge, Circuit, Column,
+        ConstraintSystem, ErrorFront as Error, Expression, FirstPhase, SecondPhase, Selector,
+    },
     poly::{
         commitment::ParamsProver,
         ipa::{
@@ -294,7 +297,7 @@ fn test_prover<C: CurveAffine, const W: usize, const H: usize>(
             &params,
             &pk,
             &[circuit],
-            &[&[]],
+            &[vec![]],
             OsRng,
             &mut transcript,
         )
@@ -311,7 +314,7 @@ fn test_prover<C: CurveAffine, const W: usize, const H: usize>(
             &params,
             pk.get_vk(),
             strategy,
-            &[&[]],
+            &[vec![]],
             &mut transcript,
         )
         .map(|strategy| strategy.finalize())

@@ -61,7 +61,7 @@ module halo2_verifier::halo2_verifier {
         // check_instances(&instances, protocol::num_instance(protocol));
         let num_proof = vector::length(&instances);
 
-        transcript::common_scalar(&mut transcript,  option::destroy_some( bn254_utils::deserialize_fr(protocol::transcript_repr(protocol))));
+        transcript::common_scalar(&mut transcript,  option::destroy_some( bn254_utils::deserialize_fr(protocol::vk_transcript_repr(protocol))));
         vector::for_each_ref(&instances, |instance| {
             vector::for_each_ref(instance, |ic| {
                 vector::for_each_ref(ic, |i| {
