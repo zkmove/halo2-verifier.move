@@ -201,7 +201,7 @@ module halo2_verifier::protocol {
         domain::new(p.cs_degree, p.k)
     }
 
-    public fun transcript_repr(self: &Protocol): &vector<u8> {
+    public fun vk_transcript_repr(self: &Protocol): &vector<u8> {
         &self.vk_transcript_repr
     }
 

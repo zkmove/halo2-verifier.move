@@ -39,7 +39,7 @@ module halo2_verifier::halo2_verifier {
         kzg_variant: u8,
     ): bool {
         let transcript = transcript::init(proof);
-        let instances = vector::map_ref(&instances, |column_instances|{
+        let instances = vector::map_ref(&instances, |column_instances| {
             vector::map_ref<vector<u8>, Element<Fr>>(column_instances, |instance| {
                 option::destroy_some( bn254_utils::deserialize_fr(instance))
             })
@@ -183,7 +183,6 @@ module halo2_verifier::halo2_verifier {
             i32::from((max_instance_len as u32) + i32::abs(&min_rotation))
         );
 
-
         let instance_evals = vector::map_ref(&instances, |instances| {
             vector::map_ref(instance_queries, |q| {
                 let q: &ColumnQuery = q;
@@ -246,7 +245,7 @@ module halo2_verifier::halo2_verifier {
         let vanishing = {
             // -(blinding_factor+1)..=0
             let blinding_factors = blinding_factors(protocol);
-            let l_evals = domain::l_i_range(
+            let blinding_evals = domain::l_i_range(
                 &domain,
                 &z,
                 &z_n,
@@ -254,14 +253,14 @@ module halo2_verifier::halo2_verifier {
                 i32::from(1)
             );
             // todo: assert len(l_evals) = blinding_factor+2
-            let l_last = *vector::borrow(&l_evals, 0);
-            let l_0 = *vector::borrow(&l_evals, blinding_factors + 1);
+            let l_last = *vector::borrow(&blinding_evals, 0);
+            let l_0 = *vector::borrow(&blinding_evals, blinding_factors + 1);
             let l_blind = {
                 let i = 1;
                 let len = blinding_factors + 1;
                 let result = crypto_algebra::zero();
                 while (i < len) {
-                    result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                    result = crypto_algebra::add(&result, vector::borrow(&blinding_evals, i));
                     i = i + 1;
                 };
                 result
@@ -323,7 +322,6 @@ module halo2_verifier::halo2_verifier {
             vanishing::h_eval(vanishing, &expressions, &y, &z_n)
         };
 
-
         // mapping evaluations with it commitments
         let queries = vector::empty();
         {
@@ -347,7 +345,7 @@ module halo2_verifier::halo2_verifier {
 
             // fixed queries
             let fixed_commitments = map_ref(protocol::fixed_commitments(protocol), |c| option::destroy_some(deserialize_g1(c)));
-            enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
+            enumerate_ref(protocol::fixed_queries(protocol), |query_index, query| {
                 let column = column_query::column(query);
                 let rotation = column_query::rotation(query);
 
@@ -478,7 +476,7 @@ module halo2_verifier::halo2_verifier {
         */
 
         // advice queries
-        enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{
+        enumerate_ref(protocol::advice_queries(protocol), |query_index, query| {
             let column = column_query::column(query);
             let rotation = column_query::rotation(query);
 

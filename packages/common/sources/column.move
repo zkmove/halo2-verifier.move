@@ -1,14 +1,15 @@
 module halo2_common::column {
-    /// use a u8 to represent fixed, instance, advice(phased) columns.
-    /// advice columns only have 3 phases for now. we expect it shouldn't expand too many.
-    /// and we encode fixed, instance type from 255.
+    /// use a u8 to represent fixed, instance, advice columns.
+    /// advice columns have a fixed type=1, phases are stored separately in protocol.advice_column_phase.
+    /// fixed and instance types are encoded from 2 and 3.
     struct Column has copy, drop, store {
         index: u32,
         column_type: u8,
     }
 
-    const FIXED: u8 = 255;
-    const INSTANCE: u8 = 244;
+    const ADVICE: u8 = 1;
+    const FIXED: u8 = 2;
+    const INSTANCE: u8 = 3;
 
     public fun is_fixed(column: &Column): bool {
         column.column_type == FIXED
@@ -19,12 +20,11 @@ module halo2_common::column {
     }
 
     public fun is_advice(column: &Column): bool {
-        column.column_type < INSTANCE
+        column.column_type == ADVICE
     }
 
-    public fun phase(column: &Column): u8 {
-        column.column_type
-    }
+    // Remove phase function, as it's no longer accurate.
+    // Use protocol.advice_column_phase[column.index] instead for advice columns.
 
     public fun column_index(column: &Column): u32 {
         column.index
@@ -40,5 +40,4 @@ module halo2_common::column {
             column_type
         }
     }
-
 }

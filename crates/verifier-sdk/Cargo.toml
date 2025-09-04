@@ -22,7 +22,9 @@ rand_core = { version = "0.6" }
 serde = { version = "1" }
 serde_json = { version = "1" }
 hex = { version = "0.4.3" }
-halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v0.3.0" }
+#halo2_proofs = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v0.4.0", default-features = false, features = ["batch", "bits"] }
+#halo2_frontend = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v0.4.0", default-features = false, features = ["bits"] }
+#halo2_backend = { git = "https://github.com/privacy-scaling-explorations/halo2.git", tag = "v0.4.0" }
 bcs = { version = "0.1.6" }
 blake2b_simd = { version = "1" }
 anyhow = { version = "1.0.38" }
@@ -30,3 +32,8 @@ anyhow = { version = "1.0.38" }
 
 multipoly = {path = "./multipoly" }
 shape-generator={path="./shape-generator"}
+
+halo2_proofs = { path = "../../../halo2/halo2_proofs", default-features = false, features = ["batch", "bits"] }
+halo2_frontend = { path = "../../../halo2/halo2_frontend", default-features = false, features = ["bits"] }
+halo2_backend = { path = "../../../halo2/halo2_backend" }
+halo2_middleware = { path = "../../../halo2/halo2_middleware" }

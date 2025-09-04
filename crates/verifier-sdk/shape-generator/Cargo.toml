@@ -7,6 +7,9 @@ edition.workspace = true
 
 [dependencies]
 halo2_proofs.workspace=true
+halo2_frontend.workspace=true
+halo2_backend.workspace=true
+halo2_middleware.workspace=true
 bcs.workspace=true
 blake2b_simd.workspace=true
 multipoly.workspace=true
