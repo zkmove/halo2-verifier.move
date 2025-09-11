@@ -112,7 +112,7 @@ module halo2_verifier::transcript {
     /// need to handle the difference of halo2 and arkworks
     public fun read_point(self: &mut Transcript): Element<G1> {
         let buf = read_exact(&mut self.reader, U256_BYTE_LEN);
-        let point = option::destroy_some(bn254_utils::deserialize_g1_from_halo2(buf));
+        let point = option::destroy_some(bn254_utils::deserialize_g1(&buf));
         common_point(self, point);
         point 
     }

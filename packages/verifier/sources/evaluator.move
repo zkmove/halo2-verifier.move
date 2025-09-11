@@ -17,22 +17,18 @@ module halo2_verifier::evaluator {
     // Evaluats all expressions in a serialized expressions
     public fun evaluate_exprs(
         exprs_bytes: &vector<u8>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         fields_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
         instance_evals: &vector<Element<Fr>>,
         challenges: &vector<Element<Fr>>,
     ): vector<Element<Fr>> {
+        let use_u8_index_for_fields = (use_u8_fields == 0);
+        let use_u8_index_for_query = (use_u8_queries == 0);
+
         let pos = 0;
-        assert!(pos + 2 <= vector::length(exprs_bytes), E_INVALID_POS);
-
-        let fields_index_flag = *vector::borrow(exprs_bytes, pos);
-        pos = pos + 1;
-        let use_u8_index_for_fields = (fields_index_flag == 0);
-        let query_index_flag = *vector::borrow(exprs_bytes, pos);
-        pos = pos + 1;
-        let use_u8_index_for_query = (query_index_flag == 0);
-
         let results = vector::empty<Element<Fr>>();
         while (pos < vector::length(exprs_bytes)) {
             let result = evaluate_expression(
@@ -203,16 +199,21 @@ module halo2_verifier::evaluator {
         value
     }
 
-    public fun compress_exprs(exprs: &vector<u8>,
-                             coeff_pool: &vector<Element<Fr>>,
-                             advice_evals: &vector<Element<Fr>>,
-                             fixed_evals: &vector<Element<Fr>>,
-                             instance_evals: &vector<Element<Fr>>,
-                             challenges: &vector<Element<Fr>>,
-                             theta: &Element<Fr>
+    public fun compress_exprs(
+        exprs: &vector<u8>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
+        coeff_pool: &vector<Element<Fr>>,
+        advice_evals: &vector<Element<Fr>>,
+        fixed_evals: &vector<Element<Fr>>,
+        instance_evals: &vector<Element<Fr>>,
+        challenges: &vector<Element<Fr>>,
+        theta: &Element<Fr>
     ): Element<Fr> {
         let evals = evaluate_exprs(
             exprs,
+            use_u8_fields,
+            use_u8_queries,
             coeff_pool,
             advice_evals,
             fixed_evals,

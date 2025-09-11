@@ -62,6 +62,8 @@ module halo2_verifier::lookup {
     public fun expression(
         self: &Evaluated,
         lookup: &Lookup,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -92,6 +94,8 @@ module halo2_verifier::lookup {
                     &crypto_algebra::add(
                         &compress_exprs(
                             protocol::input_exprs(lookup),
+                            use_u8_fields,
+                            use_u8_queries,
                             coeff_pool,
                             advice_evals,
                             fixed_evals,
@@ -104,6 +108,8 @@ module halo2_verifier::lookup {
                     &crypto_algebra::add(
                         &compress_exprs(
                             protocol::table_exprs(lookup),
+                            use_u8_fields,
+                            use_u8_queries,
                             coeff_pool,
                             advice_evals,
                             fixed_evals,

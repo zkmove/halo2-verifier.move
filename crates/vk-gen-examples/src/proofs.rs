@@ -100,6 +100,7 @@ where
     let mut transcript = Keccak256Write::<Vec<u8>, _, Challenge255<_>>::init(vec![]);
 
     // Create a proof
+    // let rng = StdRng::seed_from_u64(42);
     let rng = StdRng::from_entropy();
     create_proof::<Scheme, P, _, _, _, _>(
         params,

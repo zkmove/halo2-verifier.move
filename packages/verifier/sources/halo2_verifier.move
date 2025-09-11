@@ -17,7 +17,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::shuffle;
     use halo2_verifier::permutation;
-    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, Shuffle, blinding_factors, num_advice_columns};
+    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, Shuffle, blinding_factors, num_advice_columns, use_u8_fields, use_u8_queries};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
@@ -268,9 +268,13 @@ module halo2_verifier::halo2_verifier {
             let coeff_pool = vector::map_ref(protocol::fields_pool(protocol), |e| option::destroy_some(deserialize_fr(e)));
             let expressions = vector::empty();
             let i = 0;
+            let use_u8_fields = use_u8_fields(protocol);
+            let use_u8_queries = use_u8_queries(protocol);
             while (i < num_proof) {
                 evaluate_gates(
                     protocol::gates(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -295,6 +299,8 @@ module halo2_verifier::halo2_verifier {
                 evaluate_lookups(
                     vector::borrow(&lookups_evaluated, i),
                     protocol::lookups(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -307,6 +313,8 @@ module halo2_verifier::halo2_verifier {
                 evaluate_shuffles(
                     vector::borrow(&shuffles_evaluated, i),
                     protocol::shuffles(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -495,6 +503,8 @@ module halo2_verifier::halo2_verifier {
 
     fun evaluate_gates(
         gates: &vector<vector<u8>>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -503,7 +513,7 @@ module halo2_verifier::halo2_verifier {
         results: &mut vector<Element<Fr>>,
     ) {
         vector::for_each_ref(gates, |exprs| {
-            let eval_result = evaluator::evaluate_exprs(exprs, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges);
+            let eval_result = evaluator::evaluate_exprs(exprs, use_u8_fields, use_u8_queries, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges);
             vector::for_each_ref(&eval_result, |item| {
                 vector::push_back(results, *item);
             });
@@ -513,6 +523,8 @@ module halo2_verifier::halo2_verifier {
     fun evaluate_lookups(
         lookup_evaluates: &vector<lookup::Evaluated>,
         lookup: &vector<Lookup>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -530,6 +542,8 @@ module halo2_verifier::halo2_verifier {
             lookup::expression(
                 lookup_evaluate,
                 l,
+                use_u8_fields,
+                use_u8_queries,
                 coeff_pool,
                 advice_evals,
                 fixed_evals,
@@ -542,6 +556,8 @@ module halo2_verifier::halo2_verifier {
     fun evaluate_shuffles(
         shuffle_evaluates: &vector<shuffle::Evaluated>,
         shuffle: &vector<Shuffle>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -558,6 +574,8 @@ module halo2_verifier::halo2_verifier {
             shuffle::expression(
                 shuffle_evaluate,
                 s,
+                use_u8_fields,
+                use_u8_queries,
                 coeff_pool,
                 advice_evals,
                 fixed_evals,

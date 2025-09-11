@@ -39,6 +39,8 @@ module halo2_verifier::shuffle {
     public fun expression(
         self: &Evaluated,
         shuffle: &Shuffle,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -60,6 +62,8 @@ module halo2_verifier::shuffle {
                 &crypto_algebra::add(
                     &compress_exprs(
                         protocol::shuffle_exprs(shuffle),
+                        use_u8_fields,
+                        use_u8_queries,
                         coeff_pool,
                         advice_evals,
                         fixed_evals,
@@ -74,6 +78,8 @@ module halo2_verifier::shuffle {
                 &crypto_algebra::add(
                     &compress_exprs(
                         protocol::shuffle_input_exprs(shuffle),
+                        use_u8_fields,
+                        use_u8_queries,
                         coeff_pool,
                         advice_evals,
                         fixed_evals,

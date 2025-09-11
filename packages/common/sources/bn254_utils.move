@@ -175,45 +175,12 @@ module halo2_common::bn254_utils {
         crypto_algebra::deserialize<G1, FormatG1Compr>(e)
     }
 
-    /// as halo2 use different serialzation for curve point, we need to handle that.
-    public fun deserialize_g1_from_halo2(e: vector<u8>): Option<Element<G1>> {
-        let last_u8 = vector::pop_back(&mut e);
-        //last_u8 = swap_bit(last_u8, 6, 7);
-        let is_identity = (last_u8 >>7) == 1;
-        if (is_identity) {
-            option::some(crypto_algebra::zero())
-        } else {
-            let y_sign = (last_u8 >> 6);
-            // erase the last two bits.
-            last_u8 = (last_u8 << 2) >> 2;
-            vector::push_back(&mut e, last_u8);
-            let x = option::destroy_some(crypto_algebra::deserialize<Fq, FormatFqLsb>(&e));
-            // we have to compute the y, and compare the sign of the y to the y_sign.
-            // if they are eqaul, it means the y is ok.
-            // or else, it's -y.
-
-
-            let y_2 = crypto_algebra::add(&crypto_algebra::mul( &crypto_algebra::sqr(&x), &x), &crypto_algebra::from_u64(3)); // y^2 = x^3 + 3
-            let y = option::destroy_some( sqrt_fq(&y_2));
-            let y_bytes = crypto_algebra::serialize<Fq, FormatFqLsb>(&y);
-            let sign = (*vector::borrow(&y_bytes, 0) & 1);
-            if (y_sign != sign) {
-                y = crypto_algebra::neg(&y)
-            };
-
-            // after we get the real y, we concat [x, y] to generate the uncompressed version of arkworks point without flags.
-            // (as arkworks wont check flags for uncompressed point if not infinity)
-            vector::append(&mut e, crypto_algebra::serialize<Fq, FormatFqLsb>(&y));
-            crypto_algebra::deserialize<G1, FormatG1Uncompr>(&e)
-        }
-    }
-
     #[test(s=@std)]
     fun test_deserialize_from_halo2(s: &signer) {
         enable_cryptography_algebra_natives(s);
         // g1: 0819f0abf791cb3653e331115881ea96ae583934055ef7a81e3caf60bfe1b626, x: 0819f0abf791cb3653e331115881ea96ae583934055ef7a81e3caf60bfe1b626, y: a4722a25f1bbebcff9c1062b72001711fb7cde19eb87ab0d6782e6f447ad2c10, -y: a38a52b325d0346c93086b3d1f6a6a8662dba267cbbda4aac21d4bec2aa13720
         let inputs = x"0819f0abf791cb3653e331115881ea96ae583934055ef7a81e3caf60bfe1b626";
-        let r = deserialize_g1_from_halo2(inputs);
+        let r = deserialize_g1(&inputs);
         assert!(option::is_some(&r), 1);
     }
 
@@ -319,4 +286,14 @@ module halo2_common::bn254_utils {
         assert!(swap_bit(0xc0, 7,5) == 0x60,1);
     }
 
+    #[test(s=@std)]
+    fun test_compressed_format(s: &signer) {
+        enable_cryptography_algebra_natives(s);
+        let compressed = x"a7c40e6e753cfd404ff8e10e1352a3eb77c8e0495bf1d9b7c67410ce4f2a5a98";
+        let point = option::destroy_some(deserialize_g1(&compressed));
+        let result = serialize_g1_uncompressed(&point);
+        let expected = x"a7c40e6e753cfd404ff8e10e1352a3eb77c8e0495bf1d9b7c67410ce4f2a5a180c4814fdc9417dcef2af1e063d229b43850e5d95217b5baad9bcb75ac9c281ae";
+
+        assert!(result == expected, 100);
+    }
 }

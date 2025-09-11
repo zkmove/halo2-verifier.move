@@ -9,6 +9,8 @@ use halo2_proofs::poly::commitment::Params;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 
+mod test;
+
 #[derive(Debug)]
 pub struct CircuitInfo<C: CurveAffine> {
     pub vk_transcript_repr: C::Scalar,
@@ -534,7 +536,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
         let use_u8_index_for_query = self.advice_queries.len() < 256
             && self.fixed_queries.len() < 256
             && self.instance_queries.len() < 256;
-        let general_info = vec![
+        let mut general_info = vec![
             vk_repr,
             fixed_commitments,
             permutation_commitments,
@@ -546,6 +548,9 @@ impl<C: CurveAffine> CircuitInfo<C> {
             self.advice_column_phase.clone(),
             self.challenge_phase.clone(),
         ];
+        // Insert the flags at the beginning of general_info to avoid redundancy per expr group
+        general_info.push(vec![if use_u8_index_for_query { 0u8 } else { 1u8 }]);
+        general_info.push(vec![if use_u8_index_for_fields { 0u8 } else { 1u8 }]);
         let fields_pool = self
             .fields_pool
             .iter()
@@ -669,8 +674,6 @@ fn serialize_exprs<C: CurveAffine>(
     use_u8_index_for_query: bool,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.push(if use_u8_index_for_fields { 0 } else { 1 });
-    bytes.push(if use_u8_index_for_query { 0 } else { 1 });
     for expr in exprs {
         serialize_expression::<C>(
             expr,

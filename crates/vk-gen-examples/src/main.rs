@@ -16,7 +16,7 @@ use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
 
-use vk_gen_examples::proofs::{prove_circuit, KZG};
+use vk_gen_examples::proofs::{prove_circuit, verify_circuit, KZG};
 
 /// the consts correspond to the definition of `verifier_api.move`.
 const PUBLISH_CIRCUIT: &str = "publish_circuit";
@@ -236,9 +236,11 @@ fn main() -> anyhow::Result<()> {
                 Examples::VectorMul => {
                     let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
-                    let pk = keygen_pk(&params, vk, &circuit).unwrap();
+                    let pk = keygen_pk(&params, vk.clone(), &circuit).unwrap();
                     let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
                         .expect("proving should not fail");
+                    verify_circuit(&vec![instances.clone()], &params, &vk, &proof, kzg)
+                        .expect("verify proof should not fail");
                     (proof, vec![instances])
                 }
             };
