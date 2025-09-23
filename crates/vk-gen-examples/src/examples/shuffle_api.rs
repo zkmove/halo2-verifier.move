@@ -4,7 +4,10 @@ use halo2_proofs::{
     arithmetic::{CurveAffine, Field},
     circuit::{Layouter, SimpleFloorPlanner, Value},
     halo2curves::ff::{FromUniformBytes, PrimeField},
-    plonk::*,
+    plonk::{
+        create_proof, keygen_pk, keygen_vk, verify_proof, Advice, Circuit, Column,
+        ConstraintSystem, ErrorFront as Error, Fixed, Selector,
+    },
     poly::{
         commitment::ParamsProver,
         ipa::{
@@ -159,7 +162,7 @@ where
             &params,
             &pk,
             &[circuit],
-            &[&[]],
+            &[vec![]],
             OsRng,
             &mut transcript,
         )
@@ -176,7 +179,7 @@ where
             &params,
             pk.get_vk(),
             strategy,
-            &[&[]],
+            &[vec![]],
             &mut transcript,
         )
         .map(|strategy| strategy.finalize())
@@ -187,13 +190,9 @@ where
 }
 
 pub fn get_example_circuit<F: PrimeField>() -> MyCircuit<F> {
-    let input_0 = [1, 2, 4, 1]
-        .map(|e: u64| Value::known(F::from(e)))
-        .to_vec();
+    let input_0 = [1, 2, 4, 1].map(|e: u64| Value::known(F::from(e))).to_vec();
     let input_1 = [10, 20, 40, 10].map(F::from).to_vec();
-    let shuffle_0 = [4, 1, 1, 2]
-        .map(|e: u64| Value::known(F::from(e)))
-        .to_vec();
+    let shuffle_0 = [4, 1, 1, 2].map(|e: u64| Value::known(F::from(e))).to_vec();
     let shuffle_1 = [40, 10, 10, 20]
         .map(|e: u64| Value::known(F::from(e)))
         .to_vec();

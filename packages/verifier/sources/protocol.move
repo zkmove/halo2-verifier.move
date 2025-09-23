@@ -8,7 +8,7 @@ module halo2_verifier::protocol {
     use aptos_std::from_bcs;
     use aptos_std::math64::max;
 
-    use halo2_common::bn254_utils::{deserialize_g1_from_halo2, deserialize_fr, serialize_fr, serialize_g1};
+    use halo2_common::bn254_utils::{deserialize_g1, deserialize_fr, serialize_fr, serialize_g1};
     use halo2_common::column::{Self, Column};
     use halo2_common::column_query::{Self, ColumnQuery};
     use halo2_common::domain::{Self, Domain};
@@ -39,6 +39,9 @@ module halo2_verifier::protocol {
 
         advice_column_phase: vector<u8>,
         challenge_phase: vector<u8>,
+
+        use_u8_fields: u8,
+        use_u8_queries: u8,
 
         advice_queries: vector<ColumnQuery>,
         instance_queries: vector<ColumnQuery>,
@@ -78,6 +81,8 @@ module halo2_verifier::protocol {
         shuffles_input_exprs: vector<vector<u8>>,
         shuffles_exprs: vector<vector<u8>>,
     ): Protocol {
+        let use_u8_fields = from_bcs::to_u8(vector::pop_back(&mut general_info));
+        let use_u8_queries = from_bcs::to_u8(vector::pop_back(&mut general_info));
         let challenge_phase = vector::pop_back(&mut general_info);
         let advice_column_phase = vector::pop_back(&mut general_info);
         let num_instance_columns = from_bcs::to_u64(vector::pop_back(&mut general_info));
@@ -126,6 +131,8 @@ module halo2_verifier::protocol {
             num_instance_columns,
             advice_column_phase,
             challenge_phase,
+            use_u8_fields,
+            use_u8_queries,
             advice_queries,
             instance_queries,
             fixed_queries,
@@ -188,7 +195,7 @@ module halo2_verifier::protocol {
         while (i < bytes_len) {
             vector::push_back(
                 &mut result,
-                option::destroy_some(deserialize_g1_from_halo2(read_bytes(bytes, i, i + CurvePointLen)))
+                option::destroy_some(deserialize_g1(&read_bytes(bytes, i, i + CurvePointLen)))
             );
             i = i + CurvePointLen;
         };
@@ -201,7 +208,7 @@ module halo2_verifier::protocol {
         domain::new(p.cs_degree, p.k)
     }
 
-    public fun transcript_repr(self: &Protocol): &vector<u8> {
+    public fun vk_transcript_repr(self: &Protocol): &vector<u8> {
         &self.vk_transcript_repr
     }
 
@@ -341,6 +348,14 @@ module halo2_verifier::protocol {
 
     public fun challenge_phase(protocol: &Protocol): &vector<u8> {
         &protocol.challenge_phase
+    }
+
+    public fun use_u8_fields(protocol: &Protocol): u8 {
+        protocol.use_u8_fields
+    }
+
+    public fun use_u8_queries(protocol: &Protocol): u8 {
+        protocol.use_u8_queries
     }
 
     public fun num_lookup(protocol: &Protocol): u64 {

@@ -17,7 +17,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::lookup::{Self, PermutationCommitments};
     use halo2_verifier::shuffle;
     use halo2_verifier::permutation;
-    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, Shuffle, blinding_factors, num_advice_columns};
+    use halo2_verifier::protocol::{Self, Protocol, instance_queries, num_challenges, Lookup, Shuffle, blinding_factors, num_advice_columns, use_u8_fields, use_u8_queries};
     use halo2_verifier::transcript::{Self, Transcript};
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
@@ -39,7 +39,7 @@ module halo2_verifier::halo2_verifier {
         kzg_variant: u8,
     ): bool {
         let transcript = transcript::init(proof);
-        let instances = vector::map_ref(&instances, |column_instances|{
+        let instances = vector::map_ref(&instances, |column_instances| {
             vector::map_ref<vector<u8>, Element<Fr>>(column_instances, |instance| {
                 option::destroy_some( bn254_utils::deserialize_fr(instance))
             })
@@ -61,7 +61,7 @@ module halo2_verifier::halo2_verifier {
         // check_instances(&instances, protocol::num_instance(protocol));
         let num_proof = vector::length(&instances);
 
-        transcript::common_scalar(&mut transcript,  option::destroy_some( bn254_utils::deserialize_fr(protocol::transcript_repr(protocol))));
+        transcript::common_scalar(&mut transcript,  option::destroy_some( bn254_utils::deserialize_fr(protocol::vk_transcript_repr(protocol))));
         vector::for_each_ref(&instances, |instance| {
             vector::for_each_ref(instance, |ic| {
                 vector::for_each_ref(ic, |i| {
@@ -183,7 +183,6 @@ module halo2_verifier::halo2_verifier {
             i32::from((max_instance_len as u32) + i32::abs(&min_rotation))
         );
 
-
         let instance_evals = vector::map_ref(&instances, |instances| {
             vector::map_ref(instance_queries, |q| {
                 let q: &ColumnQuery = q;
@@ -246,7 +245,7 @@ module halo2_verifier::halo2_verifier {
         let vanishing = {
             // -(blinding_factor+1)..=0
             let blinding_factors = blinding_factors(protocol);
-            let l_evals = domain::l_i_range(
+            let blinding_evals = domain::l_i_range(
                 &domain,
                 &z,
                 &z_n,
@@ -254,14 +253,14 @@ module halo2_verifier::halo2_verifier {
                 i32::from(1)
             );
             // todo: assert len(l_evals) = blinding_factor+2
-            let l_last = *vector::borrow(&l_evals, 0);
-            let l_0 = *vector::borrow(&l_evals, blinding_factors + 1);
+            let l_last = *vector::borrow(&blinding_evals, 0);
+            let l_0 = *vector::borrow(&blinding_evals, blinding_factors + 1);
             let l_blind = {
                 let i = 1;
                 let len = blinding_factors + 1;
                 let result = crypto_algebra::zero();
                 while (i < len) {
-                    result = crypto_algebra::add(&result, vector::borrow(&l_evals, i));
+                    result = crypto_algebra::add(&result, vector::borrow(&blinding_evals, i));
                     i = i + 1;
                 };
                 result
@@ -269,9 +268,13 @@ module halo2_verifier::halo2_verifier {
             let coeff_pool = vector::map_ref(protocol::fields_pool(protocol), |e| option::destroy_some(deserialize_fr(e)));
             let expressions = vector::empty();
             let i = 0;
+            let use_u8_fields = use_u8_fields(protocol);
+            let use_u8_queries = use_u8_queries(protocol);
             while (i < num_proof) {
                 evaluate_gates(
                     protocol::gates(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -296,6 +299,8 @@ module halo2_verifier::halo2_verifier {
                 evaluate_lookups(
                     vector::borrow(&lookups_evaluated, i),
                     protocol::lookups(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -308,6 +313,8 @@ module halo2_verifier::halo2_verifier {
                 evaluate_shuffles(
                     vector::borrow(&shuffles_evaluated, i),
                     protocol::shuffles(protocol),
+                    use_u8_fields,
+                    use_u8_queries,
                     &coeff_pool,
                     vector::borrow(&advice_evals, i),
                     &fixed_evals,
@@ -322,7 +329,6 @@ module halo2_verifier::halo2_verifier {
 
             vanishing::h_eval(vanishing, &expressions, &y, &z_n)
         };
-
 
         // mapping evaluations with it commitments
         let queries = vector::empty();
@@ -347,7 +353,7 @@ module halo2_verifier::halo2_verifier {
 
             // fixed queries
             let fixed_commitments = map_ref(protocol::fixed_commitments(protocol), |c| option::destroy_some(deserialize_g1(c)));
-            enumerate_ref(protocol::fixed_queries(protocol), |query_index, query|{
+            enumerate_ref(protocol::fixed_queries(protocol), |query_index, query| {
                 let column = column_query::column(query);
                 let rotation = column_query::rotation(query);
 
@@ -478,7 +484,7 @@ module halo2_verifier::halo2_verifier {
         */
 
         // advice queries
-        enumerate_ref(protocol::advice_queries(protocol), |query_index, query|{
+        enumerate_ref(protocol::advice_queries(protocol), |query_index, query| {
             let column = column_query::column(query);
             let rotation = column_query::rotation(query);
 
@@ -497,6 +503,8 @@ module halo2_verifier::halo2_verifier {
 
     fun evaluate_gates(
         gates: &vector<vector<u8>>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -505,7 +513,7 @@ module halo2_verifier::halo2_verifier {
         results: &mut vector<Element<Fr>>,
     ) {
         vector::for_each_ref(gates, |exprs| {
-            let eval_result = evaluator::evaluate_exprs(exprs, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges);
+            let eval_result = evaluator::evaluate_exprs(exprs, use_u8_fields, use_u8_queries, coeff_pool, advice_evals, fixed_evals, instance_evals, challenges);
             vector::for_each_ref(&eval_result, |item| {
                 vector::push_back(results, *item);
             });
@@ -515,6 +523,8 @@ module halo2_verifier::halo2_verifier {
     fun evaluate_lookups(
         lookup_evaluates: &vector<lookup::Evaluated>,
         lookup: &vector<Lookup>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -532,6 +542,8 @@ module halo2_verifier::halo2_verifier {
             lookup::expression(
                 lookup_evaluate,
                 l,
+                use_u8_fields,
+                use_u8_queries,
                 coeff_pool,
                 advice_evals,
                 fixed_evals,
@@ -544,6 +556,8 @@ module halo2_verifier::halo2_verifier {
     fun evaluate_shuffles(
         shuffle_evaluates: &vector<shuffle::Evaluated>,
         shuffle: &vector<Shuffle>,
+        use_u8_fields: u8,
+        use_u8_queries: u8,
         coeff_pool: &vector<Element<Fr>>,
         advice_evals: &vector<Element<Fr>>,
         fixed_evals: &vector<Element<Fr>>,
@@ -560,6 +574,8 @@ module halo2_verifier::halo2_verifier {
             shuffle::expression(
                 shuffle_evaluate,
                 s,
+                use_u8_fields,
+                use_u8_queries,
                 coeff_pool,
                 advice_evals,
                 fixed_evals,

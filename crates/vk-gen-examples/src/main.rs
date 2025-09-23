@@ -3,11 +3,9 @@ extern crate core;
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
 use shape_generator::generate_circuit_info;
 
-use ark_serialize::CanonicalSerialize;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
-use halo2_proofs::halo2curves::group::GroupEncoding;
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};
-use halo2_proofs::poly::commitment::{Params, ParamsProver};
+use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,8 +16,7 @@ use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
 
-use vk_gen_examples::proof::{prove_with_keccak256, KZG};
-use vk_gen_examples::to_ark::IntoArk;
+use vk_gen_examples::proofs::{prove_circuit, verify_circuit, KZG};
 
 /// the consts correspond to the definition of `verifier_api.move`.
 const PUBLISH_CIRCUIT: &str = "publish_circuit";
@@ -46,7 +43,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    ViewParam,
     BuildPublishVkAptosTxn(BuildPublishVkAptosTxn),
     BuildVerifyProofAptosTxn(BuildVerifyProofTxn),
 }
@@ -100,37 +96,7 @@ fn main() -> anyhow::Result<()> {
         params.downsize(k as u32);
     }
 
-    let g = params.get_g().first().unwrap();
-    let g2 = params.g2();
-    let s_g2 = params.s_g2();
     match cli.command {
-        Commands::ViewParam => {
-            println!("param info:");
-            println!(
-                "halo2 encoding, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
-                params.k(),
-                hex::encode(g.to_bytes()),
-                hex::encode(g2.to_bytes()),
-                hex::encode(s_g2.to_bytes())
-            );
-
-            let g = g.to_ark();
-            let mut g_bytes = vec![];
-            CanonicalSerialize::serialize_compressed(&g, &mut g_bytes).unwrap();
-            let g2 = g2.to_ark();
-            let mut g2_bytes = vec![];
-            CanonicalSerialize::serialize_compressed(&g2, &mut g2_bytes).unwrap();
-            let s_g2 = s_g2.to_ark();
-            let mut s_g2_bytes = vec![];
-            CanonicalSerialize::serialize_compressed(&s_g2, &mut s_g2_bytes).unwrap();
-            println!(
-                "arkworks encoding, \nk: {} \ng: {} \ng2: {} \ns_g2: {}\n",
-                params.k(),
-                hex::encode(g_bytes),
-                hex::encode(g2_bytes),
-                hex::encode(s_g2_bytes)
-            );
-        }
         Commands::BuildPublishVkAptosTxn(BuildPublishVkAptosTxn {
             example,
             output_dir,
@@ -139,31 +105,38 @@ fn main() -> anyhow::Result<()> {
                 Examples::CircuitLayout => {
                     let circuit = circuit_layout::get_example_circuit::<Fr>();
 
-                    generate_circuit_info(&params, &circuit)?
+                    generate_circuit_info(&params, &circuit)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::Serialization => {
                     let circuit = serialization::get_example_circuit();
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit.0)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::Shuffle => {
                     let circuit = shuffle::get_example_circuit();
-                    generate_circuit_info(&params, &circuit)?
+                    generate_circuit_info(&params, &circuit)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::ShuffleApi => {
                     let circuit = shuffle_api::get_example_circuit();
-                    generate_circuit_info(&params, &circuit)?
+                    generate_circuit_info(&params, &circuit)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::SimpleExample => {
                     let circuit = simple_example::get_example_circuit();
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit.0)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::TwoChip => {
                     let circuit = two_chip::get_example_circuit();
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit.0)
+                        .expect("generate circuit info should not fail")
                 }
                 Examples::VectorMul => {
                     let circuit = vector_mul::get_example_circuit();
-                    generate_circuit_info(&params, &circuit.0)?
+                    generate_circuit_info(&params, &circuit.0)
+                        .expect("generate circuit info should not fail")
                 }
             };
             let data = circuit_info.serialize()?;
@@ -211,51 +184,63 @@ fn main() -> anyhow::Result<()> {
             let (proof, instances) = match example {
                 Examples::CircuitLayout => {
                     let circuit = circuit_layout::get_example_circuit::<Fr>();
+                    let empty_public: Vec<Vec<Fr>> = Vec::new();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
-                    (proof, vec![])
+                    let proof = prove_circuit(circuit, &empty_public, &params, &pk, kzg)
+                        .expect("proving should not fail");
+                    (proof, empty_public)
                 }
                 Examples::Serialization => {
                     let (circuit, instances) = serialization::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
+                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                        .expect("proving should not fail");
                     (proof, vec![instances])
                 }
                 Examples::Shuffle => {
                     let circuit = shuffle::get_example_circuit::<Fr>();
+                    let empty_public: Vec<Vec<Fr>> = Vec::new();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
-                    (proof, vec![])
+                    let proof = prove_circuit(circuit, &empty_public, &params, &pk, kzg)
+                        .expect("proving should not fail");
+                    (proof, empty_public)
                 }
                 Examples::ShuffleApi => {
                     let circuit = shuffle_api::get_example_circuit::<Fr>();
+                    let empty_public: Vec<Vec<Fr>> = Vec::new();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[], &params, pk, kzg);
-                    (proof, vec![])
+                    let proof = prove_circuit(circuit, &empty_public, &params, &pk, kzg)
+                        .expect("proving should not fail");
+                    (proof, empty_public)
                 }
                 Examples::SimpleExample => {
                     let (circuit, instances) = simple_example::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
+                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                        .expect("proving should not fail");
                     (proof, vec![instances])
                 }
                 Examples::TwoChip => {
                     let (circuit, instances) = two_chip::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
+                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                        .expect("proving should not fail");
                     (proof, vec![instances])
                 }
                 Examples::VectorMul => {
                     let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
-                    let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_with_keccak256(circuit, &[&instances], &params, pk, kzg);
+                    let pk = keygen_pk(&params, vk.clone(), &circuit).unwrap();
+                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                        .expect("proving should not fail");
+                    verify_circuit(&vec![instances.clone()], &params, &vk, &proof, kzg)
+                        .expect("verify proof should not fail");
                     (proof, vec![instances])
                 }
             };
