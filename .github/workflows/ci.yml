@@ -1,0 +1,36 @@
+name: CI checks
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    if: github.event.pull_request.draft == false
+
+    name: Test on ubuntu
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          override: false
+      - name: Install Aptos CLI
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --git https://github.com/zkmove/aptos-core aptos --profile cli
+      - name: Run rust tests
+        run: |
+          cargo test --manifest-path ./crates/verifier-sdk/Cargo.toml
+          cargo test --manifest-path ./crates/vk-gen-examples/Cargo.toml
+      - name: Run move tests
+        run: |
+          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps
+          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps
+          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps
