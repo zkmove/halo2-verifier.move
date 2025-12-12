@@ -1,5 +1,5 @@
 module halo2_common::bn254_utils {
-    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr, Fq, FormatFqLsb};
+    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr, Fq};
     use std::option::{Self, Option};
     use std::vector;
 
@@ -63,33 +63,7 @@ module halo2_common::bn254_utils {
     }
 
     fun pow<F>(e: &Element<F>, exp: &vector<u64>): Element<F> {
-        let result = crypto_algebra::one<F>();
-        let j = vector::length(exp);
-        // if we never meet bit with 1, don't bother to sqr.
-        let meet_one = false;
-        loop {
-            j = j -1;
-            let num = *vector::borrow(exp, j);
-            let i = 64u8;
-            loop {
-                i = i-1;
-                if(meet_one) {
-                    result = crypto_algebra::sqr(&result);
-                };
-                // the i bit is 1
-                if(((num >> i) & 1) == 1) {
-                    result = crypto_algebra::mul(&result, e);
-                    meet_one = true;
-                };
-
-                if (i == 0) {
-                    break
-                }
-            };
-            if (j == 0) {
-                return result
-            }
-        }
+        crypto_algebra::pow(e, exp)
     }
 
     public fun pow_u32<F>(e: &Element<F>, num: u32): Element<F> {
