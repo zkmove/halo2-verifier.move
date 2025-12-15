@@ -7,6 +7,8 @@ module halo2_common::bn254_utils {
 
     #[test_only]
     use aptos_std::crypto_algebra::enable_cryptography_algebra_natives;
+    #[test_only]
+    use aptos_std::crypto_algebra::from_u64;
     use aptos_std::from_bcs;
     use std::bcs;
 
@@ -123,6 +125,35 @@ module halo2_common::bn254_utils {
         // r2 have an inverse, so just unwrap here
         let hi = option::destroy_some(crypto_algebra::div(&crypto_algebra::mul(&hi, &r3), &r2));
         crypto_algebra::add(&lo, &hi)
+    }
+
+    public fun fr_from_u128<F>(v: u128): Element<F> {
+        let bytes_lo = vector<u8>[
+            ((v >> 0)   & 0xFF as u8),
+            ((v >> 8)   & 0xFF as u8),
+            ((v >> 16)  & 0xFF as u8),
+            ((v >> 24)  & 0xFF as u8),
+            ((v >> 32)  & 0xFF as u8),
+            ((v >> 40)  & 0xFF as u8),
+            ((v >> 48)  & 0xFF as u8),
+            ((v >> 56)  & 0xFF as u8),
+            ((v >> 64)  & 0xFF as u8),
+            ((v >> 72)  & 0xFF as u8),
+            ((v >> 80)  & 0xFF as u8),
+            ((v >> 88)  & 0xFF as u8),
+            ((v >> 96)  & 0xFF as u8),
+            ((v >> 104) & 0xFF as u8),
+            ((v >> 112) & 0xFF as u8),
+            ((v >> 120) & 0xFF as u8),
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+
+        let bytes_hi = vector<u8>[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+
+        from_u512_le<F>(&bytes_lo, &bytes_hi)
     }
 
     public fun invert(x: &Element<Fr>): Element<Fr> {
@@ -269,5 +300,38 @@ module halo2_common::bn254_utils {
         let expected = x"a7c40e6e753cfd404ff8e10e1352a3eb77c8e0495bf1d9b7c67410ce4f2a5a180c4814fdc9417dcef2af1e063d229b43850e5d95217b5baad9bcb75ac9c281ae";
 
         assert!(result == expected, 100);
+    }
+
+    fun elements_equal(a: &Element<Fr>, b: &Element<Fr>): bool {
+        let bytes_a = serialize_fr(a);
+        let bytes_b = serialize_fr(b);
+        bytes_a == bytes_b
+    }
+
+    #[test]
+    fun test_fr_from_u128_zero() {
+        let v: u128 = 0;
+        let elem = fr_from_u128<Fr>(v);
+        let reference = from_u64<Fr>(0u64);
+
+        assert!(elements_equal(&elem, &reference), 1001);
+    }
+
+    #[test]
+    fun test_fr_from_u128_one() {
+        let v: u128 = 1;
+        let elem = fr_from_u128<Fr>(v);
+        let reference = from_u64<Fr>(1u64);
+
+        assert!(elements_equal(&elem, &reference), 1003);
+    }
+
+    #[test]
+    fun test_fr_from_u128_max_u64() {
+        let v: u128 = 18446744073709551615u128;  // u64::MAX
+        let elem = fr_from_u128<Fr>(v);
+        let reference = from_u64<Fr>(18446744073709551615u64);
+
+        assert!(elements_equal(&elem, &reference), 1005);
     }
 }
