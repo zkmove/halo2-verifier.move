@@ -1,8 +1,9 @@
 module halo2_verifier::public_inputs {
     use std::vector;
+    use std::option;
     use aptos_std::crypto_algebra::{Self, Element};
     use aptos_std::bn254_algebra::Fr;
-    use halo2_common::bn254_utils::{fr_from_u128, serialize_fr};
+    use halo2_common::bn254_utils::{fr_from_u128, deserialize_fr, serialize_fr};
 
     const NUM_COLUMNS: u64 = 4;
     const SUB_INDEX_LIMBS: u64 = 8;
@@ -34,6 +35,16 @@ module halo2_verifier::public_inputs {
         PublicInputs { columns }
     }
 
+    public fun new(bytes: &vector<vector<vector<u8>>>): PublicInputs<Fr> {
+        assert!(vector::length(bytes) == NUM_COLUMNS, 1000);
+        let columns = vector::map_ref(bytes, |column| {
+            vector::map_ref<vector<u8>, Element<Fr>>(column, |instance| {
+                option::destroy_some( deserialize_fr(instance))
+            })
+        });
+        PublicInputs { columns }
+    }
+
     fun pack_sub_index<F>(limbs: &vector<u64>): Element<F> {
         assert!(
             vector::length(limbs) <= (255 / (LIMB_BITS as u64)),
@@ -61,7 +72,7 @@ module halo2_verifier::public_inputs {
         value
     }
 
-    inline fun u256_to_lo_hi(v: u256): (u128, u128) {
+    public fun u256_to_lo_hi(v: u256): (u128, u128) {
         // Low 128 bits: mask with 2^128 - 1
         let lo_mask: u256 = (1u256 << 128) - 1;
         let lo = ((v & lo_mask) as u128);
@@ -186,9 +197,9 @@ module halo2_verifier::public_inputs_tests {
         let result = vector::empty<u8>();
         let i = start;
         while (i < end) {
-            let byte = *vector::borrow(src, i);
-            vector::push_back(&mut result, byte);
-            i = i + 1;
+        let byte = *vector::borrow(src, i);
+        vector::push_back(&mut result, byte);
+        i = i + 1;
         };
         result
     }
@@ -200,54 +211,96 @@ module halo2_verifier::public_inputs_tests {
         public_inputs::push_bool(&mut pi, true);        // row 0
         public_inputs::push_u8(&mut pi, 255u8);         // row 1
         public_inputs::push_u64(&mut pi, 123456789u64); // row 2
-        public_inputs::push_bool(&mut pi, false);       // row 3
+        public_inputs::push_u128(&mut pi, 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFu128); // row 3
+        public_inputs::push_u256(&mut pi, 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEFu256); // row 4
+        public_inputs::push_u256(&mut pi, (1u256 << 255)); // row 5
+        public_inputs::push_bool(&mut pi, false);       // row 6
 
         let bytes = public_inputs::serialize_to_bytes(&pi);
-        assert!(vector::length(&bytes) == 4 * 4 * 32, 1000);  // 4 rows × 4 cols × 32 bytes
+        let num_rows = 7;
+        assert!(vector::length(&bytes) == num_rows * 4 * 32, 1000);  // 7 rows × 4 cols × 32 bytes
 
-        // after serialization, the layout in bytes is:
-        // col0_row0, col0_row1, col0_row2, col0_row3,
-        // col1_row0, col1_row1, col1_row2, col1_row3,
-        // col2_row0, col2_row1, col2_row2, col2_row3,
-        // col3_row0, col3_row1, col3_row2, col3_row3
+        // after serialization, the layout in bytes is column-major:
+        // col0_row0 ... col0_row6, col1_row0 ... col1_row6,
+        // col2_row0 ... col2_row6, col3_row0 ... col3_row6
 
-        let num_rows = 4;
-        let col = 2;
-        let col_offset_base = col * (num_rows * 32);
+        // word_lo column (col 2)
+        let col_lo = 2;
+        let col_lo_base = col_lo * (num_rows * 32);
 
-        // row 0: true → 1
-        let offset = col_offset_base + 0 * 32;
+        // word_hi column (col 3)
+        let col_hi = 3;
+        let col_hi_base = col_hi * (num_rows * 32);
+
+        // row 0: true
+        let offset = col_lo_base + 0 * 32;
         let actual = slice_vector(&bytes, offset, offset + 32);
         let expected = expected_fr_bytes_from_bool(true);
         assert!(actual == expected, 1001);
 
         // row 1: 255
-        let offset = col_offset_base + 1 * 32;
+        let offset = col_lo_base + 1 * 32;
         let actual = slice_vector(&bytes, offset, offset + 32);
         let expected = expected_fr_bytes_from_u64(255);
         assert!(actual == expected, 1002);
 
         // row 2: 123456789
-        let offset = col_offset_base + 2 * 32;
+        let offset = col_lo_base + 2 * 32;
         let actual = slice_vector(&bytes, offset, offset + 32);
         let expected = expected_fr_bytes_from_u64(123456789);
         assert!(actual == expected, 1003);
 
-        // row 3: false → 0
-        let offset = col_offset_base + 3 * 32;
+        // row 3: lo = u128::MAX, hi = 0
+        let offset_lo = col_lo_base + 3 * 32;
+        let actual_lo = slice_vector(&bytes, offset_lo, offset_lo + 32);
+        let expected_lo = serialize_fr(&fr_from_u128(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFu128));
+        assert!(actual_lo == expected_lo, 1004);
+
+        let offset_hi = col_hi_base + 3 * 32;
+        let actual_hi = slice_vector(&bytes, offset_hi, offset_hi + 32);
+        let expected_hi = expected_fr_bytes_from_u64(0);
+        assert!(actual_hi == expected_hi, 1005);
+
+        // row 4: large u256
+        let large_u256 = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEFu256;
+        let (lo, hi) = public_inputs::u256_to_lo_hi(large_u256);  // reuse internal helper if public, or duplicate logic
+        let expected_lo = serialize_fr(&fr_from_u128(lo));
+        let expected_hi = serialize_fr(&fr_from_u128(hi));
+
+        let offset_lo = col_lo_base + 4 * 32;
+        let actual_lo = slice_vector(&bytes, offset_lo, offset_lo + 32);
+        assert!(actual_lo == expected_lo, 1006);
+
+        let offset_hi = col_hi_base + 4 * 32;
+        let actual_hi = slice_vector(&bytes, offset_hi, offset_hi + 32);
+        assert!(actual_hi == expected_hi, 1007);
+
+        // row 5: 2^255, lo = 0, hi = 1 << 127
+        let offset_lo = col_lo_base + 5 * 32;
+        let actual_lo = slice_vector(&bytes, offset_lo, offset_lo + 32);
+        let expected_lo = expected_fr_bytes_from_u64(0);
+        assert!(actual_lo == expected_lo, 1008);
+
+        let offset_hi = col_hi_base + 5 * 32;
+        let actual_hi = slice_vector(&bytes, offset_hi, offset_hi + 32);
+        let expected_hi = serialize_fr(&fr_from_u128(1u128 << 127));
+        assert!(actual_hi == expected_hi, 1009);
+
+        // row 6: false
+        let offset = col_lo_base + 6 * 32;
         let actual = slice_vector(&bytes, offset, offset + 32);
         let expected = expected_fr_bytes_from_bool(false);
-        assert!(actual == expected, 1004);
+        assert!(actual == expected, 1010);
 
         // column 0 (sub_index) all 0
         let col = 0;
         let col_offset_base = col * (num_rows * 32);
         let row = 0;
-        while (row < 4) {
+        while (row < num_rows) {
             let offset = col_offset_base + row * 32;
             let actual = slice_vector(&bytes, offset, offset + 32);
             let expected = expected_fr_bytes_from_u64(0);
-            assert!(actual == expected, 1005 + row);
+            assert!(actual == expected, 1011 + row);
             row = row + 1;
         };
 
@@ -255,11 +308,11 @@ module halo2_verifier::public_inputs_tests {
         let col = 1;
         let col_offset_base = col * (num_rows * 32);
         let row = 0;
-        while (row < 4) {
+        while (row < num_rows) {
             let offset = col_offset_base + row * 32;
             let actual = slice_vector(&bytes, offset, offset + 32);
             let expected = expected_fr_bytes_from_u64(0);
-            assert!(actual == expected, 1010 + row);
+            assert!(actual == expected, 1020 + row);
             row = row + 1;
         };
     }

@@ -3,7 +3,6 @@ module halo2_verifier::halo2_verifier {
     use std::vector::{Self, map_ref, map, enumerate_ref};
     use aptos_std::bn254_algebra::{G1, Fr};
     use aptos_std::crypto_algebra::{Self, Element};
-
     use halo2_common::bn254_utils::{Self, deserialize_g1, deserialize_fr};
     use halo2_common::column;
     use halo2_common::column_query::{Self, ColumnQuery};
@@ -22,6 +21,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
     use halo2_verifier::evaluator;
+    use halo2_verifier::public_inputs::{Self, PublicInputs};
     // use std::debug;
     // use std::string::{Self, String, utf8};
     // use std::bn254_algebra::FormatFrLsb;
@@ -38,13 +38,24 @@ module halo2_verifier::halo2_verifier {
         proof: vector<u8>,
         kzg_variant: u8,
     ): bool {
-        let transcript = transcript::init(proof);
         let instances = vector::map_ref(&instances, |column_instances| {
             vector::map_ref<vector<u8>, Element<Fr>>(column_instances, |instance| {
                 option::destroy_some( bn254_utils::deserialize_fr(instance))
             })
         });
-        verify(params, protocol, vector::singleton(instances), transcript, kzg_variant)
+        verify(params, protocol, vector::singleton(instances), proof, kzg_variant)
+    }
+
+    public fun verify_single_vm(
+        params: &Params,
+        protocol: &Protocol,
+        instances: PublicInputs<Fr>,
+        proof: vector<u8>,
+        kzg_variant: u8,
+    ): bool {
+
+        let instances = public_inputs::as_vec(&instances);
+        verify(params, protocol, vector::singleton(instances), proof, kzg_variant)
     }
 
     /// `verify` function verify the proof in transcript with given params, protocol, and instances.
@@ -53,9 +64,10 @@ module halo2_verifier::halo2_verifier {
         params: &Params,
         protocol: &Protocol,
         instances: vector<vector<vector<Element<Fr>>>>,
-        transcript: Transcript,
+        proof: vector<u8>,
         kzg_variant: u8,
     ): bool {
+        let transcript = transcript::init(proof);
         let domain = protocol::domain(protocol);
         // TODO: check instance?
         // check_instances(&instances, protocol::num_instance(protocol));
