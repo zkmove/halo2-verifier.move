@@ -81,7 +81,7 @@ module halo2_verifier::evaluator {
             assert!(index < vector::length(instance_evals), E_INVALID_INSTANCE_INDEX);
             return *vector::borrow(instance_evals, index)
         } else if (node_type == 0x05) {
-            let index = deserialize_u32(borrow_bytes(expr_bytes, pos, 4));
+            let index = deserialize_u32(expr_bytes, pos);
             assert!((index as u64) < vector::length(challenges), E_INVALID_CHALLENGE_INDEX);
             return *vector::borrow(challenges, (index as u64))
         } else if (node_type == 0x06) {
@@ -172,31 +172,19 @@ module halo2_verifier::evaluator {
             *pos = *pos + 1;
             idx
         } else {
-            let idx = deserialize_u32(borrow_bytes(expr_bytes, pos, 4));
+            let idx = deserialize_u32(expr_bytes, pos);
             (idx as u64)
         }
     }
 
-    fun borrow_bytes(expr_bytes: &vector<u8>, pos: &mut u64, length: u64): vector<u8> {
-        assert!(*pos + length <= vector::length(expr_bytes), E_INVALID_POS);
-        let result = vector::empty<u8>();
-        let i = 0;
-        while (i < length) {
-            vector::push_back(&mut result, *vector::borrow(expr_bytes, ((*pos + i) as u64)));
-            i = i + 1;
-        };
-        *pos = *pos + length;
-        result
-    }
-
-    // Deserializes u32 from 4 bytes (little-endian)
-    fun deserialize_u32(bytes: vector<u8>): u32 {
-        assert!(vector::length(&bytes) >= 4, E_INVALID_BYTES_LENGTH);
-        let value = (*vector::borrow(&bytes, 0) as u32)
-            | ((*vector::borrow(&bytes, 1) as u32) << 8)
-            | ((*vector::borrow(&bytes, 2) as u32) << 16)
-            | ((*vector::borrow(&bytes, 3) as u32) << 24);
-        value
+    fun deserialize_u32(expr_bytes: &vector<u8>, pos: &mut u64): u32 {
+        assert!(*pos + 4 <= vector::length(expr_bytes), E_INVALID_BYTES_LENGTH);
+        let b0 = *vector::borrow(expr_bytes, *pos);
+        let b1 = *vector::borrow(expr_bytes, *pos + 1);
+        let b2 = *vector::borrow(expr_bytes, *pos + 2);
+        let b3 = *vector::borrow(expr_bytes, *pos + 3);
+        *pos = *pos + 4;
+        ((b0 as u32) | ((b1 as u32) << 8) | ((b2 as u32) << 16) | ((b3 as u32) << 24))
     }
 
     public fun compress_exprs(
