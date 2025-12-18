@@ -59,7 +59,7 @@ impl std::fmt::Display for KZG {
 /// The proof as a byte vector if successful.
 pub fn prove_circuit<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
-    instance: &Vec<Vec<E::Fr>>,
+    instance: &[Vec<E::Fr>],
     params: &ParamsKZG<E>,
     pk: &ProvingKey<E::G1Affine>,
     kzg: KZG,
@@ -89,7 +89,7 @@ fn prove_circuit_inner<
     ConcreteCircuit: Circuit<Scheme::Scalar>,
 >(
     circuit: ConcreteCircuit,
-    instance: &Vec<Vec<Scheme::Scalar>>,
+    instance: &[Vec<Scheme::Scalar>],
     params: &'params Scheme::ParamsProver,
     pk: &ProvingKey<Scheme::Curve>,
 ) -> Result<Vec<u8>, Error>
@@ -106,7 +106,7 @@ where
         params,
         pk,
         &[circuit],
-        &[instance.clone()],
+        &[instance.to_owned()],
         rng,
         &mut transcript,
     )?;
@@ -126,10 +126,10 @@ where
 /// # Returns
 /// `Ok(())` if the proof is valid, or an error if verification fails.
 pub fn verify_circuit<E>(
-    instance: &Vec<Vec<E::Fr>>,
+    instance: &[Vec<E::Fr>],
     params: &ParamsKZG<E>,
     vk: &VerifyingKey<E::G1Affine>,
-    proof: &Vec<u8>,
+    proof: &[u8],
     kzg: KZG,
 ) -> Result<(), Error>
 where
@@ -162,18 +162,24 @@ fn verify_circuit_inner<
     V: Verifier<'params, Scheme>,
     Strategy: VerificationStrategy<'params, Scheme, V>,
 >(
-    instance: &Vec<Vec<Scheme::Scalar>>,
+    instance: &[Vec<Scheme::Scalar>],
     params: &'params Scheme::ParamsVerifier,
     vk: &VerifyingKey<Scheme::Curve>,
-    proof: &Vec<u8>,
+    proof: &[u8],
 ) -> Result<(), Error>
 where
     <Scheme as CommitmentScheme>::ParamsVerifier: 'params,
     <Scheme as CommitmentScheme>::Scalar: WithSmallOrderMulGroup<3> + FromUniformBytes<64>,
 {
     let strategy = Strategy::new(params);
-    let mut transcript = Keccak256Read::<_, _, Challenge255<_>>::init(&proof[..]);
-    let _result = verify_proof(params, vk, strategy, &[instance.clone()], &mut transcript)?;
+    let mut transcript = Keccak256Read::<_, _, Challenge255<_>>::init(proof);
+    let _result = verify_proof(
+        params,
+        vk,
+        strategy,
+        &[instance.to_owned()],
+        &mut transcript,
+    )?;
 
     Ok(())
 }

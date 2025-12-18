@@ -178,6 +178,133 @@ impl<F: Field> IndexedExpression<F> {
         String::from_utf8(cursor.into_inner()).unwrap()
     }
 }
+
+fn collect_fields<C: CurveAffine>(
+    expr: &Expression<C::Scalar>,
+    fields_pool: &mut Vec<C::Scalar>,
+    constant_map: &mut HashMap<Vec<u8>, u32>,
+) {
+    match expr {
+        Expression::Constant(f) => {
+            let bytes = encode_field::<C>(f);
+            constant_map.entry(bytes).or_insert_with(|| {
+                let idx = fields_pool.len() as u32;
+                fields_pool.push(*f);
+                idx
+            });
+        }
+        Expression::Var(_) => {}
+        Expression::Negated(e) => collect_fields::<C>(e, fields_pool, constant_map),
+        Expression::Sum(a, b) => {
+            collect_fields::<C>(a, fields_pool, constant_map);
+            collect_fields::<C>(b, fields_pool, constant_map);
+        }
+        Expression::Product(a, b) => {
+            collect_fields::<C>(a, fields_pool, constant_map);
+            collect_fields::<C>(b, fields_pool, constant_map);
+        }
+    }
+}
+
+#[allow(clippy::only_used_in_recursion)]
+fn to_indexed_expression<C: CurveAffine>(
+    expr: &Expression<C::Scalar>,
+    constant_map: &HashMap<Vec<u8>, u32>,
+    use_u8_index_for_fields: bool,
+    use_u8_index_for_query: bool,
+    cs: &ConstraintSystem<C::Scalar>,
+) -> Result<IndexedExpression<C::Scalar>, Error> {
+    match expr {
+        Expression::Constant(f) => {
+            let bytes = encode_field::<C>(f);
+            let index = *constant_map
+                .get(&bytes)
+                .ok_or(ErrorFront::Other("Constant not found".to_string()))?;
+            let idx = if use_u8_index_for_fields {
+                if index >= 256 {
+                    return Err(ErrorFront::Other("Index exceeds limit".to_string()).into());
+                }
+                IndexType::U8(index as u8)
+            } else {
+                IndexType::U32(index)
+            };
+            Ok(IndexedExpression::ConstantIndex(idx, PhantomData))
+        }
+        Expression::Var(v) => match v {
+            VarBack::Query(q) => {
+                let index = q.index;
+                let idx = if use_u8_index_for_query {
+                    if index >= 256 {
+                        return Err(ErrorFront::Other("Index exceeds limit".to_string()).into());
+                    }
+                    IndexType::U8(index as u8)
+                } else {
+                    IndexType::U32(index as u32)
+                };
+                match q.column_type {
+                    Any::Fixed => Ok(IndexedExpression::Fixed(idx)),
+                    Any::Advice => Ok(IndexedExpression::Advice(idx)),
+                    Any::Instance => Ok(IndexedExpression::Instance(idx)),
+                }
+            }
+            VarBack::Challenge(c) => Ok(IndexedExpression::Challenge(*c)),
+        },
+        Expression::Negated(e) => {
+            let e_expr = to_indexed_expression::<C>(
+                e,
+                constant_map,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+                cs,
+            )?;
+            Ok(IndexedExpression::Negated(Box::new(e_expr)))
+        }
+        Expression::Sum(a, b) => {
+            let a_expr = to_indexed_expression::<C>(
+                a,
+                constant_map,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+                cs,
+            )?;
+            let b_expr = to_indexed_expression::<C>(
+                b,
+                constant_map,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+                cs,
+            )?;
+            Ok(IndexedExpression::Sum(Box::new(a_expr), Box::new(b_expr)))
+        }
+        Expression::Product(a, b) => {
+            let a_expr = to_indexed_expression::<C>(
+                a,
+                constant_map,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+                cs,
+            )?;
+            let b_expr = to_indexed_expression::<C>(
+                b,
+                constant_map,
+                use_u8_index_for_fields,
+                use_u8_index_for_query,
+                cs,
+            )?;
+            if let IndexedExpression::ConstantIndex(idx, _) = &a_expr {
+                Ok(IndexedExpression::Scaled(Box::new(b_expr), *idx))
+            } else if let IndexedExpression::ConstantIndex(idx, _) = &b_expr {
+                Ok(IndexedExpression::Scaled(Box::new(a_expr), *idx))
+            } else {
+                Ok(IndexedExpression::Product(
+                    Box::new(a_expr),
+                    Box::new(b_expr),
+                ))
+            }
+        }
+    }
+}
+
 pub fn generate_circuit_info<C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
@@ -205,131 +332,6 @@ where
 
     let mut fields_pool: Vec<C::Scalar> = Vec::new();
     let mut constant_map: HashMap<Vec<u8>, u32> = HashMap::new();
-
-    fn collect_fields<C: CurveAffine>(
-        expr: &Expression<C::Scalar>,
-        fields_pool: &mut Vec<C::Scalar>,
-        constant_map: &mut HashMap<Vec<u8>, u32>,
-    ) {
-        match expr {
-            Expression::Constant(f) => {
-                let bytes = encode_field::<C>(f);
-                constant_map.entry(bytes).or_insert_with(|| {
-                    let idx = fields_pool.len() as u32;
-                    fields_pool.push(*f);
-                    idx
-                });
-            }
-            Expression::Var(_) => {}
-            Expression::Negated(e) => collect_fields::<C>(e, fields_pool, constant_map),
-            Expression::Sum(a, b) => {
-                collect_fields::<C>(a, fields_pool, constant_map);
-                collect_fields::<C>(b, fields_pool, constant_map);
-            }
-            Expression::Product(a, b) => {
-                collect_fields::<C>(a, fields_pool, constant_map);
-                collect_fields::<C>(b, fields_pool, constant_map);
-            }
-        }
-    }
-
-    fn to_indexed_expression<C: CurveAffine>(
-        expr: &Expression<C::Scalar>,
-        constant_map: &HashMap<Vec<u8>, u32>,
-        use_u8_index_for_fields: bool,
-        use_u8_index_for_query: bool,
-        cs: &ConstraintSystem<C::Scalar>,
-    ) -> Result<IndexedExpression<C::Scalar>, Error> {
-        match expr {
-            Expression::Constant(f) => {
-                let bytes = encode_field::<C>(f);
-                let index = *constant_map
-                    .get(&bytes)
-                    .ok_or(ErrorFront::Other("Constant not found".to_string()))?;
-                let idx = if use_u8_index_for_fields {
-                    if index >= 256 {
-                        return Err(ErrorFront::Other("Index exceeds limit".to_string()).into());
-                    }
-                    IndexType::U8(index as u8)
-                } else {
-                    IndexType::U32(index)
-                };
-                Ok(IndexedExpression::ConstantIndex(idx, PhantomData))
-            }
-            Expression::Var(v) => match v {
-                VarBack::Query(q) => {
-                    let index = q.index;
-                    let idx = if use_u8_index_for_query {
-                        if index >= 256 {
-                            return Err(ErrorFront::Other("Index exceeds limit".to_string()).into());
-                        }
-                        IndexType::U8(index as u8)
-                    } else {
-                        IndexType::U32(index as u32)
-                    };
-                    match q.column_type {
-                        Any::Fixed => Ok(IndexedExpression::Fixed(idx)),
-                        Any::Advice => Ok(IndexedExpression::Advice(idx)),
-                        Any::Instance => Ok(IndexedExpression::Instance(idx)),
-                    }
-                }
-                VarBack::Challenge(c) => Ok(IndexedExpression::Challenge(*c)),
-            },
-            Expression::Negated(e) => {
-                let e_expr = to_indexed_expression::<C>(
-                    e,
-                    constant_map,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                    cs,
-                )?;
-                Ok(IndexedExpression::Negated(Box::new(e_expr)))
-            }
-            Expression::Sum(a, b) => {
-                let a_expr = to_indexed_expression::<C>(
-                    a,
-                    constant_map,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                    cs,
-                )?;
-                let b_expr = to_indexed_expression::<C>(
-                    b,
-                    constant_map,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                    cs,
-                )?;
-                Ok(IndexedExpression::Sum(Box::new(a_expr), Box::new(b_expr)))
-            }
-            Expression::Product(a, b) => {
-                let a_expr = to_indexed_expression::<C>(
-                    a,
-                    constant_map,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                    cs,
-                )?;
-                let b_expr = to_indexed_expression::<C>(
-                    b,
-                    constant_map,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                    cs,
-                )?;
-                if let IndexedExpression::ConstantIndex(idx, _) = &a_expr {
-                    Ok(IndexedExpression::Scaled(Box::new(b_expr), *idx))
-                } else if let IndexedExpression::ConstantIndex(idx, _) = &b_expr {
-                    Ok(IndexedExpression::Scaled(Box::new(a_expr), *idx))
-                } else {
-                    Ok(IndexedExpression::Product(
-                        Box::new(a_expr),
-                        Box::new(b_expr),
-                    ))
-                }
-            }
-        }
-    }
 
     for gate in cs.gates() {
         collect_fields::<C>(gate.polynomial(), &mut fields_pool, &mut constant_map);
@@ -641,7 +643,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
             shuffles_shuffle_exprs,
         ];
 
-        let item_names = vec![
+        let item_names = [
             "General Info",
             "Advice Queries",
             "Instance Queries",
