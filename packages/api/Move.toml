@@ -14,8 +14,8 @@ halo2_verifier="0x1234"
 verifier_api = "0x12345"
 
 [dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "devnet"
+git = "https://github.com/zkmove/aptos-core.git"
+rev = "main"
 subdir = "aptos-move/framework/aptos-framework"
 
 [dependencies.halo2-verifier]

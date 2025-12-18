@@ -9,9 +9,9 @@ halo2_common = "_"
 [dev-addresses]
 halo2_common = "0x123"
 
-[dependencies.AptosFramework]
-git = "https://github.com/aptos-labs/aptos-core.git"
-rev = "devnet"
-subdir = "aptos-move/framework/aptos-framework"
+#[dependencies.AptosFramework]
+#git = "https://github.com/zkmove/aptos-core.git"
+#rev = "main"
+#subdir = "aptos-move/framework/aptos-framework"
 
 [dev-dependencies]
