@@ -7,30 +7,76 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    if: github.event.pull_request.draft == false
-
-    name: Test on ubuntu
+    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    name: Tests on Ubuntu
     timeout-minutes: 30
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          override: false
-      - name: Install Aptos CLI
-        uses: actions-rs/cargo@v1
+          workspaces: |
+            crates/verifier-sdk
+            crates/vk-gen-examples
+
+      - name: Cache Aptos CLI
+        id: cache-aptos
+        uses: actions/cache@v4
         with:
-          command: install
-          args: --git https://github.com/zkmove/aptos-core aptos --profile cli
-      - name: Run rust tests
+          path: ~/aptos-cli/aptos
+          key: aptos-cli-v7.11.1-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install Aptos CLI v7.11.1 (fixed version)
+        if: steps.cache-aptos.outputs.cache-hit != 'true'
         run: |
-          cargo test --manifest-path ./crates/verifier-sdk/Cargo.toml
-          cargo test --manifest-path ./crates/vk-gen-examples/Cargo.toml
-      - name: Run move tests
+          mkdir -p ~/aptos-cli
+
+          # GitHub Actions ubuntu-latest uses Ubuntu 22.04 as of 2024-06
+          if [[ "${{ runner.os }}" == "Linux" && "${{ runner.arch }}" == "X64" ]]; then
+            if lsb_release -rs | grep -q "^24"; then
+              URL="https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.11.1/aptos-cli-7.11.1-Ubuntu-24.04-x86_64.zip"
+            else
+              URL="https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.11.1/aptos-cli-7.11.1-Ubuntu-22.04-x86_64.zip"
+            fi
+          else
+            echo "Unsupported runner: ${{ runner.os }} ${{ runner.arch }}"
+            exit 1
+          fi
+
+          echo "Downloading Aptos CLI from: $URL"
+          curl -L "$URL" -o aptos.zip
+          unzip -q aptos.zip -d ~/aptos-cli
+          chmod +x ~/aptos-cli/aptos
+          rm aptos.zip
+
+      - name: Add Aptos CLI to PATH
+        run: echo "$HOME/aptos-cli" >> $GITHUB_PATH
+
+      - name: Verify Aptos CLI version
+        run: aptos --version
+
+      - name: Code formatting check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run Move tests
         run: |
-          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps
-          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps
-          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps
+          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+
+      - name: Run Rust tests
+        run: |
+          cargo test --manifest-path ./crates/verifier-sdk/Cargo.toml --all-features
+          cargo test --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-features
