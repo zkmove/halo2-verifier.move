@@ -65,10 +65,15 @@ jobs:
         run: aptos --version
 
       - name: Code formatting check
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --manifest-path ./crates/verifier-sdk/Cargo.toml -- --check
+          cargo fmt --manifest-path ./crates/vk-gen-examples/Cargo.toml -- --check
 
       - name: Clippy lint
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: |
+          cargo clippy --manifest-path ./crates/verifier-sdk/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-targets --all-features -- -D warnings
+      
 
       - name: Run Move tests
         run: |
