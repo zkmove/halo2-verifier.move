@@ -195,7 +195,7 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = serialization::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                    let proof = prove_circuit(circuit, std::slice::from_ref(&instances), &params, &pk, kzg)
                         .expect("proving should not fail");
                     (proof, vec![instances])
                 }
@@ -221,7 +221,7 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = simple_example::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                    let proof = prove_circuit(circuit, std::slice::from_ref(&instances), &params, &pk, kzg)
                         .expect("proving should not fail");
                     (proof, vec![instances])
                 }
@@ -229,7 +229,7 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = two_chip::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk, &circuit).unwrap();
-                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                    let proof = prove_circuit(circuit, std::slice::from_ref(&instances), &params, &pk, kzg)
                         .expect("proving should not fail");
                     (proof, vec![instances])
                 }
@@ -237,9 +237,9 @@ fn main() -> anyhow::Result<()> {
                     let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk.clone(), &circuit).unwrap();
-                    let proof = prove_circuit(circuit, &vec![instances.clone()], &params, &pk, kzg)
+                    let proof = prove_circuit(circuit, std::slice::from_ref(&instances), &params, &pk, kzg)
                         .expect("proving should not fail");
-                    verify_circuit(&vec![instances.clone()], &params, &vk, &proof, kzg)
+                    verify_circuit(std::slice::from_ref(&instances), &params, &vk, &proof, kzg)
                         .expect("verify proof should not fail");
                     (proof, vec![instances])
                 }

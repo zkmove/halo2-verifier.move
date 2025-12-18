@@ -39,7 +39,7 @@ mod tests {
         let mut compressed = <Halo2G1Affine as GroupEncoding>::Repr::default();
         reader.read_exact(compressed.as_mut())?;
         Option::from(Halo2G1Affine::from_bytes(&compressed))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid point encoding in proof"))
+            .ok_or_else(|| io::Error::other("Invalid point encoding in proof"))
     }
 
     #[test]
