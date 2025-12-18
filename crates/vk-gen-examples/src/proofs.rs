@@ -173,7 +173,13 @@ where
 {
     let strategy = Strategy::new(params);
     let mut transcript = Keccak256Read::<_, _, Challenge255<_>>::init(proof);
-    let _result = verify_proof(params, vk, strategy, &[instance.to_owned()], &mut transcript)?;
+    let _result = verify_proof(
+        params,
+        vk,
+        strategy,
+        &[instance.to_owned()],
+        &mut transcript,
+    )?;
 
     Ok(())
 }
