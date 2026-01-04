@@ -76,9 +76,9 @@ module halo2_verifier::verifier_test {
             x"0600000000000000000000000000000000000000000000000000000000000000",
             x"0600000000000000000000000000000000000000000000000000000000000000"
         ];
-        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof_gwc, 1);
+        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof_gwc, 0);
         assert!(result, 100);
-        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof_shplonk, 0);
+        let result = halo2_verifier::verify_single(&params, &protocol, vector::singleton(instances), proof_shplonk, 1);
         assert!(result, 101);
     }
 }

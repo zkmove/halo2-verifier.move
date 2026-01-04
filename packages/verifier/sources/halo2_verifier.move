@@ -28,8 +28,8 @@ module halo2_verifier::halo2_verifier {
 
 
     const INVALID_INSTANCES: u64 = 100;
-    const SHPLONK: u8 = 0;
-    const GWC: u8 = 1;
+    const GWC: u8 = 0;
+    const SHPLONK: u8 = 1;
 
     public fun verify_single(
         params: &Params,
