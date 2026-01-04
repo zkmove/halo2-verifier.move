@@ -946,9 +946,9 @@ module halo2_verifier::vm_circuit_verify_test {
             vector[x"0000000000000000000000000000000000000000000000000000000000000000"],
             vector[x"0000000000000000000000000000000000000000000000000000000000000000"]
         ];
-        let result = halo2_verifier::verify_single(&params, &protocol, instances, proof_gwc, 1);
+        let result = halo2_verifier::verify_single(&params, &protocol, instances, proof_gwc, 0);
         assert!(result, 100);
-        // let result = halo2_verifier::verify_single(&params, &protocol, instances, proof_shplonk, 0);
+        // let result = halo2_verifier::verify_single(&params, &protocol, instances, proof_shplonk, 1);
         // assert!(result, 101);
     }
 }
