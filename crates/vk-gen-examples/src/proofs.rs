@@ -33,8 +33,8 @@ pub enum KZG {
 impl KZG {
     pub fn to_u8(&self) -> u8 {
         match self {
-            Self::SHPLONK => 0,
-            Self::GWC => 1,
+            Self::GWC => 0,
+            Self::SHPLONK => 1,
         }
     }
 }
