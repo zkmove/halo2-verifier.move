@@ -1,112 +1,26 @@
-use bcs::Error as BcsError;
-use byteorder::{LittleEndian, ReadBytesExt};
-use expression::{deserialize_exprs, serialize_exprs, to_indexed_expression, IndexedExpression};
-use halo2_backend::plonk::ExpressionBack as Expression;
+use circuit_info::{CircuitInfo, ColumnQuery, Gate, Lookup, Rotation, Shuffle};
+use expression::{to_indexed_expression, IndexedExpression};
+use halo2_backend::plonk::{
+    ConstraintSystemBack as ConstraintSystem, ExpressionBack as Expression, GateBack,
+    LookupArgumentBack, PermutationArgumentBack, QueryBack, ShuffleArgumentBack, VarBack,
+};
+use halo2_middleware::circuit::ColumnMid;
 use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::ff::{FromUniformBytes, PrimeField};
-use halo2_proofs::plonk::{keygen_vk, Any, Circuit, Error};
+use halo2_proofs::halo2curves::ff::FromUniformBytes;
+use halo2_proofs::plonk::{keygen_vk, Any, Circuit, Error, ErrorFront};
 use halo2_proofs::poly::commitment::Params;
-use helpers::{bytes_to_affines, decode_field, encode_field};
+use halo2_proofs::poly::Rotation as Halo2Rotation;
+use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
-use std::io::Cursor;
 use std::marker::PhantomData;
 
+pub mod circuit_info;
 mod expression;
 mod helpers;
 mod test;
 
-/// Custom serialization for the Halo2 circuit environment, where all field elements
-/// are replaced with indices pointing to a constant table.
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct CircuitInfo<C: CurveAffine> {
-    vk_transcript_repr: C::Scalar,
-    fixed_commitments: Vec<C>,
-    permutation_commitments: Vec<C>,
-    k: u8,
-    max_num_query_of_advice_column: u32,
-    cs_degree: u32,
-    num_fixed_columns: u64,
-    num_instance_columns: u64,
-    advice_column_phase: Vec<u8>,
-    challenge_phase: Vec<u8>,
-    fields_pool: Vec<C::Scalar>,
-    gates: Vec<Gate<C::Scalar>>,
-    advice_queries: Vec<ColumnQuery>,
-    instance_queries: Vec<ColumnQuery>,
-    fixed_queries: Vec<ColumnQuery>,
-    permutation_columns: Vec<Column>,
-    lookups: Vec<Lookup<C::Scalar>>,
-    shuffles: Vec<Shuffle<C::Scalar>>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct ColumnQuery {
-    column: Column,
-    rotation: Rotation,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Column {
-    index: u32,
-    column_type: u8,
-}
-
-impl From<halo2_proofs::plonk::Column<Any>> for Column {
-    fn from(value: halo2_proofs::plonk::Column<Any>) -> Self {
-        let column_type = match value.column_type() {
-            Any::Advice => 1,
-            Any::Fixed => 2,
-            Any::Instance => 3,
-        };
-        Column {
-            index: value.index() as u32,
-            column_type,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Rotation {
-    pub rotation: u32,
-    pub next: bool,
-}
-
-impl From<halo2_proofs::poly::Rotation> for Rotation {
-    fn from(value: halo2_proofs::poly::Rotation) -> Self {
-        if value.0.is_negative() {
-            Self {
-                rotation: value.0.unsigned_abs(),
-                next: false,
-            }
-        } else {
-            Self {
-                rotation: value.0 as u32,
-                next: true,
-            }
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Gate<F: Field> {
-    polys: Vec<IndexedExpression<F>>,
-    _phantom: PhantomData<F>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Lookup<F: Field> {
-    input_exprs: Vec<IndexedExpression<F>>,
-    table_exprs: Vec<IndexedExpression<F>>,
-    _phantom: PhantomData<F>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Shuffle<F: Field> {
-    input_exprs: Vec<IndexedExpression<F>>,
-    shuffle_exprs: Vec<IndexedExpression<F>>,
-    _phantom: PhantomData<F>,
-}
+// Custom serialization for the Halo2 circuit environment, where all field elements
+// are replaced with indices pointing to a constant table.
 
 fn collect_fields<C: CurveAffine>(
     expr: &Expression<C::Scalar>,
@@ -345,569 +259,259 @@ where
     Ok(info)
 }
 
-impl<C: CurveAffine> CircuitInfo<C> {
-    /// Serializes CircuitInfo into a Vec<Vec<Vec<u8>>> format (11 sections).
-    ///
-    /// The output structure is:
-    /// 0. general_info (12 items):
-    ///    - vk_transcript_repr (bytes)
-    ///    - fixed_commitments (concatenated point bytes)
-    ///    - permutation_commitments (concatenated point bytes)
-    ///    - k (BCS u8)
-    ///    - max_num_query_of_advice_column (BCS u32)
-    ///    - cs_degree (BCS u32)
-    ///    - num_fixed_columns (BCS u64)
-    ///    - num_instance_columns (BCS u64)
-    ///    - advice_column_phase (raw Vec<u8>)
-    ///    - challenge_phase (raw Vec<u8>)
-    ///    - use_u8_index_for_query flag (single byte: 0=u8, 1=u32)
-    ///    - use_u8_index_for_fields flag (single byte: 0=u8, 1=u32)
-    /// 1. advice_queries (each Vec<u8> is serialized ColumnQuery)
-    /// 2. instance_queries
-    /// 3. fixed_queries
-    /// 4. permutation_columns
-    /// 5. fields_pool (each Vec<u8> is encoded scalar)
-    /// 6. gates (each Vec<u8> is serialized expressions for one gate)
-    /// 7. lookups_input_exprs
-    /// 8. lookups_table_exprs
-    /// 9. shuffles_input_exprs
-    /// 10. shuffles_shuffle_exprs
-    ///
-    /// All expression bytes use the custom binary format defined in serialize_expression.
-    pub fn serialize(&self) -> bcs::Result<Vec<Vec<Vec<u8>>>> {
-        let vk_repr = PrimeField::to_repr(&self.vk_transcript_repr)
-            .as_ref()
-            .to_vec();
-        let fixed_commitments = self
-            .fixed_commitments
-            .iter()
-            .flat_map(|c| c.to_bytes().as_ref().to_vec())
-            .collect();
-        let permutation_commitments = self
-            .permutation_commitments
-            .iter()
-            .flat_map(|c| c.to_bytes().as_ref().to_vec())
-            .collect();
-        let use_u8_index_for_fields = self.fields_pool.len() < 256;
-        let use_u8_index_for_query = self.advice_queries.len() < 256
-            && self.fixed_queries.len() < 256
-            && self.instance_queries.len() < 256;
-        let mut general_info = vec![
-            vk_repr,
-            fixed_commitments,
-            permutation_commitments,
-            bcs::to_bytes(&self.k)?,
-            bcs::to_bytes(&self.max_num_query_of_advice_column)?,
-            bcs::to_bytes(&self.cs_degree)?,
-            bcs::to_bytes(&self.num_fixed_columns)?,
-            bcs::to_bytes(&self.num_instance_columns)?,
-            self.advice_column_phase.clone(),
-            self.challenge_phase.clone(),
-        ];
-        // Insert the flags at the beginning of general_info to avoid redundancy per expr group
-        general_info.push(vec![if use_u8_index_for_query { 0u8 } else { 1u8 }]);
-        general_info.push(vec![if use_u8_index_for_fields { 0u8 } else { 1u8 }]);
-        let fields_pool = self
-            .fields_pool
-            .iter()
-            .map(|f| encode_field::<C>(f))
-            .collect();
-        let gates = self
-            .gates
-            .iter()
-            .map(|g| {
-                serialize_exprs::<C>(&g.polys, use_u8_index_for_fields, use_u8_index_for_query)
-            })
-            .collect::<bcs::Result<Vec<Vec<u8>>>>()?;
-        let advice_queries = self
-            .advice_queries
-            .iter()
-            .map(serialize_column_query)
-            .collect();
-        let instance_queries = self
-            .instance_queries
-            .iter()
-            .map(serialize_column_query)
-            .collect();
-        let fixed_queries = self
-            .fixed_queries
-            .iter()
-            .map(serialize_column_query)
-            .collect();
-        let permutation_columns = self
-            .permutation_columns
-            .iter()
-            .map(serialize_column)
-            .collect();
-        let lookups_input_exprs = self
-            .lookups
-            .iter()
-            .map(|l| {
-                serialize_exprs::<C>(
-                    &l.input_exprs,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                )
-            })
-            .collect::<bcs::Result<Vec<Vec<u8>>>>()?;
-        let lookups_table_exprs = self
-            .lookups
-            .iter()
-            .map(|l| {
-                serialize_exprs::<C>(
-                    &l.table_exprs,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                )
-            })
-            .collect::<bcs::Result<Vec<Vec<u8>>>>()?;
-        let shuffles_input_exprs = self
-            .shuffles
-            .iter()
-            .map(|s| {
-                serialize_exprs::<C>(
-                    &s.input_exprs,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                )
-            })
-            .collect::<bcs::Result<Vec<Vec<u8>>>>()?;
-        let shuffles_shuffle_exprs = self
-            .shuffles
-            .iter()
-            .map(|s| {
-                serialize_exprs::<C>(
-                    &s.shuffle_exprs,
-                    use_u8_index_for_fields,
-                    use_u8_index_for_query,
-                )
-            })
-            .collect::<bcs::Result<Vec<Vec<u8>>>>()?;
-        let result = vec![
-            general_info,
-            advice_queries,
-            instance_queries,
-            fixed_queries,
-            permutation_columns,
-            fields_pool,
-            gates,
-            lookups_input_exprs,
-            lookups_table_exprs,
-            shuffles_input_exprs,
-            shuffles_shuffle_exprs,
-        ];
-
-        let item_names = [
-            "General Info",
-            "Advice Queries",
-            "Instance Queries",
-            "Fixed Queries",
-            "Permutation Columns",
-            "Fields Pool",
-            "Gates",
-            "Lookups Input Expressions",
-            "Lookups Table Expressions",
-            "Shuffles Input Expressions",
-            "Shuffles Shuffle Expressions",
-        ];
-
-        for (i, (item, name)) in result.iter().zip(item_names.iter()).enumerate() {
-            let total_size: usize = item.iter().map(|nested| nested.len()).sum();
-            let lengths = item.len();
-            println!(
-                "Item {} ({}): total size = {}, lengths = {:?}",
-                i, name, total_size, lengths
-            );
-        }
-
-        Ok(result)
-    }
-
-    /// Deserializes the exact format produced by serialize().
-    ///
-    /// Expects exactly 11 top-level sections.
-    /// See serialize() docs for section meanings.
-    pub fn deserialize(data: Vec<Vec<Vec<u8>>>) -> bcs::Result<CircuitInfo<C>> {
-        if data.len() != 11 {
-            return Err(BcsError::Custom(format!(
-                "Expected 11 sections, got {}",
-                data.len()
-            )));
-        }
-
-        let mut sections = data.into_iter();
-
-        // 0. general_info
-        let general_info = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing general_info section".to_string()))?;
-        if general_info.len() != 12 {
-            return Err(BcsError::Custom(format!(
-                "general_info expected 12 items, got {}",
-                general_info.len()
-            )));
-        }
-
-        let mut general_iter = general_info.into_iter();
-
-        let vk_repr_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing vk_repr".to_string()))?;
-        let fixed_commitments_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing fixed_commitments".to_string()))?;
-        let permutation_commitments_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing permutation_commitments".to_string()))?;
-        let k_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing k".to_string()))?;
-        let max_num_query_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing max_num_query".to_string()))?;
-        let cs_degree_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing cs_degree".to_string()))?;
-        let num_fixed_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing num_fixed_columns".to_string()))?;
-        let num_instance_bytes = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing num_instance_columns".to_string()))?;
-        let advice_column_phase = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing advice_column_phase".to_string()))?;
-        let challenge_phase = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing challenge_phase".to_string()))?;
-
-        let use_u8_index_for_query_flag = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing query flag".to_string()))?;
-        let use_u8_index_for_fields_flag = general_iter
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing fields flag".to_string()))?;
-
-        if general_iter.next().is_some() {
-            return Err(BcsError::Custom("Extra items in general_info".to_string()));
-        }
-
-        // vk_transcript_repr
-        let repr_size = 32; // bn256 Fr Repr = 32 bytes (compressed scalar)
-        if vk_repr_bytes.len() != repr_size {
-            return Err(BcsError::Custom(format!(
-                "vk_repr wrong length: expected {}, got {}",
-                repr_size,
-                vk_repr_bytes.len()
-            )));
-        }
-
-        let mut repr = <C::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&vk_repr_bytes);
-        let vk_transcript_repr = <C::Scalar as PrimeField>::from_repr(repr)
-            .into_option()
-            .ok_or_else(|| {
-                BcsError::Custom("Invalid vk_transcript_repr bytes (from_repr failed)".to_string())
-            })?;
-
-        let k: u8 = bcs::from_bytes(&k_bytes)?;
-        let max_num_query_of_advice_column: u32 = bcs::from_bytes(&max_num_query_bytes)?;
-        let cs_degree: u32 = bcs::from_bytes(&cs_degree_bytes)?;
-        let num_fixed_columns: u64 = bcs::from_bytes(&num_fixed_bytes)?;
-        let num_instance_columns: u64 = bcs::from_bytes(&num_instance_bytes)?;
-
-        let use_u8_index_for_query = use_u8_index_for_query_flag == vec![0u8];
-        let use_u8_index_for_fields = use_u8_index_for_fields_flag == vec![0u8];
-
-        // fixed_commitments & permutation_commitments
-        let fixed_commitments = bytes_to_affines::<C>(&fixed_commitments_bytes)
-            .map_err(|e| BcsError::Custom(format!("Invalid fixed_commitments: {}", e)))?;
-
-        let permutation_commitments = bytes_to_affines::<C>(&permutation_commitments_bytes)
-            .map_err(|e| BcsError::Custom(format!("Invalid permutation_commitments: {}", e)))?;
-
-        // queries & columns
-        let advice_queries = deserialize_column_queries(
-            sections
-                .next()
-                .ok_or_else(|| BcsError::Custom("Missing advice_queries".to_string()))?,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize advice_queries: {}", e)))?;
-
-        let instance_queries = deserialize_column_queries(
-            sections
-                .next()
-                .ok_or_else(|| BcsError::Custom("Missing instance_queries".to_string()))?,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize instance_queries: {}", e)))?;
-
-        let fixed_queries = deserialize_column_queries(
-            sections
-                .next()
-                .ok_or_else(|| BcsError::Custom("Missing fixed_queries".to_string()))?,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize fixed_queries: {}", e)))?;
-
-        let permutation_columns = deserialize_columns(
-            sections
-                .next()
-                .ok_or_else(|| BcsError::Custom("Missing permutation_columns".to_string()))?,
-        )
-        .map_err(|e| {
-            BcsError::Custom(format!("Failed to deserialize permutation_columns: {}", e))
-        })?;
-
-        // fields_pool
-        let fields_pool_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing fields_pool".to_string()))?;
-        let fields_pool = fields_pool_bytes
-            .iter()
-            .enumerate()
-            .map(|(i, f_bytes)| {
-                decode_field::<C>(f_bytes).ok_or_else(|| {
-                    BcsError::Custom(format!("Invalid scalar in fields_pool at index {}", i))
-                })
-            })
-            .collect::<bcs::Result<Vec<_>>>()?;
-
-        // expressions
-        let gates_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing gates".to_string()))?;
-        let gates = deserialize_gates::<C>(
-            gates_bytes,
-            use_u8_index_for_fields,
-            use_u8_index_for_query,
-            &challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize gates: {}", e)))?;
-
-        let lookups_input_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing lookups_input".to_string()))?;
-        let lookups_table_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing lookups_table".to_string()))?;
-        let lookups = deserialize_lookups::<C>(
-            &lookups_input_bytes,
-            &lookups_table_bytes,
-            use_u8_index_for_fields,
-            use_u8_index_for_query,
-            &challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize lookups: {}", e)))?;
-
-        let shuffles_input_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing shuffles_input".to_string()))?;
-        let shuffles_shuffle_bytes = sections
-            .next()
-            .ok_or_else(|| BcsError::Custom("Missing shuffles_shuffle".to_string()))?;
-        let shuffles = deserialize_shuffles::<C>(
-            &shuffles_input_bytes,
-            &shuffles_shuffle_bytes,
-            use_u8_index_for_fields,
-            use_u8_index_for_query,
-            &challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Failed to deserialize shuffles: {}", e)))?;
-
-        if sections.next().is_some() {
-            return Err(BcsError::Custom("Extra sections found".to_string()));
-        }
-
-        Ok(CircuitInfo {
-            vk_transcript_repr,
-            fixed_commitments,
-            permutation_commitments,
-            k,
-            max_num_query_of_advice_column,
-            cs_degree,
-            num_fixed_columns,
-            num_instance_columns,
-            advice_column_phase,
-            challenge_phase,
-            fields_pool,
-            gates,
-            advice_queries,
-            instance_queries,
-            fixed_queries,
-            permutation_columns,
-            lookups,
-            shuffles,
-        })
+fn halo2_rotation_from_custom(rotation: &Rotation) -> Halo2Rotation {
+    let rot_val = rotation.rotation as i32;
+    if rotation.next {
+        Halo2Rotation(rot_val)
+    } else {
+        Halo2Rotation(-rot_val)
     }
 }
 
-fn serialize_column_query(q: &ColumnQuery) -> Vec<u8> {
-    let mut bytes = vec![];
-    bytes.push(q.column.column_type);
-    bytes.extend(q.column.index.to_le_bytes());
-    bytes.push(q.rotation.next.into());
-    bytes.extend(q.rotation.rotation.to_le_bytes());
-    bytes
+fn any_from_type(column_type: u8) -> Result<Any, Error> {
+    match column_type {
+        1 => Ok(Any::Advice),
+        2 => Ok(Any::Fixed),
+        3 => Ok(Any::Instance),
+        _ => Err(ErrorFront::Other("Invalid index for column type".to_string()).into()),
+    }
 }
 
-fn serialize_column(column: &Column) -> Vec<u8> {
-    let mut bytes = vec![];
-    bytes.push(column.column_type);
-    bytes.extend(column.index.to_le_bytes());
-    bytes
-}
-
-fn deserialize_column_queries(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<ColumnQuery>> {
-    bytes_list
-        .into_iter()
-        .map(|bytes| {
-            if bytes.len() != 1 + 4 + 1 + 4 {
-                return Err(BcsError::Custom(format!(
-                    "ColumnQuery wrong size: expected 10 bytes, got {}",
-                    bytes.len()
-                )));
+// Reconstruct Expression from IndexedExpression
+fn reconstruct_expression<C: CurveAffine>(
+    indexed: &IndexedExpression<C::Scalar>,
+    cs: &ConstraintSystem<C::Scalar>,
+    fields_pool: &[C::Scalar],
+) -> Result<Expression<C::Scalar>, Error> {
+    match indexed {
+        IndexedExpression::ConstantIndex(idx, _) => {
+            let i = idx.value() as usize;
+            if i >= fields_pool.len() {
+                return Err(ErrorFront::Other("Constant index out of bounds".to_string()).into());
             }
-            let mut cur = Cursor::new(bytes);
-            let column_type = cur.read_u8().map_err(|e| BcsError::Custom(e.to_string()))?;
-            let index = cur
-                .read_u32::<LittleEndian>()
-                .map_err(|e| BcsError::Custom(e.to_string()))?;
-            let next_byte = cur.read_u8().map_err(|e| BcsError::Custom(e.to_string()))?;
-            let next = next_byte != 0;
-            let rotation = cur
-                .read_u32::<LittleEndian>()
-                .map_err(|e| BcsError::Custom(e.to_string()))?;
-
-            Ok(ColumnQuery {
-                column: Column { index, column_type },
-                rotation: Rotation { rotation, next },
-            })
-        })
-        .collect()
-}
-
-fn deserialize_columns(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<Column>> {
-    bytes_list
-        .into_iter()
-        .map(|bytes| {
-            if bytes.len() != 1 + 4 {
-                return Err(BcsError::Custom(format!(
-                    "Column wrong size: expected 5 bytes, got {}",
-                    bytes.len()
-                )));
+            Ok(Expression::Constant(fields_pool[i]))
+        }
+        IndexedExpression::Fixed(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.fixed_queries.len() {
+                return Err(
+                    ErrorFront::Other("Fixed query index out of bounds".to_string()).into(),
+                );
             }
-            let mut cur = Cursor::new(bytes);
-            let column_type = cur.read_u8().map_err(|e| BcsError::Custom(e.to_string()))?;
-            let index = cur
-                .read_u32::<LittleEndian>()
-                .map_err(|e| BcsError::Custom(e.to_string()))?;
-            Ok(Column { index, column_type })
-        })
-        .collect()
+            let (col, rot) = cs.fixed_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Advice(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.advice_queries.len() {
+                return Err(
+                    ErrorFront::Other("Advice query index out of bounds".to_string()).into(),
+                );
+            }
+            let (col, rot) = cs.advice_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Instance(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.instance_queries.len() {
+                return Err(
+                    ErrorFront::Other("Instance query index out of bounds".to_string()).into(),
+                );
+            }
+            let (col, rot) = cs.instance_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Challenge(ch) => Ok(Expression::Var(VarBack::Challenge(*ch))),
+        IndexedExpression::Negated(child) => Ok(Expression::Negated(Box::new(
+            reconstruct_expression::<C>(child, cs, fields_pool)?,
+        ))),
+        IndexedExpression::Sum(a, b) => Ok(Expression::Sum(
+            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
+            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
+        )),
+        IndexedExpression::Product(a, b) => Ok(Expression::Product(
+            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
+            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
+        )),
+        IndexedExpression::Scaled(child, idx) => {
+            let i = idx.value() as usize;
+            if i >= fields_pool.len() {
+                return Err(
+                    ErrorFront::Other("Scaled constant index out of bounds".to_string()).into(),
+                );
+            }
+            let scalar = fields_pool[i];
+            let child_expr = reconstruct_expression::<C>(child, cs, fields_pool)?;
+
+            Ok(Expression::Product(
+                Box::new(child_expr),
+                Box::new(Expression::Constant(scalar)),
+            ))
+        }
+    }
 }
 
-fn deserialize_gates<C: CurveAffine>(
-    bytes_list: Vec<Vec<u8>>,
-    use_u8_fields: bool,
-    use_u8_query: bool,
-    challenge_phase: &Vec<u8>,
-) -> bcs::Result<Vec<Gate<C::Scalar>>> {
-    bytes_list
-        .into_iter()
-        .enumerate()
-        .map(|(i, bytes)| {
-            let polys =
-                deserialize_exprs::<C>(&bytes, use_u8_fields, use_u8_query, challenge_phase)
-                    .map_err(|e| {
-                        BcsError::Custom(format!("Gate[{}] expression error: {}", i, e))
-                    })?;
-            Ok(Gate {
-                polys,
-                _phantom: PhantomData,
-            })
-        })
-        .collect()
-}
+pub fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
+    info: &CircuitInfo<C>,
+) -> Result<ConstraintSystem<C::Scalar>, Error>
+where
+    C::Scalar: Field,
+{
+    // 1. Infer num_advice_columns from advice_queries (max column index + 1)
+    let num_advice_columns = if info.advice_queries.is_empty() {
+        0
+    } else {
+        info.advice_queries
+            .iter()
+            .map(|q| q.column.index as usize)
+            .max()
+            .ok_or(Error::Frontend(ErrorFront::Other(
+                "failed to infer num_advice_columns".to_string(),
+            )))?
+            + 1
+    };
 
-fn deserialize_lookups<C: CurveAffine>(
-    input_bytes_list: &[Vec<u8>],
-    table_bytes_list: &[Vec<u8>],
-    use_u8_fields: bool,
-    use_u8_query: bool,
-    challenge_phase: &Vec<u8>,
-) -> bcs::Result<Vec<Lookup<C::Scalar>>> {
-    if input_bytes_list.len() != table_bytes_list.len() {
-        return Err(BcsError::Custom(format!(
-            "Lookups input and table lengths mismatch: {} vs {}",
-            input_bytes_list.len(),
-            table_bytes_list.len()
-        )));
+    // 2. Create empty ConstraintSystem
+    let mut cs = ConstraintSystem::<C::Scalar> {
+        num_fixed_columns: info.num_fixed_columns as usize,
+        num_advice_columns,
+        num_instance_columns: info.num_instance_columns as usize,
+        num_challenges: info.challenge_phase.len(),
+        unblinded_advice_columns: Vec::new(),
+        advice_column_phase: info.advice_column_phase.clone(),
+        challenge_phase: info.challenge_phase.clone(),
+        gates: Vec::new(),
+        advice_queries: Vec::new(),
+        num_advice_queries: vec![0; num_advice_columns],
+        instance_queries: Vec::new(),
+        fixed_queries: Vec::new(),
+        permutation: PermutationArgumentBack {
+            columns: Vec::new(),
+        },
+        lookups: Vec::new(),
+        shuffles: Vec::new(),
+        minimum_degree: None,
+    };
+
+    // 3. Fill queries and num_advice_queries
+    for q in &info.advice_queries {
+        let column_type = any_from_type(q.column.column_type)?;
+        let col = ColumnMid {
+            index: q.column.index as usize,
+            column_type,
+        };
+        let rot = halo2_rotation_from_custom(&q.rotation);
+        cs.advice_queries.push((col, rot));
+        if col.column_type == Any::Advice {
+            cs.num_advice_queries[col.index] += 1;
+        }
     }
 
-    let mut lookups = Vec::with_capacity(input_bytes_list.len());
-    for i in 0..input_bytes_list.len() {
-        let input_exprs = deserialize_exprs::<C>(
-            &input_bytes_list[i],
-            use_u8_fields,
-            use_u8_query,
-            challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Lookups[{}] input expr error: {}", i, e)))?;
+    for q in &info.instance_queries {
+        let column_type = any_from_type(q.column.column_type)?;
+        let col = ColumnMid {
+            index: q.column.index as usize,
+            column_type,
+        };
+        let rot = halo2_rotation_from_custom(&q.rotation);
+        cs.instance_queries.push((col, rot));
+    }
 
-        let table_exprs = deserialize_exprs::<C>(
-            &table_bytes_list[i],
-            use_u8_fields,
-            use_u8_query,
-            challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Lookups[{}] table expr error: {}", i, e)))?;
+    for q in &info.fixed_queries {
+        let column_type = any_from_type(q.column.column_type)?;
+        let col = ColumnMid {
+            index: q.column.index as usize,
+            column_type,
+        };
+        let rot = halo2_rotation_from_custom(&q.rotation);
+        cs.fixed_queries.push((col, rot));
+    }
 
-        lookups.push(Lookup {
-            input_exprs,
-            table_exprs,
-            _phantom: PhantomData,
+    // 4. Fill permutation columns
+    cs.permutation.columns = info
+        .permutation_columns
+        .iter()
+        .map(|c| {
+            let column_type = any_from_type(c.column_type)?;
+            Ok::<_, Error>(ColumnMid {
+                index: c.index as usize,
+                column_type,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // 5. Reconstruct gates (now that queries are filled)
+    for gate in &info.gates {
+        let polys = gate
+            .polys
+            .iter()
+            .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
+            .collect::<Result<Vec<_>, _>>()?;
+        if polys.is_empty() {
+            return Err(ErrorFront::Other("Gate with no polynomials".to_string()).into());
+        }
+        // For now, we only support single polynomial gates
+        cs.gates.push(GateBack {
+            name: "unknown".to_string(),
+            poly: polys[0].clone(),
         });
     }
-    Ok(lookups)
-}
 
-fn deserialize_shuffles<C: CurveAffine>(
-    input_bytes_list: &[Vec<u8>],
-    shuffle_bytes_list: &[Vec<u8>],
-    use_u8_fields: bool,
-    use_u8_query: bool,
-    challenge_phase: &Vec<u8>,
-) -> bcs::Result<Vec<Shuffle<C::Scalar>>> {
-    if input_bytes_list.len() != shuffle_bytes_list.len() {
-        return Err(BcsError::Custom(format!(
-            "Shuffles input and shuffle lengths mismatch: {} vs {}",
-            input_bytes_list.len(),
-            shuffle_bytes_list.len()
-        )));
-    }
-
-    let mut shuffles = Vec::with_capacity(input_bytes_list.len());
-    for i in 0..input_bytes_list.len() {
-        let input_exprs = deserialize_exprs::<C>(
-            &input_bytes_list[i],
-            use_u8_fields,
-            use_u8_query,
-            challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Shuffles[{}] input expr error: {}", i, e)))?;
-
-        let shuffle_exprs = deserialize_exprs::<C>(
-            &shuffle_bytes_list[i],
-            use_u8_fields,
-            use_u8_query,
-            challenge_phase,
-        )
-        .map_err(|e| BcsError::Custom(format!("Shuffles[{}] shuffle expr error: {}", i, e)))?;
-
-        shuffles.push(Shuffle {
-            input_exprs,
-            shuffle_exprs,
-            _phantom: PhantomData,
+    // 6. Reconstruct lookups
+    for lookup in &info.lookups {
+        let input_expressions = lookup
+            .input_exprs
+            .iter()
+            .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
+            .collect::<Result<Vec<_>, _>>()?;
+        let table_expressions = lookup
+            .table_exprs
+            .iter()
+            .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
+            .collect::<Result<Vec<_>, _>>()?;
+        cs.lookups.push(LookupArgumentBack {
+            name: "unknown".to_string(),
+            input_expressions,
+            table_expressions,
         });
     }
-    Ok(shuffles)
+
+    // 7. Reconstruct shuffles (similar to lookups)
+    for shuffle in &info.shuffles {
+        let input_expressions = shuffle
+            .input_exprs
+            .iter()
+            .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
+            .collect::<Result<Vec<_>, _>>()?;
+        let shuffle_expressions = shuffle
+            .shuffle_exprs
+            .iter()
+            .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
+            .collect::<Result<Vec<_>, _>>()?;
+        cs.shuffles.push(ShuffleArgumentBack {
+            name: "unknown".to_string(),
+            input_expressions,
+            shuffle_expressions,
+        });
+    }
+
+    // Optional: Set minimum_degree based on cs_degree if needed
+    // cs.minimum_degree = Some(info.cs_degree as usize);
+
+    Ok(cs)
 }

@@ -18,7 +18,7 @@ pub(crate) enum Index {
 }
 
 impl Index {
-    fn value(&self) -> u32 {
+    pub(crate) fn value(&self) -> u32 {
         match self {
             Index::U8(v) => *v as u32,
             Index::U32(v) => *v,
