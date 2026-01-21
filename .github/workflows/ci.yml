@@ -26,7 +26,7 @@ jobs:
         with:
           workspaces: |
             crates/verifier-sdk
-            crates/vk-gen-examples
+            crates/functional-tests
 
       - name: Cache Aptos CLI
         id: cache-aptos
@@ -67,12 +67,12 @@ jobs:
       - name: Code formatting check
         run: |
           cargo fmt --manifest-path ./crates/verifier-sdk/Cargo.toml -- --check
-          cargo fmt --manifest-path ./crates/vk-gen-examples/Cargo.toml -- --check
+          cargo fmt --manifest-path ./crates/functional-tests/Cargo.toml -- --check
 
       - name: Clippy lint
         run: |
           cargo clippy --manifest-path ./crates/verifier-sdk/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path ./crates/functional-tests/Cargo.toml --all-targets --all-features -- -D warnings
       
 
       - name: Run Move tests
@@ -84,4 +84,4 @@ jobs:
       - name: Run Rust tests
         run: |
           cargo test --manifest-path ./crates/verifier-sdk/Cargo.toml --all-features
-          cargo test --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-features
+          cargo test --manifest-path ./crates/functional-tests/Cargo.toml --all-features

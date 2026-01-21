@@ -7,7 +7,7 @@ module verifier_api::verifier_api_test {
     use std::unit_test;
     use verifier_api::verifier_api;
 
-    // the following param data is generated from `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_16.srs`
+    // the following param data is generated from `crates/functional-tests/params/challenge_0078-kzg_bn254_16.srs`
     // they all in compressed form of arkworks
     #[test_only]
     const TESTING_G1: vector<u8> = x"0100000000000000000000000000000000000000000000000000000000000000";

@@ -12,11 +12,11 @@ use serde_json::json;
 use std::env::current_dir;
 use std::fmt;
 use std::path::PathBuf;
-use vk_gen_examples::examples::{
+use functional_tests::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
 
-use vk_gen_examples::proofs::{prove_circuit, verify_circuit, KZG};
+use functional_tests::proofs::{prove_circuit, verify_circuit, KZG};
 
 /// the consts correspond to the definition of `verifier_api.move`.
 const PUBLISH_CIRCUIT: &str = "publish_circuit";
@@ -237,7 +237,7 @@ fn main() -> anyhow::Result<()> {
                     (proof, vec![instances])
                 }
                 Examples::VectorMul => {
-                    let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
+                    let (circuit, instances) = vector_mul::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk.clone(), &circuit).unwrap();
                     let proof =

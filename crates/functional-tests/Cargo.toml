@@ -1,5 +1,5 @@
 [package]
-name = "vk-gen-examples"
+name = "functional-tests"
 version = "0.1.0"
 edition = "2021"
 

@@ -449,7 +449,7 @@ impl<F: Field> FieldInstructions<F> for FieldChip<F> {
 /// In this struct we store the private input variables. We use `Value<F>` because
 /// they won't have any value during key generation. During proving, if any of these
 /// were `Value::unknown()` we would get an error.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MyCircuit<F: Field> {
     a: Value<F>,
     b: Value<F>,
