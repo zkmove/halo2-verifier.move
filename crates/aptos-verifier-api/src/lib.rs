@@ -7,7 +7,6 @@ use halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use serde_json::json;
 use shape_generator::generate_circuit_info;
 
-pub mod proving;
 pub mod types;
 pub use shape_generator;
 
@@ -27,7 +26,8 @@ pub fn build_publish_protocol_transaction_payload<ConcreteCircuit>(
 where
     ConcreteCircuit: Circuit<Fr>,
 {
-    let protocol = generate_circuit_info(params, circuit)?;
+    let protocol =
+        generate_circuit_info(params, circuit).expect("generate circuit info should not fail");
 
     let data = protocol.serialize()?;
 
@@ -56,7 +56,6 @@ where
 /// we only support kzg on bn254 for now.
 /// Returns a structure which can be serialized to json string,
 /// and when output the json to file, it can be run by `aptos move run`.
-
 #[allow(clippy::let_and_return)]
 pub fn build_verify_proof_transaction_payload(
     proof: Vec<u8>,

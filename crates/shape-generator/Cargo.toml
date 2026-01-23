@@ -13,12 +13,12 @@ halo2_middleware.workspace=true
 bcs.workspace=true
 blake2b_simd.workspace=true
 halo2curves.workspace=true
+hex.workspace=true
+rand.workspace = true
 
 ark-bn254 = "0.4.0"
 ark-ec = "0.4.0"
 ark-ff = "0.4.0"
 ark-serialize = "0.4.0"
-hex = "0.4.3"
 group = "0.13"
 byteorder = "1.5.0"
-rand = "0.8.5"

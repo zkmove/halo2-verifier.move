@@ -1,4 +1,4 @@
-use crate::proofs::{prove_circuit, verify_circuit, KZG};
+use halo2::proofs::{prove_circuit, verify_circuit, KZG};
 use halo2_backend::plonk::VerifyingKey;
 use halo2_proofs::plonk::{keygen_pk, keygen_vk, Error};
 use halo2_proofs::{

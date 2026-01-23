@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 pub mod circuit_info;
 mod expression;
 mod helpers;
+pub mod public_inputs;
 mod test;
 
 // Custom serialization for the Halo2 circuit environment, where all field elements
