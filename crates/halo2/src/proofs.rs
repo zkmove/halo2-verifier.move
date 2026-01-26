@@ -37,6 +37,13 @@ impl KZG {
             Self::SHPLONK => 1,
         }
     }
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::GWC),
+            1 => Some(Self::SHPLONK),
+            _ => None,
+        }
+    }
 }
 impl std::fmt::Display for KZG {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -59,7 +66,7 @@ impl std::fmt::Display for KZG {
 /// The proof as a byte vector if successful.
 pub fn prove_circuit<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
-    instance: &[Vec<E::Fr>],
+    instance: Vec<Vec<E::Fr>>,
     params: &ParamsKZG<E>,
     pk: &ProvingKey<E::G1Affine>,
     kzg: KZG,
@@ -89,7 +96,7 @@ fn prove_circuit_inner<
     ConcreteCircuit: Circuit<Scheme::Scalar>,
 >(
     circuit: ConcreteCircuit,
-    instance: &[Vec<Scheme::Scalar>],
+    instance: Vec<Vec<Scheme::Scalar>>,
     params: &'params Scheme::ParamsProver,
     pk: &ProvingKey<Scheme::Curve>,
 ) -> Result<Vec<u8>, Error>
@@ -106,7 +113,7 @@ where
         params,
         pk,
         &[circuit],
-        &[instance.to_owned()],
+        &[instance],
         rng,
         &mut transcript,
     )?;
@@ -126,7 +133,7 @@ where
 /// # Returns
 /// `Ok(())` if the proof is valid, or an error if verification fails.
 pub fn verify_circuit<E>(
-    instance: &[Vec<E::Fr>],
+    instance: Vec<Vec<E::Fr>>,
     params: &ParamsKZG<E>,
     vk: &VerifyingKey<E::G1Affine>,
     proof: &[u8],
@@ -162,7 +169,7 @@ fn verify_circuit_inner<
     V: Verifier<'params, Scheme>,
     Strategy: VerificationStrategy<'params, Scheme, V>,
 >(
-    instance: &[Vec<Scheme::Scalar>],
+    instance: Vec<Vec<Scheme::Scalar>>,
     params: &'params Scheme::ParamsVerifier,
     vk: &VerifyingKey<Scheme::Curve>,
     proof: &[u8],
@@ -173,13 +180,7 @@ where
 {
     let strategy = Strategy::new(params);
     let mut transcript = Keccak256Read::<_, _, Challenge255<_>>::init(proof);
-    let _result = verify_proof(
-        params,
-        vk,
-        strategy,
-        &[instance.to_owned()],
-        &mut transcript,
-    )?;
+    let _result = verify_proof(params, vk, strategy, &[instance], &mut transcript)?;
 
     Ok(())
 }

@@ -273,7 +273,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         Ok(())
     }
 }
-pub fn get_example_circuit() -> (MyCircuit<Fr>, Vec<Fr>) {
+pub fn get_example_circuit() -> (MyCircuit<Fr>, Vec<Vec<Fr>>) {
     const N: usize = 3;
     // Prepare the private and public inputs to the circuit!
     let a = [Fr::from(2); N];
@@ -285,7 +285,7 @@ pub fn get_example_circuit() -> (MyCircuit<Fr>, Vec<Fr>) {
         a: a.iter().map(|&x| Value::known(x)).collect(),
         b: b.iter().map(|&x| Value::known(x)).collect(),
     };
-    (circuit, c)
+    (circuit, vec![c])
 }
 
 // ANCHOR_END: circuit

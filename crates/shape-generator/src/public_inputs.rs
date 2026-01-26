@@ -2,7 +2,7 @@ use halo2_proofs::arithmetic::CurveAffine;
 use halo2_proofs::halo2curves::ff::PrimeField;
 
 #[derive(Clone)]
-pub struct PublicInputs<C: CurveAffine>(Vec<Vec<C::Scalar>>);
+pub struct PublicInputs<C: CurveAffine>(pub Vec<Vec<C::Scalar>>);
 
 impl<C: CurveAffine> PublicInputs<C> {
     pub fn to_bytes(&self) -> Vec<Vec<Vec<u8>>> {
@@ -49,7 +49,9 @@ mod tests {
     fn test_to_bytes_and_from_bytes() {
         let num_columns = 4;
         let num_rows = 3;
-        let mut columns = (0..num_columns).map(|_| Vec::with_capacity(num_rows)).collect::<Vec<_>>();
+        let mut columns = (0..num_columns)
+            .map(|_| Vec::with_capacity(num_rows))
+            .collect::<Vec<_>>();
         for col in &mut columns {
             for _ in 0..num_rows {
                 col.push(Fr::random(OsRng));

@@ -1,23 +1,30 @@
+use crate::public_inputs::PublicInputs;
 use circuit_info::{CircuitInfo, ColumnQuery, Gate, Lookup, Rotation, Shuffle};
 use expression::{to_indexed_expression, IndexedExpression};
+use halo2::proofs::{verify_circuit, KZG};
 use halo2_backend::plonk::{
     ConstraintSystemBack as ConstraintSystem, ExpressionBack as Expression, GateBack,
     LookupArgumentBack, PermutationArgumentBack, QueryBack, ShuffleArgumentBack, VarBack,
 };
 use halo2_middleware::circuit::ColumnMid;
 use halo2_proofs::arithmetic::{CurveAffine, Field};
+use halo2_proofs::halo2curves::bn256::G1Affine;
 use halo2_proofs::halo2curves::ff::FromUniformBytes;
+use halo2_proofs::plonk::VerifyingKey;
 use halo2_proofs::plonk::{keygen_vk, Any, Circuit, Error, ErrorFront};
 use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::Rotation as Halo2Rotation;
+use halo2_proofs::SerdeFormat;
 use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 
 pub mod circuit_info;
+pub mod params;
+pub mod public_inputs;
+
 mod expression;
 mod helpers;
-pub mod public_inputs;
 mod test;
 
 // Custom serialization for the Halo2 circuit environment, where all field elements
@@ -515,4 +522,57 @@ where
     // cs.minimum_degree = Some(info.cs_degree as usize);
 
     Ok(cs)
+}
+
+/// Deserializes the circuit and reconstructs the vk, verifies the proof using the SHPLONK multi-opening scheme with KZG commitments.
+///
+/// # Arguments
+/// - `params`: The serialized KZG parameters.
+/// - `vk_bytes`: The serialized verification key.
+/// - `circuit_info`: The serialized circuit environment.
+/// - `public_inputs`: The serialized public inputs for the circuit.
+/// - `proof`: The proof bytes to verify.
+/// - `kzg`: An integer indicating the KZG variant to use (0 for GWC, 1 for SHPLONK).
+/// - `k`: Optional new parameter k to downsize the KZG parameters if needed.
+///
+/// # Returns
+/// `Ok(())` if the proof is valid, or an error if verification fails.
+pub fn deserialize_and_verify(
+    params: &[u8],
+    vk_bytes: &[u8],
+    circuit_info: Vec<Vec<Vec<u8>>>,
+    public_inputs: Vec<Vec<Vec<u8>>>,
+    proof: &[u8],
+    kzg: u8,
+    k: Option<u32>,
+) -> Result<(), Error> {
+    let mut params =
+        params::deserialize_kzg_params(params).expect("Failed to deserialize KZG parameters");
+    if let Some(requested_k) = k {
+        if requested_k > params.k() {
+            return Err(ErrorFront::Other(
+                "Cannot increase k beyond the original value".to_string(),
+            )
+            .into());
+        }
+        params.downsize(requested_k);
+    }
+    let circuit_info = CircuitInfo::<G1Affine>::deserialize(circuit_info)
+        .map_err(|e| ErrorFront::Other(format!("Circuit info deserialization failed: {e}")))?;
+
+    let cs = reconstruct_cs_from_circuit_info(&circuit_info)
+        .map_err(|e| ErrorFront::Other(format!("Constraint system reconstruction failed: {e}")))?;
+
+    let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs)
+        .map_err(|e| ErrorFront::Other(format!("Verification key deserialization failed: {e}")))?;
+
+    let public_inputs = PublicInputs::<G1Affine>::from_bytes(&public_inputs)
+        .map_err(|e| ErrorFront::Other(format!("Public inputs deserialization failed: {e}")))?;
+
+    let kzg_variant = KZG::from_u8(kzg)
+        .ok_or_else(|| ErrorFront::Other("Invalid KZG variant (expected 0 or 1)".to_string()))?;
+
+    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant)
+        .map_err(|e| ErrorFront::Other(format!("Verification failed: {e}")))?;
+    Ok(())
 }
