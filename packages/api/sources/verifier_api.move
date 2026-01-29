@@ -1,8 +1,13 @@
 module verifier_api::verifier_api {
     use std::error;
+    use std::option::Option;
+    use std::proofs::verify_proof as native_verify_proof;
     use aptos_std::bn254_algebra::Fr;
 
     use verifier_api::param_store::get_params;
+    use verifier_api::param_store::get_serialized_params;
+    use verifier_api::vk_store::get_serialized_vk;
+    use verifier_api::vk_store::get_serialized_circuit;
 
     use halo2_verifier::halo2_verifier::{verify_single, verify_single_vm};
     use halo2_verifier::protocol::{Self, Protocol};
@@ -39,16 +44,17 @@ module verifier_api::verifier_api {
     }
 
     public entry fun verify_proof_gwc(param_address: address,
-                                  circuit_address: address,
-                                  instances: vector<vector<vector<u8>>>,
-                                  proof: vector<u8>) acquires Circuit {
-        verify_proof(param_address,circuit_address,instances,proof, 0);
-    }
-    public entry fun verify_proof_shplonk(param_address: address,
                                       circuit_address: address,
                                       instances: vector<vector<vector<u8>>>,
                                       proof: vector<u8>) acquires Circuit {
-        verify_proof(param_address,circuit_address,instances,proof, 1);
+        verify_proof(param_address, circuit_address, instances, proof, 0);
+    }
+
+    public entry fun verify_proof_shplonk(param_address: address,
+                                          circuit_address: address,
+                                          instances: vector<vector<vector<u8>>>,
+                                          proof: vector<u8>) acquires Circuit {
+        verify_proof(param_address, circuit_address, instances, proof, 1);
     }
 
     /// verify proof with given kzg variant, 0: gwc, 1: shplonk
@@ -106,5 +112,20 @@ module verifier_api::verifier_api {
     /// destory a circuit
     public fun destroy(circuit: Circuit) {
         let Circuit { protocol: _ } = circuit;
+    }
+
+    public entry fun verify_with_native_verifier(
+        param_address: address,
+        vk_address: address,
+        public_inputs: vector<u8>,
+        proof: vector<u8>,
+        kzg_variant: u8,
+        k: Option<u32>,
+    ) {
+        let params = get_serialized_params(param_address);
+        let vk_bytes = get_serialized_vk(vk_address);
+        let circuit_info = get_serialized_circuit(vk_address);
+
+        assert!(native_verify_proof(params,  vk_bytes, circuit_info, public_inputs, proof, kzg_variant, k), error::aborted(VERIFY_PROOF_FAILURE));
     }
 }

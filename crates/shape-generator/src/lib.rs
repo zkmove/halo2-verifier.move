@@ -529,19 +529,19 @@ where
 /// # Arguments
 /// - `params`: The serialized KZG parameters.
 /// - `vk_bytes`: The serialized verification key.
-/// - `circuit_info`: The serialized circuit environment.
-/// - `public_inputs`: The serialized public inputs for the circuit.
+/// - `circuit_info_bytes`: The serialized circuit environment.
+/// - `public_inputs_bytes`: The serialized public inputs for the circuit.
 /// - `proof`: The proof bytes to verify.
 /// - `kzg`: An integer indicating the KZG variant to use (0 for GWC, 1 for SHPLONK).
 /// - `k`: Optional new parameter k to downsize the KZG parameters if needed.
 ///
 /// # Returns
-/// `Ok(())` if the proof is valid, or an error if verification fails.
-pub fn deserialize_and_verify(
+/// `true` if the proof is valid, or `false` if verification fails.
+pub fn deserialize_circuit_and_verify(
     params: &[u8],
     vk_bytes: &[u8],
-    circuit_info: Vec<Vec<Vec<u8>>>,
-    public_inputs: Vec<Vec<Vec<u8>>>,
+    circuit_info_bytes: &[u8],
+    public_inputs_bytes: &[u8],
     proof: &[u8],
     kzg: u8,
     k: Option<u32>,
@@ -557,7 +557,7 @@ pub fn deserialize_and_verify(
         }
         params.downsize(requested_k);
     }
-    let circuit_info = CircuitInfo::<G1Affine>::deserialize(circuit_info)
+    let circuit_info = CircuitInfo::<G1Affine>::from_bytes(circuit_info_bytes)
         .map_err(|e| ErrorFront::Other(format!("Circuit info deserialization failed: {e}")))?;
 
     let cs = reconstruct_cs_from_circuit_info(&circuit_info)
@@ -566,7 +566,7 @@ pub fn deserialize_and_verify(
     let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs)
         .map_err(|e| ErrorFront::Other(format!("Verification key deserialization failed: {e}")))?;
 
-    let public_inputs = PublicInputs::<G1Affine>::from_bytes(&public_inputs)
+    let public_inputs = PublicInputs::<G1Affine>::from_bytes(public_inputs_bytes)
         .map_err(|e| ErrorFront::Other(format!("Public inputs deserialization failed: {e}")))?;
 
     let kzg_variant = KZG::from_u8(kzg)

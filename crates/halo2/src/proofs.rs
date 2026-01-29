@@ -13,7 +13,7 @@ use halo2_proofs::{
         commitment::{CommitmentScheme, Prover, Verifier},
         kzg::strategy::SingleStrategy,
         kzg::{
-            commitment::{KZGCommitmentScheme, ParamsKZG},
+            commitment::{KZGCommitmentScheme, ParamsKZG, ParamsVerifierKZG},
             multiopen::{ProverSHPLONK, VerifierSHPLONK},
         },
         VerificationStrategy,
@@ -134,7 +134,7 @@ where
 /// `Ok(())` if the proof is valid, or an error if verification fails.
 pub fn verify_circuit<E>(
     instance: Vec<Vec<E::Fr>>,
-    params: &ParamsKZG<E>,
+    params: &ParamsVerifierKZG<E>,
     vk: &VerifyingKey<E::G1Affine>,
     proof: &[u8],
     kzg: KZG,
@@ -150,17 +150,14 @@ where
     match kzg {
         KZG::GWC => {
             verify_circuit_inner::<KZGCommitmentScheme<E>, VerifierGWC<E>, SingleStrategy<E>>(
-                instance,
-                &params.verifier_params(),
-                vk,
-                proof,
+                instance, params, vk, proof,
             )
         }
-        KZG::SHPLONK => verify_circuit_inner::<
-            KZGCommitmentScheme<E>,
-            VerifierSHPLONK<E>,
-            SingleStrategy<E>,
-        >(instance, &params.verifier_params(), vk, proof),
+        KZG::SHPLONK => {
+            verify_circuit_inner::<KZGCommitmentScheme<E>, VerifierSHPLONK<E>, SingleStrategy<E>>(
+                instance, params, vk, proof,
+            )
+        }
     }
 }
 fn verify_circuit_inner<

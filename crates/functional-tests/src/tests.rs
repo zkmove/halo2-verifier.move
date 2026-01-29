@@ -1,4 +1,3 @@
-// rust
 use halo2::proofs::{prove_circuit, verify_circuit, KZG};
 use halo2_backend::plonk::VerifyingKey;
 use halo2_backend::poly::commitment::Params;
@@ -17,7 +16,7 @@ use crate::examples::{
 use shape_generator::params::{load_default_kzg_params, serialize_kzg_params};
 use shape_generator::public_inputs::PublicInputs;
 use shape_generator::{
-    circuit_info::CircuitInfo, deserialize_and_verify, generate_circuit_info,
+    circuit_info::CircuitInfo, deserialize_circuit_and_verify, generate_circuit_info,
     reconstruct_cs_from_circuit_info,
 };
 
@@ -35,8 +34,10 @@ macro_rules! check_circuit_info {
         let serialized_circuit_info = circuit_info
             .serialize()
             .expect("Failed to serialize circuit info");
+
         let deserialized_circuit_info =
-            CircuitInfo::deserialize(serialized_circuit_info).expect("Failed to deserialize");
+            CircuitInfo::deserialize(&serialized_circuit_info).expect("Failed to deserialize");
+
         assert_eq!(
             circuit_info, deserialized_circuit_info,
             "{}: Deserialized circuit info does not match original",
@@ -53,15 +54,22 @@ macro_rules! run_reconstruction {
         let pk = keygen_pk($params, vk.clone(), &circuit).unwrap();
         let proof = prove_circuit(circuit.clone(), instances.clone(), $params, &pk, KZG::GWC)
             .expect("proving should not fail");
+        println!("proof bytes: 0x{}", hex::encode(proof.as_slice()));
         let vk_bytes = vk.to_bytes(SerdeFormat::RawBytes);
+        println!("vk bytes: 0x{}", hex::encode(vk_bytes.as_slice()));
 
         let circuit_info =
             generate_circuit_info($params, &circuit).expect("Failed to generate circuit info");
-        let serialized_circuit_info = circuit_info
-            .serialize()
+        let circuit_info_bytes = circuit_info
+            .to_bytes()
             .expect("Failed to serialize circuit info");
-        let deserialized_circuit_info = CircuitInfo::deserialize(serialized_circuit_info.clone())
-            .expect("Failed to deserialize");
+        println!(
+            "circuit info bytes: 0x{}",
+            hex::encode(circuit_info_bytes.as_slice())
+        );
+        let deserialized_circuit_info =
+            CircuitInfo::from_bytes(&circuit_info_bytes).expect("Failed to deserialize");
+
         assert_eq!(
             circuit_info, deserialized_circuit_info,
             "{}: Deserialized circuit info does not match original",
@@ -69,6 +77,7 @@ macro_rules! run_reconstruction {
         );
 
         let reconstructed_circuit = reconstruct_cs_from_circuit_info(&deserialized_circuit_info)?;
+
         let reconstructed_vk = VerifyingKey::from_bytes(
             vk_bytes.as_slice(),
             SerdeFormat::RawBytes,
@@ -76,24 +85,37 @@ macro_rules! run_reconstruction {
         )
         .expect("Failed to reconstruct vk from bytes");
 
-        let serialized_public_inputs = PublicInputs::<G1Affine>(instances).to_bytes();
-        let public_inputs = PublicInputs::<G1Affine>::from_bytes(&serialized_public_inputs)
+        let public_inputs_bytes = PublicInputs::<G1Affine>(instances).to_bytes();
+        println!(
+            "public inputs bytes: 0x{}",
+            hex::encode(public_inputs_bytes.as_slice())
+        );
+
+        let public_inputs = PublicInputs::<G1Affine>::from_bytes(&public_inputs_bytes)
             .expect("Failed to deserialize public inputs")
             .0;
 
-        verify_circuit(public_inputs, $params, &reconstructed_vk, &proof, KZG::GWC)
-            .expect("verify proof should not fail");
+        verify_circuit(
+            public_inputs,
+            &$params.verifier_params(),
+            &reconstructed_vk,
+            &proof,
+            KZG::GWC,
+        )
+        .expect("verify proof should not fail");
 
         let kzg = KZG::GWC.to_u8();
-        deserialize_and_verify(
+
+        deserialize_circuit_and_verify(
             $serialized_params.as_slice(),
             vk_bytes.as_slice(),
-            serialized_circuit_info,
-            serialized_public_inputs,
+            &circuit_info_bytes,
+            &public_inputs_bytes,
             proof.as_slice(),
             kzg,
             None,
         )?;
+
         println!("✓ {} passed", $name);
     }};
 }
@@ -126,9 +148,15 @@ fn test_circuit_serialization() {
 #[test]
 fn test_circuit_reconstruction() -> Result<(), Error> {
     let mut params = load_default_kzg_params().expect("Failed to load default KZG params");
-    params.downsize(8);
+    params.downsize(4);
+    let verifier_params = params.verifier_params();
     let serialized_params =
-        serialize_kzg_params(&params).expect("Failed to serialize KZG parameters");
+        serialize_kzg_params(&verifier_params).expect("Failed to serialize KZG parameters");
+
+    println!(
+        "serialized params: 0x{}",
+        hex::encode(serialized_params.as_slice())
+    );
 
     run_reconstruction!(
         "serialization",

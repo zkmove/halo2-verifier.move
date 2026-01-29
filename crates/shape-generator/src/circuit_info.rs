@@ -251,28 +251,28 @@ impl<C: CurveAffine> CircuitInfo<C> {
             shuffles_shuffle_exprs,
         ];
 
-        let item_names = [
-            "General Info",
-            "Advice Queries",
-            "Instance Queries",
-            "Fixed Queries",
-            "Permutation Columns",
-            "Fields Pool",
-            "Gates",
-            "Lookups Input Expressions",
-            "Lookups Table Expressions",
-            "Shuffles Input Expressions",
-            "Shuffles Shuffle Expressions",
-        ];
-
-        for (i, (item, name)) in result.iter().zip(item_names.iter()).enumerate() {
-            let total_size: usize = item.iter().map(|nested| nested.len()).sum();
-            let lengths = item.len();
-            println!(
-                "Item {} ({}): total size = {}, lengths = {:?}",
-                i, name, total_size, lengths
-            );
-        }
+        // let item_names = [
+        //     "General Info",
+        //     "Advice Queries",
+        //     "Instance Queries",
+        //     "Fixed Queries",
+        //     "Permutation Columns",
+        //     "Fields Pool",
+        //     "Gates",
+        //     "Lookups Input Expressions",
+        //     "Lookups Table Expressions",
+        //     "Shuffles Input Expressions",
+        //     "Shuffles Shuffle Expressions",
+        // ];
+        //
+        // for (i, (item, name)) in result.iter().zip(item_names.iter()).enumerate() {
+        //     let total_size: usize = item.iter().map(|nested| nested.len()).sum();
+        //     let lengths = item.len();
+        //     println!(
+        //         "Item {} ({}): total size = {}, lengths = {:?}",
+        //         i, name, total_size, lengths
+        //     );
+        // }
 
         Ok(result)
     }
@@ -281,7 +281,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
     ///
     /// Expects exactly 11 top-level sections.
     /// See serialize() docs for section meanings.
-    pub fn deserialize(data: Vec<Vec<Vec<u8>>>) -> bcs::Result<CircuitInfo<C>> {
+    pub fn deserialize(data: &[Vec<Vec<u8>>]) -> bcs::Result<CircuitInfo<C>> {
         if data.len() != 11 {
             return Err(BcsError::Custom(format!(
                 "Expected 11 sections, got {}",
@@ -289,12 +289,13 @@ impl<C: CurveAffine> CircuitInfo<C> {
             )));
         }
 
-        let mut sections = data.into_iter();
+        let mut sections = data.iter();
 
         // 0. general_info
         let general_info = sections
             .next()
             .ok_or_else(|| BcsError::Custom("Missing general_info section".to_string()))?;
+
         if general_info.len() != 12 {
             return Err(BcsError::Custom(format!(
                 "general_info expected 12 items, got {}",
@@ -302,7 +303,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
             )));
         }
 
-        let mut general_iter = general_info.into_iter();
+        let mut general_iter = general_info.iter();
 
         let vk_repr_bytes = general_iter
             .next()
@@ -357,27 +358,27 @@ impl<C: CurveAffine> CircuitInfo<C> {
         }
 
         let mut repr = <C::Scalar as PrimeField>::Repr::default();
-        repr.as_mut().copy_from_slice(&vk_repr_bytes);
+        repr.as_mut().copy_from_slice(vk_repr_bytes);
         let vk_transcript_repr = <C::Scalar as PrimeField>::from_repr(repr)
             .into_option()
             .ok_or_else(|| {
                 BcsError::Custom("Invalid vk_transcript_repr bytes (from_repr failed)".to_string())
             })?;
 
-        let k: u8 = bcs::from_bytes(&k_bytes)?;
-        let max_num_query_of_advice_column: u32 = bcs::from_bytes(&max_num_query_bytes)?;
-        let cs_degree: u32 = bcs::from_bytes(&cs_degree_bytes)?;
-        let num_fixed_columns: u64 = bcs::from_bytes(&num_fixed_bytes)?;
-        let num_instance_columns: u64 = bcs::from_bytes(&num_instance_bytes)?;
+        let k: u8 = bcs::from_bytes(k_bytes)?;
+        let max_num_query_of_advice_column: u32 = bcs::from_bytes(max_num_query_bytes)?;
+        let cs_degree: u32 = bcs::from_bytes(cs_degree_bytes)?;
+        let num_fixed_columns: u64 = bcs::from_bytes(num_fixed_bytes)?;
+        let num_instance_columns: u64 = bcs::from_bytes(num_instance_bytes)?;
 
-        let use_u8_index_for_query = use_u8_index_for_query_flag == vec![0u8];
-        let use_u8_index_for_fields = use_u8_index_for_fields_flag == vec![0u8];
+        let use_u8_index_for_query = use_u8_index_for_query_flag == &[0u8];
+        let use_u8_index_for_fields = use_u8_index_for_fields_flag == &[0u8];
 
         // fixed_commitments & permutation_commitments
-        let fixed_commitments = bytes_to_affines::<C>(&fixed_commitments_bytes)
+        let fixed_commitments = bytes_to_affines::<C>(fixed_commitments_bytes)
             .map_err(|e| BcsError::Custom(format!("Invalid fixed_commitments: {}", e)))?;
 
-        let permutation_commitments = bytes_to_affines::<C>(&permutation_commitments_bytes)
+        let permutation_commitments = bytes_to_affines::<C>(permutation_commitments_bytes)
             .map_err(|e| BcsError::Custom(format!("Invalid permutation_commitments: {}", e)))?;
 
         // queries & columns
@@ -433,7 +434,7 @@ impl<C: CurveAffine> CircuitInfo<C> {
             gates_bytes,
             use_u8_index_for_fields,
             use_u8_index_for_query,
-            &challenge_phase,
+            challenge_phase,
         )
         .map_err(|e| BcsError::Custom(format!("Failed to deserialize gates: {}", e)))?;
 
@@ -444,11 +445,11 @@ impl<C: CurveAffine> CircuitInfo<C> {
             .next()
             .ok_or_else(|| BcsError::Custom("Missing lookups_table".to_string()))?;
         let lookups = deserialize_lookups::<C>(
-            &lookups_input_bytes,
-            &lookups_table_bytes,
+            lookups_input_bytes,
+            lookups_table_bytes,
             use_u8_index_for_fields,
             use_u8_index_for_query,
-            &challenge_phase,
+            challenge_phase,
         )
         .map_err(|e| BcsError::Custom(format!("Failed to deserialize lookups: {}", e)))?;
 
@@ -459,11 +460,11 @@ impl<C: CurveAffine> CircuitInfo<C> {
             .next()
             .ok_or_else(|| BcsError::Custom("Missing shuffles_shuffle".to_string()))?;
         let shuffles = deserialize_shuffles::<C>(
-            &shuffles_input_bytes,
-            &shuffles_shuffle_bytes,
+            shuffles_input_bytes,
+            shuffles_shuffle_bytes,
             use_u8_index_for_fields,
             use_u8_index_for_query,
-            &challenge_phase,
+            challenge_phase,
         )
         .map_err(|e| BcsError::Custom(format!("Failed to deserialize shuffles: {}", e)))?;
 
@@ -480,8 +481,8 @@ impl<C: CurveAffine> CircuitInfo<C> {
             cs_degree,
             num_fixed_columns,
             num_instance_columns,
-            advice_column_phase,
-            challenge_phase,
+            advice_column_phase: advice_column_phase.clone(),
+            challenge_phase: challenge_phase.clone(),
             fields_pool,
             gates,
             advice_queries,
@@ -491,6 +492,16 @@ impl<C: CurveAffine> CircuitInfo<C> {
             lookups,
             shuffles,
         })
+    }
+
+    pub fn to_bytes(&self) -> bcs::Result<Vec<u8>> {
+        let result = self.serialize()?;
+        bcs::to_bytes(&result)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> bcs::Result<Self> {
+        let data: Vec<Vec<Vec<u8>>> = bcs::from_bytes(bytes)?;
+        Self::deserialize(&data)
     }
 }
 
@@ -510,9 +521,9 @@ fn serialize_column(column: &Column) -> Vec<u8> {
     bytes
 }
 
-fn deserialize_column_queries(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<ColumnQuery>> {
+fn deserialize_column_queries(bytes_list: &[Vec<u8>]) -> bcs::Result<Vec<ColumnQuery>> {
     bytes_list
-        .into_iter()
+        .iter()
         .map(|bytes| {
             if bytes.len() != 1 + 4 + 1 + 4 {
                 return Err(BcsError::Custom(format!(
@@ -539,9 +550,9 @@ fn deserialize_column_queries(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<Colum
         .collect()
 }
 
-fn deserialize_columns(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<Column>> {
+fn deserialize_columns(bytes_list: &[Vec<u8>]) -> bcs::Result<Vec<Column>> {
     bytes_list
-        .into_iter()
+        .iter()
         .map(|bytes| {
             if bytes.len() != 1 + 4 {
                 return Err(BcsError::Custom(format!(
@@ -560,20 +571,17 @@ fn deserialize_columns(bytes_list: Vec<Vec<u8>>) -> bcs::Result<Vec<Column>> {
 }
 
 fn deserialize_gates<C: CurveAffine>(
-    bytes_list: Vec<Vec<u8>>,
+    bytes_list: &[Vec<u8>],
     use_u8_fields: bool,
     use_u8_query: bool,
     challenge_phase: &Vec<u8>,
 ) -> bcs::Result<Vec<Gate<C::Scalar>>> {
     bytes_list
-        .into_iter()
+        .iter()
         .enumerate()
         .map(|(i, bytes)| {
-            let polys =
-                deserialize_exprs::<C>(&bytes, use_u8_fields, use_u8_query, challenge_phase)
-                    .map_err(|e| {
-                        BcsError::Custom(format!("Gate[{}] expression error: {}", i, e))
-                    })?;
+            let polys = deserialize_exprs::<C>(bytes, use_u8_fields, use_u8_query, challenge_phase)
+                .map_err(|e| BcsError::Custom(format!("Gate[{}] expression error: {}", i, e)))?;
             Ok(Gate {
                 polys,
                 _phantom: PhantomData,
