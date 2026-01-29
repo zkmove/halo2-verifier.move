@@ -1,5 +1,5 @@
-use crate::expression::{deserialize_exprs, serialize_exprs, IndexedExpression};
-use crate::helpers::{bytes_to_affines, decode_field, encode_field};
+use crate::circuit::expression::{deserialize_exprs, serialize_exprs, IndexedExpression};
+use crate::circuit::helpers::{bytes_to_affines, decode_field, encode_field};
 use bcs::Error as BcsError;
 use byteorder::{LittleEndian, ReadBytesExt};
 use halo2_proofs::arithmetic::{CurveAffine, Field};

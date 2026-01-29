@@ -1,5 +1,5 @@
 [package]
-name = "shape-generator"
+name = "halo2-verifier"
 version.workspace = true
 edition.workspace = true
 

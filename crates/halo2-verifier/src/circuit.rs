@@ -1,31 +1,23 @@
-use crate::public_inputs::PublicInputs;
-use circuit_info::{CircuitInfo, ColumnQuery, Gate, Lookup, Rotation, Shuffle};
+pub use circuit_info::CircuitInfo;
+use circuit_info::{ColumnQuery, Gate, Lookup, Rotation, Shuffle};
 use expression::{to_indexed_expression, IndexedExpression};
-use halo2::proofs::{verify_circuit, KZG};
 use halo2_backend::plonk::{
     ConstraintSystemBack as ConstraintSystem, ExpressionBack as Expression, GateBack,
     LookupArgumentBack, PermutationArgumentBack, QueryBack, ShuffleArgumentBack, VarBack,
 };
 use halo2_middleware::circuit::ColumnMid;
 use halo2_proofs::arithmetic::{CurveAffine, Field};
-use halo2_proofs::halo2curves::bn256::G1Affine;
 use halo2_proofs::halo2curves::ff::FromUniformBytes;
-use halo2_proofs::plonk::VerifyingKey;
 use halo2_proofs::plonk::{keygen_vk, Any, Circuit, Error, ErrorFront};
 use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::Rotation as Halo2Rotation;
-use halo2_proofs::SerdeFormat;
 use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 
 pub mod circuit_info;
-pub mod params;
-pub mod public_inputs;
-
 mod expression;
 mod helpers;
-mod test;
 
 // Custom serialization for the Halo2 circuit environment, where all field elements
 // are replaced with indices pointing to a constant table.
@@ -57,6 +49,114 @@ fn collect_fields<C: CurveAffine>(
     }
 }
 
+fn halo2_rotation_from_custom(rotation: &Rotation) -> Halo2Rotation {
+    let rot_val = rotation.rotation as i32;
+    if rotation.next {
+        Halo2Rotation(rot_val)
+    } else {
+        Halo2Rotation(-rot_val)
+    }
+}
+
+fn any_from_type(column_type: u8) -> Result<Any, Error> {
+    match column_type {
+        1 => Ok(Any::Advice),
+        2 => Ok(Any::Fixed),
+        3 => Ok(Any::Instance),
+        _ => Err(ErrorFront::Other("Invalid index for column type".to_string()).into()),
+    }
+}
+
+// Reconstruct Expression from IndexedExpression
+fn reconstruct_expression<C: CurveAffine>(
+    indexed: &IndexedExpression<C::Scalar>,
+    cs: &ConstraintSystem<C::Scalar>,
+    fields_pool: &[C::Scalar],
+) -> Result<Expression<C::Scalar>, Error> {
+    match indexed {
+        IndexedExpression::ConstantIndex(idx, _) => {
+            let i = idx.value() as usize;
+            if i >= fields_pool.len() {
+                return Err(ErrorFront::Other("Constant index out of bounds".to_string()).into());
+            }
+            Ok(Expression::Constant(fields_pool[i]))
+        }
+        IndexedExpression::Fixed(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.fixed_queries.len() {
+                return Err(
+                    ErrorFront::Other("Fixed query index out of bounds".to_string()).into(),
+                );
+            }
+            let (col, rot) = cs.fixed_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Advice(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.advice_queries.len() {
+                return Err(
+                    ErrorFront::Other("Advice query index out of bounds".to_string()).into(),
+                );
+            }
+            let (col, rot) = cs.advice_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Instance(idx) => {
+            let i = idx.value() as usize;
+            if i >= cs.instance_queries.len() {
+                return Err(
+                    ErrorFront::Other("Instance query index out of bounds".to_string()).into(),
+                );
+            }
+            let (col, rot) = cs.instance_queries[i];
+            Ok(Expression::Var(VarBack::Query(QueryBack {
+                index: i,
+                column_index: col.index,
+                column_type: col.column_type,
+                rotation: rot,
+            })))
+        }
+        IndexedExpression::Challenge(ch) => Ok(Expression::Var(VarBack::Challenge(*ch))),
+        IndexedExpression::Negated(child) => Ok(Expression::Negated(Box::new(
+            reconstruct_expression::<C>(child, cs, fields_pool)?,
+        ))),
+        IndexedExpression::Sum(a, b) => Ok(Expression::Sum(
+            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
+            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
+        )),
+        IndexedExpression::Product(a, b) => Ok(Expression::Product(
+            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
+            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
+        )),
+        IndexedExpression::Scaled(child, idx) => {
+            let i = idx.value() as usize;
+            if i >= fields_pool.len() {
+                return Err(
+                    ErrorFront::Other("Scaled constant index out of bounds".to_string()).into(),
+                );
+            }
+            let scalar = fields_pool[i];
+            let child_expr = reconstruct_expression::<C>(child, cs, fields_pool)?;
+
+            Ok(Expression::Product(
+                Box::new(child_expr),
+                Box::new(Expression::Constant(scalar)),
+            ))
+        }
+    }
+}
+
+/// Generate CircuitInfo containing compressed information of a given circuit.
 pub fn generate_circuit_info<C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
@@ -267,113 +367,7 @@ where
     Ok(info)
 }
 
-fn halo2_rotation_from_custom(rotation: &Rotation) -> Halo2Rotation {
-    let rot_val = rotation.rotation as i32;
-    if rotation.next {
-        Halo2Rotation(rot_val)
-    } else {
-        Halo2Rotation(-rot_val)
-    }
-}
-
-fn any_from_type(column_type: u8) -> Result<Any, Error> {
-    match column_type {
-        1 => Ok(Any::Advice),
-        2 => Ok(Any::Fixed),
-        3 => Ok(Any::Instance),
-        _ => Err(ErrorFront::Other("Invalid index for column type".to_string()).into()),
-    }
-}
-
-// Reconstruct Expression from IndexedExpression
-fn reconstruct_expression<C: CurveAffine>(
-    indexed: &IndexedExpression<C::Scalar>,
-    cs: &ConstraintSystem<C::Scalar>,
-    fields_pool: &[C::Scalar],
-) -> Result<Expression<C::Scalar>, Error> {
-    match indexed {
-        IndexedExpression::ConstantIndex(idx, _) => {
-            let i = idx.value() as usize;
-            if i >= fields_pool.len() {
-                return Err(ErrorFront::Other("Constant index out of bounds".to_string()).into());
-            }
-            Ok(Expression::Constant(fields_pool[i]))
-        }
-        IndexedExpression::Fixed(idx) => {
-            let i = idx.value() as usize;
-            if i >= cs.fixed_queries.len() {
-                return Err(
-                    ErrorFront::Other("Fixed query index out of bounds".to_string()).into(),
-                );
-            }
-            let (col, rot) = cs.fixed_queries[i];
-            Ok(Expression::Var(VarBack::Query(QueryBack {
-                index: i,
-                column_index: col.index,
-                column_type: col.column_type,
-                rotation: rot,
-            })))
-        }
-        IndexedExpression::Advice(idx) => {
-            let i = idx.value() as usize;
-            if i >= cs.advice_queries.len() {
-                return Err(
-                    ErrorFront::Other("Advice query index out of bounds".to_string()).into(),
-                );
-            }
-            let (col, rot) = cs.advice_queries[i];
-            Ok(Expression::Var(VarBack::Query(QueryBack {
-                index: i,
-                column_index: col.index,
-                column_type: col.column_type,
-                rotation: rot,
-            })))
-        }
-        IndexedExpression::Instance(idx) => {
-            let i = idx.value() as usize;
-            if i >= cs.instance_queries.len() {
-                return Err(
-                    ErrorFront::Other("Instance query index out of bounds".to_string()).into(),
-                );
-            }
-            let (col, rot) = cs.instance_queries[i];
-            Ok(Expression::Var(VarBack::Query(QueryBack {
-                index: i,
-                column_index: col.index,
-                column_type: col.column_type,
-                rotation: rot,
-            })))
-        }
-        IndexedExpression::Challenge(ch) => Ok(Expression::Var(VarBack::Challenge(*ch))),
-        IndexedExpression::Negated(child) => Ok(Expression::Negated(Box::new(
-            reconstruct_expression::<C>(child, cs, fields_pool)?,
-        ))),
-        IndexedExpression::Sum(a, b) => Ok(Expression::Sum(
-            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
-            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
-        )),
-        IndexedExpression::Product(a, b) => Ok(Expression::Product(
-            Box::new(reconstruct_expression::<C>(a, cs, fields_pool)?),
-            Box::new(reconstruct_expression::<C>(b, cs, fields_pool)?),
-        )),
-        IndexedExpression::Scaled(child, idx) => {
-            let i = idx.value() as usize;
-            if i >= fields_pool.len() {
-                return Err(
-                    ErrorFront::Other("Scaled constant index out of bounds".to_string()).into(),
-                );
-            }
-            let scalar = fields_pool[i];
-            let child_expr = reconstruct_expression::<C>(child, cs, fields_pool)?;
-
-            Ok(Expression::Product(
-                Box::new(child_expr),
-                Box::new(Expression::Constant(scalar)),
-            ))
-        }
-    }
-}
-
+/// Reconstruct ConstraintSystem from CircuitInfo
 pub fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
     info: &CircuitInfo<C>,
 ) -> Result<ConstraintSystem<C::Scalar>, Error>
@@ -524,55 +518,13 @@ where
     Ok(cs)
 }
 
-/// Deserializes the circuit and reconstructs the vk, verifies the proof using the SHPLONK multi-opening scheme with KZG commitments.
-///
-/// # Arguments
-/// - `params`: The serialized KZG parameters.
-/// - `vk_bytes`: The serialized verification key.
-/// - `circuit_info_bytes`: The serialized circuit environment.
-/// - `public_inputs_bytes`: The serialized public inputs for the circuit.
-/// - `proof`: The proof bytes to verify.
-/// - `kzg`: An integer indicating the KZG variant to use (0 for GWC, 1 for SHPLONK).
-/// - `k`: Optional new parameter k to downsize the KZG parameters if needed.
-///
-/// # Returns
-/// `true` if the proof is valid, or `false` if verification fails.
-pub fn deserialize_circuit_and_verify(
-    params: &[u8],
-    vk_bytes: &[u8],
+pub fn reconstruct_cs_from_circuit_bytes<C: CurveAffine>(
     circuit_info_bytes: &[u8],
-    public_inputs_bytes: &[u8],
-    proof: &[u8],
-    kzg: u8,
-    k: Option<u32>,
-) -> Result<(), Error> {
-    let mut params =
-        params::deserialize_kzg_params(params).expect("Failed to deserialize KZG parameters");
-    if let Some(requested_k) = k {
-        if requested_k > params.k() {
-            return Err(ErrorFront::Other(
-                "Cannot increase k beyond the original value".to_string(),
-            )
-            .into());
-        }
-        params.downsize(requested_k);
-    }
-    let circuit_info = CircuitInfo::<G1Affine>::from_bytes(circuit_info_bytes)
+) -> Result<ConstraintSystem<C::Scalar>, Error>
+where
+    C::Scalar: Field,
+{
+    let circuit_info = CircuitInfo::<C>::from_bytes(circuit_info_bytes)
         .map_err(|e| ErrorFront::Other(format!("Circuit info deserialization failed: {e}")))?;
-
-    let cs = reconstruct_cs_from_circuit_info(&circuit_info)
-        .map_err(|e| ErrorFront::Other(format!("Constraint system reconstruction failed: {e}")))?;
-
-    let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs)
-        .map_err(|e| ErrorFront::Other(format!("Verification key deserialization failed: {e}")))?;
-
-    let public_inputs = PublicInputs::<G1Affine>::from_bytes(public_inputs_bytes)
-        .map_err(|e| ErrorFront::Other(format!("Public inputs deserialization failed: {e}")))?;
-
-    let kzg_variant = KZG::from_u8(kzg)
-        .ok_or_else(|| ErrorFront::Other("Invalid KZG variant (expected 0 or 1)".to_string()))?;
-
-    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant)
-        .map_err(|e| ErrorFront::Other(format!("Verification failed: {e}")))?;
-    Ok(())
+    reconstruct_cs_from_circuit_info::<C>(&circuit_info)
 }

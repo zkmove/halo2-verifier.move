@@ -1,7 +1,7 @@
 extern crate core;
 
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
-use shape_generator::generate_circuit_info;
+use verifier::generate_circuit_info;
 
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};

@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "shape-generator",
+    "halo2-verifier",
     "aptos-verifier-api",
     "halo2",
     "functional-tests",
@@ -15,7 +15,7 @@ categories = ["cryptography"]
 edition = "2021"
 
 [workspace.dependencies]
-shape-generator={path="./shape-generator"}
+halo2-verifier={path="./halo2-verifier"}
 aptos-verifier-api={path="./aptos-verifier-api"}
 halo2={path="./halo2"}
 functional-tests={path="./functional-tests"}

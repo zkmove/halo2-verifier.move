@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-shape-generator.workspace=true
+halo2-verifier.workspace=true
 aptos-verifier-api.workspace=true
 halo2.workspace = true
 serde.workspace=true

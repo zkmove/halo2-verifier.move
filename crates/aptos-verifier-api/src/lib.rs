@@ -4,11 +4,11 @@ use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::plonk::Circuit;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
+use halo2_verifier::circuit::generate_circuit_info;
 use serde_json::json;
-use shape_generator::generate_circuit_info;
 
 pub mod types;
-pub use shape_generator;
+pub use halo2_verifier;
 
 const VERIFIER_MODULE: &str = "verifier_api";
 const PUBLISH_CIRCUIT: &str = "publish_circuit";

@@ -13,11 +13,11 @@ use rand::rngs::mock::StepRng;
 use crate::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
-use shape_generator::params::{load_default_kzg_params, serialize_kzg_params};
-use shape_generator::public_inputs::PublicInputs;
-use shape_generator::{
-    circuit_info::CircuitInfo, deserialize_circuit_and_verify, generate_circuit_info,
-    reconstruct_cs_from_circuit_info,
+use halo2_verifier::params::{load_default_kzg_params, serialize_kzg_params};
+use halo2_verifier::public_inputs::PublicInputs;
+use halo2_verifier::{
+    circuit::circuit_info::CircuitInfo, circuit::generate_circuit_info,
+    circuit::reconstruct_cs_from_circuit_info, deserialize_circuit_and_verify,
 };
 
 fn create_test_params(k: u32) -> ParamsKZG<Bn256> {

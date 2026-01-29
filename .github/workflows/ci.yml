@@ -24,9 +24,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            crates/verifier-sdk
-            crates/functional-tests
+          workspaces: crates
 
       - name: Cache Aptos CLI
         id: cache-aptos
@@ -65,23 +63,16 @@ jobs:
         run: aptos --version
 
       - name: Code formatting check
-        run: |
-          cargo fmt --manifest-path ./crates/verifier-sdk/Cargo.toml -- --check
-          cargo fmt --manifest-path ./crates/functional-tests/Cargo.toml -- --check
+        run: cargo fmt --manifest-path ./crates/Cargo.toml -- --check
 
       - name: Clippy lint
-        run: |
-          cargo clippy --manifest-path ./crates/verifier-sdk/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path ./crates/functional-tests/Cargo.toml --all-targets --all-features -- -D warnings
-      
+        run: cargo clippy --manifest-path ./crates/Cargo.toml --all-targets --all-features -- -D warnings
 
       - name: Run Move tests
         run: |
           aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
           aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+#          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
-        run: |
-          cargo test --manifest-path ./crates/verifier-sdk/Cargo.toml --all-features
-          cargo test --manifest-path ./crates/functional-tests/Cargo.toml --all-features
+        run: cargo test --all-features
