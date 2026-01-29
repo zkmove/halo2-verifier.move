@@ -24,7 +24,11 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: crates
+          workspaces: |
+            crates/aptos-verifier-api
+            crates/functional-tests
+            crates/halo2
+            crates/halo2-verifier
 
       - name: Cache Aptos CLI
         id: cache-aptos
@@ -63,10 +67,18 @@ jobs:
         run: aptos --version
 
       - name: Code formatting check
-        run: cargo fmt --manifest-path ./crates/Cargo.toml -- --check
+        run: |
+          cargo fmt --manifest-path ./crates/aptos-verifier-api/Cargo.toml -- --check
+          cargo fmt --manifest-path ./crates/functional-tests/Cargo.toml -- --check
+          cargo fmt --manifest-path ./crates/halo2/Cargo.toml -- --check
+          cargo fmt --manifest-path ./crates/halo2-verifier/Cargo.toml -- --check
 
       - name: Clippy lint
-        run: cargo clippy --manifest-path ./crates/Cargo.toml --all-targets --all-features -- -D warnings
+        run: |
+          cargo clippy --manifest-path ./crates/aptos-verifier-api/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path ./crates/functional-tests/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path ./crates/halo2/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo clippy --manifest-path ./crates/halo2-verifier/Cargo.toml --all-targets --all-features -- -D warnings      
 
       - name: Run Move tests
         run: |
@@ -75,4 +87,8 @@ jobs:
 #          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
-        run: cargo test --all-features
+        run: |
+          cargo test --manifest-path ./crates/aptos-verifier-api/Cargo.toml --all-features
+          cargo test --manifest-path ./crates/functional-tests/Cargo.toml --all-features
+          cargo test --manifest-path ./crates/halo2/Cargo.toml --all-features
+          cargo test --manifest-path ./crates/halo2-verifier/Cargo.toml --all-features
