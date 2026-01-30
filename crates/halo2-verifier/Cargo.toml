@@ -17,6 +17,7 @@ hex.workspace=true
 hex-literal.workspace=true
 rand.workspace = true
 halo2.workspace = true
+vk-gen-examples.workspace = true
 
 ark-bn254 = "0.4.0"
 ark-ec = "0.4.0"

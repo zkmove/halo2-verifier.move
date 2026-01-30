@@ -10,7 +10,7 @@ use std::io::Cursor;
 use std::marker::PhantomData;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct CircuitInfo<C: CurveAffine> {
+pub(crate) struct CircuitInfo<C: CurveAffine> {
     pub(crate) vk_transcript_repr: C::Scalar,
     pub(crate) fixed_commitments: Vec<C>,
     pub(crate) permutation_commitments: Vec<C>,

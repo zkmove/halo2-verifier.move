@@ -10,7 +10,8 @@ pub mod circuit;
 pub mod params;
 pub mod public_inputs;
 
-mod test;
+#[cfg(test)]
+mod tests;
 
 /// Deserializes the circuit and reconstructs the vk, verifies the proof using the SHPLONK multi-opening scheme with KZG commitments.
 ///

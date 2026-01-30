@@ -1,4 +1,4 @@
-pub use circuit_info::CircuitInfo;
+use circuit_info::CircuitInfo;
 use circuit_info::{ColumnQuery, Gate, Lookup, Rotation, Shuffle};
 use expression::{to_indexed_expression, IndexedExpression};
 use halo2_backend::plonk::{
@@ -15,7 +15,7 @@ use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 
-pub mod circuit_info;
+pub(crate) mod circuit_info;
 mod expression;
 mod helpers;
 
@@ -156,8 +156,8 @@ fn reconstruct_expression<C: CurveAffine>(
     }
 }
 
-/// Generate CircuitInfo containing compressed information of a given circuit.
-pub fn generate_circuit_info<C, P, ConcreteCircuit>(
+// Generate CircuitInfo containing compressed information of a given circuit.
+pub(crate) fn generate_circuit_info<C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
 ) -> Result<CircuitInfo<C>, Error>
@@ -367,8 +367,8 @@ where
     Ok(info)
 }
 
-/// Reconstruct ConstraintSystem from CircuitInfo
-pub fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
+// Reconstruct ConstraintSystem from CircuitInfo
+pub(crate) fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
     info: &CircuitInfo<C>,
 ) -> Result<ConstraintSystem<C::Scalar>, Error>
 where
@@ -518,6 +518,41 @@ where
     Ok(cs)
 }
 
+/// Generate serialized protocol for the halo2 move verifier.
+pub fn generate_serialized_protocol<C, P, ConcreteCircuit>(
+    params: &P,
+    circuit: &ConcreteCircuit,
+) -> Result<Vec<Vec<Vec<u8>>>, Error>
+where
+    C: CurveAffine,
+    P: Params<C>,
+    ConcreteCircuit: Circuit<C::Scalar>,
+    C::Scalar: FromUniformBytes<64>,
+    C::ScalarExt: FromUniformBytes<64>,
+{
+    let info = generate_circuit_info(params, circuit)?;
+    info.serialize()
+        .map_err(|e| ErrorFront::Other(format!("CircuitInfo serialization failed: {e}")).into())
+}
+
+/// Generate serialized circuit for the native verifier.
+pub fn generate_serialized_circuit<C, P, ConcreteCircuit>(
+    params: &P,
+    circuit: &ConcreteCircuit,
+) -> Result<Vec<u8>, Error>
+where
+    C: CurveAffine,
+    P: Params<C>,
+    ConcreteCircuit: Circuit<C::Scalar>,
+    C::Scalar: FromUniformBytes<64>,
+    C::ScalarExt: FromUniformBytes<64>,
+{
+    let info = generate_circuit_info(params, circuit)?;
+    info.to_bytes()
+        .map_err(|e| ErrorFront::Other(format!("CircuitInfo serialization failed: {e}")).into())
+}
+
+/// Reconstruct ConstraintSystem from serialized circuit bytes.
 pub fn reconstruct_cs_from_circuit_bytes<C: CurveAffine>(
     circuit_info_bytes: &[u8],
 ) -> Result<ConstraintSystem<C::Scalar>, Error>

@@ -9,7 +9,7 @@ module halo2_verifier::vm_circuit_verify_test {
     use halo2_verifier::halo2_verifier;
     use halo2_verifier::protocol;
 
-    // the following param data is generated from `crates/functional-tests/params/challenge_0078-kzg_bn254_16.srs`
+    // the following param data is generated from `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_16.srs`
     // they all in uncompressed form.
     #[test_only]
     const TESTING_G1: vector<u8> = x"01000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000";

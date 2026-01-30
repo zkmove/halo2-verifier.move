@@ -20,8 +20,8 @@ module verifier_api::verifier_api {
         protocol: Protocol,
     }
 
-    /// Publish the circuit under sender account
-    public entry fun publish_circuit(
+    /// Publish the protocol under sender account
+    public entry fun publish_protocol(
         sender: &signer,
         general_info: vector<vector<u8>>,
         advice_queries: vector<vector<u8>>,

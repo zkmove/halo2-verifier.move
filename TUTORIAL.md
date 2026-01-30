@@ -29,9 +29,9 @@ Then, we can start to publish our circuit to chain ready for use in halo2-verifi
 
 But first, we need a params of kzg setup. There exists a setup called [Perpetual Powers of Tau](https://github.com/privacy-scaling-explorations/perpetualpowersoftau) hold by pse.
 We're going to use a version of axiom.
-the existing param file `crates/functional-tests/params/challenge_0078-kzg_bn254_16.srs` is downloaded from [axiom page](https://docs.axiom.xyz/transparency-and-security/kzg-trusted-setup).
+the existing param file `crates/vk-gen-examples/params/challenge_0078-kzg_bn254_16.srs` is downloaded from [axiom page](https://docs.axiom.xyz/transparency-and-security/kzg-trusted-setup).
 
-To view the kzg setup params, run the following cargo commands under directory `crates/functional-tests`.
+To view the kzg setup params, run the following cargo commands under directory `crates/vk-gen-examples`.
 It will output the g1, g2, and s_g2.
 
 ```shell
@@ -46,8 +46,8 @@ aptos move run --function-id default::param_store::create --args hex:0x010000000
 ```
 
 Then, we are ready to publish a circuit!
-We're going to use example `vector-mul` in our functional-tests.
-Enter directory `crates/functional-tests`, and run the cargo command, remember **replace the verifier-address with your aptos profile's address!**
+We're going to use example `vector-mul` in our vk-gen-examples.
+Enter directory `crates/vk-gen-examples`, and run the cargo command, remember **replace the verifier-address with your aptos profile's address!**
 
 ```shell
 cargo run --release -- --param-path params/challenge_0078-kzg_bn254_16.srs --verifier-address c9666cf9a032e81737eb706ce538a423706d86a2a502027fbc909e0817bf313b build-publish-vk-aptos-txn --example vector-mul

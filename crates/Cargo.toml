@@ -3,7 +3,7 @@ members = [
     "halo2-verifier",
     "aptos-verifier-api",
     "halo2",
-    "functional-tests",
+    "vk-gen-examples",
 ]
 resolver = "2"
 
@@ -18,7 +18,7 @@ edition = "2021"
 halo2-verifier={path="./halo2-verifier"}
 aptos-verifier-api={path="./aptos-verifier-api"}
 halo2={path="./halo2"}
-functional-tests={path="./functional-tests"}
+vk-gen-examples={path="./vk-gen-examples"}
 
 halo2_proofs = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["batch", "bits"] }
 halo2_frontend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["bits"] }
