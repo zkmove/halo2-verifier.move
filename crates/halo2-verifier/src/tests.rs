@@ -1,4 +1,3 @@
-
 use ark_bn254::g1::G1Affine as ArkG1Affine;
 use ark_ec::AffineRepr;
 use ark_ff::BigInteger;
