@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use halo2_proofs::halo2curves::ff::PrimeField;
+use halo2_proofs::halo2curves::bn256::Fr;
 
 use halo2_proofs::{
     arithmetic::Field,
@@ -224,7 +224,7 @@ impl<F: Field> NumericInstructions<F> for FieldChip<F> {
 /// In this struct we store the private input variables. We use `Option<F>` because
 /// they won't have any value during key generation. During proving, if any of these
 /// were `None` we would get an error.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MyCircuit<F: Field> {
     a: Vec<Value<F>>,
     b: Vec<Value<F>>,
@@ -273,19 +273,19 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         Ok(())
     }
 }
-pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
+pub fn get_example_circuit() -> (MyCircuit<Fr>, Vec<Vec<Fr>>) {
     const N: usize = 3;
     // Prepare the private and public inputs to the circuit!
-    let a = [F::from(2); N];
-    let b = [F::from(3); N];
-    let c: Vec<F> = a.iter().zip(b).map(|(&a, b)| a * b).collect();
+    let a = [Fr::from(2); N];
+    let b = [Fr::from(3); N];
+    let c: Vec<Fr> = a.iter().zip(b).map(|(&a, b)| a * b).collect();
 
     // Instantiate the circuit with the private inputs.
     let circuit = MyCircuit {
         a: a.iter().map(|&x| Value::known(x)).collect(),
         b: b.iter().map(|&x| Value::known(x)).collect(),
     };
-    (circuit, c)
+    (circuit, vec![c])
 }
 
 // ANCHOR_END: circuit

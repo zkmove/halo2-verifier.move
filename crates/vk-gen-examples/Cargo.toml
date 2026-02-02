@@ -6,20 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-shape-generator = {path = "../verifier-sdk/shape-generator" }
-clap = { version = "4.4.10",features = ["derive"] }
-anyhow = { version = "1.0.75" }
-serde = { version = "1" }
-serde_json = { version = "1" }
-hex = { version = "0.4.3" }
-toml = { version = "0.8.8" }
-rand_core = { version = "0.6.4" }
-rand = { version = "0.8.5" }
-halo2_proofs = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["batch", "bits"] }
-halo2_backend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
-ark-bn254 = { version = "0.4.0" }
-ark-serialize = { version = "0.4" }
-ark-ec = { version = "0.4" }
+halo2.workspace = true
+serde.workspace=true
+serde_json.workspace=true
+halo2_proofs.workspace=true
+halo2_backend.workspace=true
+hex.workspace=true
+rand.workspace = true
+rand_core.workspace=true
+anyhow.workspace=true
 
 
 #[patch."https://github.com/zkmove/halo2.git"]

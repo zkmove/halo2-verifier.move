@@ -240,7 +240,7 @@ impl<F: Field> NumericInstructions<F> for FieldChip<F> {
 /// In this struct we store the private input variables. We use `Option<F>` because
 /// they won't have any value during key generation. During proving, if any of these
 /// were `None` we would get an error.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MyCircuit<F: Field> {
     constant: F,
     a: Value<F>,
@@ -305,7 +305,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
 }
 // ANCHOR_END: circuit
 
-pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<Vec<F>>) {
     // Prepare the private and public inputs to the circuit!
     let constant = F::from(7);
     let a = F::from(2);
@@ -320,7 +320,7 @@ pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
             a: Value::known(a),
             b: Value::known(b),
         },
-        vec![_c],
+        vec![vec![_c]],
     )
 }
 

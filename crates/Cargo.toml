@@ -1,0 +1,40 @@
+[workspace]
+members = [
+    "halo2-verifier",
+    "aptos-verifier-api",
+    "halo2",
+    "vk-gen-examples",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = [ "zkmove contributors" ]
+repository = "https://github.com/zkmove/halo2-verifier.move"
+categories = ["cryptography"]
+edition = "2021"
+
+[workspace.dependencies]
+halo2-verifier={path="./halo2-verifier"}
+aptos-verifier-api={path="./aptos-verifier-api"}
+halo2={path="./halo2"}
+vk-gen-examples={path="./vk-gen-examples"}
+
+halo2_proofs = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["batch", "bits"] }
+halo2_frontend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["bits"] }
+halo2_middleware = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
+halo2_backend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
+halo2curves = { git = "https://github.com/zkmove/halo2curves", branch = "zkmove" }
+
+ff = { version = "0.13.0" }
+num-traits = { version = "0.2.17" }
+derivative = { version = "2.2.0" }
+rand = { version = "0.8.5" }
+rand_core = { version = "0.6" }
+serde = { version = "1" }
+serde_json = { version = "1" }
+hex = { version = "0.4.3" }
+hex-literal = { version = "0.4.1" }
+bcs = { version = "0.1.6" }
+blake2b_simd = { version = "1" }
+anyhow = { version = "1.0.38" }

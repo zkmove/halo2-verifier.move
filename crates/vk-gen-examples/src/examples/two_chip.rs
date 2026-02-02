@@ -449,7 +449,7 @@ impl<F: Field> FieldInstructions<F> for FieldChip<F> {
 /// In this struct we store the private input variables. We use `Value<F>` because
 /// they won't have any value during key generation. During proving, if any of these
 /// were `Value::unknown()` we would get an error.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MyCircuit<F: Field> {
     a: Value<F>,
     b: Value<F>,
@@ -494,7 +494,7 @@ impl<F: Field> Circuit<F> for MyCircuit<F> {
         field_chip.expose_public(layouter.namespace(|| "expose d"), d, 0)
     }
 }
-pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
+pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<Vec<F>>) {
     // Prepare the private and public inputs to the circuit!
     let rng = OsRng;
     let a = F::random(rng);
@@ -510,7 +510,7 @@ pub fn get_example_circuit<F: PrimeField>() -> (MyCircuit<F>, Vec<F>) {
             b: Value::known(b),
             c: Value::known(c),
         },
-        vec![d],
+        vec![vec![d]],
     )
 }
 

@@ -13,7 +13,7 @@ use halo2_proofs::{
         commitment::{CommitmentScheme, Prover, Verifier},
         kzg::strategy::SingleStrategy,
         kzg::{
-            commitment::{KZGCommitmentScheme, ParamsKZG},
+            commitment::{KZGCommitmentScheme, ParamsKZG, ParamsVerifierKZG},
             multiopen::{ProverSHPLONK, VerifierSHPLONK},
         },
         VerificationStrategy,
@@ -35,6 +35,13 @@ impl KZG {
         match self {
             Self::GWC => 0,
             Self::SHPLONK => 1,
+        }
+    }
+    pub fn from_u8(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::GWC),
+            1 => Some(Self::SHPLONK),
+            _ => None,
         }
     }
 }
@@ -59,7 +66,7 @@ impl std::fmt::Display for KZG {
 /// The proof as a byte vector if successful.
 pub fn prove_circuit<E, ConcreteCircuit>(
     circuit: ConcreteCircuit,
-    instance: &[Vec<E::Fr>],
+    instance: Vec<Vec<E::Fr>>,
     params: &ParamsKZG<E>,
     pk: &ProvingKey<E::G1Affine>,
     kzg: KZG,
@@ -89,7 +96,7 @@ fn prove_circuit_inner<
     ConcreteCircuit: Circuit<Scheme::Scalar>,
 >(
     circuit: ConcreteCircuit,
-    instance: &[Vec<Scheme::Scalar>],
+    instance: Vec<Vec<Scheme::Scalar>>,
     params: &'params Scheme::ParamsProver,
     pk: &ProvingKey<Scheme::Curve>,
 ) -> Result<Vec<u8>, Error>
@@ -106,7 +113,7 @@ where
         params,
         pk,
         &[circuit],
-        &[instance.to_owned()],
+        &[instance],
         rng,
         &mut transcript,
     )?;
@@ -126,8 +133,8 @@ where
 /// # Returns
 /// `Ok(())` if the proof is valid, or an error if verification fails.
 pub fn verify_circuit<E>(
-    instance: &[Vec<E::Fr>],
-    params: &ParamsKZG<E>,
+    instance: Vec<Vec<E::Fr>>,
+    params: &ParamsVerifierKZG<E>,
     vk: &VerifyingKey<E::G1Affine>,
     proof: &[u8],
     kzg: KZG,
@@ -143,17 +150,14 @@ where
     match kzg {
         KZG::GWC => {
             verify_circuit_inner::<KZGCommitmentScheme<E>, VerifierGWC<E>, SingleStrategy<E>>(
-                instance,
-                &params.verifier_params(),
-                vk,
-                proof,
+                instance, params, vk, proof,
             )
         }
-        KZG::SHPLONK => verify_circuit_inner::<
-            KZGCommitmentScheme<E>,
-            VerifierSHPLONK<E>,
-            SingleStrategy<E>,
-        >(instance, &params.verifier_params(), vk, proof),
+        KZG::SHPLONK => {
+            verify_circuit_inner::<KZGCommitmentScheme<E>, VerifierSHPLONK<E>, SingleStrategy<E>>(
+                instance, params, vk, proof,
+            )
+        }
     }
 }
 fn verify_circuit_inner<
@@ -162,7 +166,7 @@ fn verify_circuit_inner<
     V: Verifier<'params, Scheme>,
     Strategy: VerificationStrategy<'params, Scheme, V>,
 >(
-    instance: &[Vec<Scheme::Scalar>],
+    instance: Vec<Vec<Scheme::Scalar>>,
     params: &'params Scheme::ParamsVerifier,
     vk: &VerifyingKey<Scheme::Curve>,
     proof: &[u8],
@@ -173,13 +177,7 @@ where
 {
     let strategy = Strategy::new(params);
     let mut transcript = Keccak256Read::<_, _, Challenge255<_>>::init(proof);
-    let _result = verify_proof(
-        params,
-        vk,
-        strategy,
-        &[instance.to_owned()],
-        &mut transcript,
-    )?;
+    let _result = verify_proof(params, vk, strategy, &[instance], &mut transcript)?;
 
     Ok(())
 }

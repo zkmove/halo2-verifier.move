@@ -1,7 +1,7 @@
 extern crate core;
 
 use clap::{value_parser, Parser, Subcommand, ValueEnum};
-use shape_generator::generate_circuit_info;
+use verifier::generate_circuit_info;
 
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::plonk::{keygen_pk, keygen_vk};
@@ -237,7 +237,7 @@ fn main() -> anyhow::Result<()> {
                     (proof, vec![instances])
                 }
                 Examples::VectorMul => {
-                    let (circuit, instances) = vector_mul::get_example_circuit::<Fr>();
+                    let (circuit, instances) = vector_mul::get_example_circuit();
                     let vk = keygen_vk(&params, &circuit).unwrap();
                     let pk = keygen_pk(&params, vk.clone(), &circuit).unwrap();
                     let proof =
