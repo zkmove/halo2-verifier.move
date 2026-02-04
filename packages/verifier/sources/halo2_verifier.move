@@ -11,6 +11,7 @@ module halo2_verifier::halo2_verifier {
     use halo2_common::params::Params;
     use halo2_common::query::{Self, VerifierQuery};
     use halo2_common::vec_utils::repeat;
+    use halo2_common::public_inputs::{Self, PublicInputs};
 
     use halo2_verifier::gwc;
     use halo2_verifier::lookup::{Self, PermutationCommitments};
@@ -21,7 +22,6 @@ module halo2_verifier::halo2_verifier {
     use halo2_verifier::vanishing;
     use halo2_verifier::shplonk;
     use halo2_verifier::evaluator;
-    use halo2_verifier::public_inputs::{Self, PublicInputs};
     // use std::debug;
     // use std::string::{Self, String, utf8};
     // use std::bn254_algebra::FormatFrLsb;
@@ -38,15 +38,13 @@ module halo2_verifier::halo2_verifier {
         proof: vector<u8>,
         kzg_variant: u8,
     ): bool {
-        let instances = vector::map_ref(&instances, |column_instances| {
-            vector::map_ref<vector<u8>, Element<Fr>>(column_instances, |instance| {
-                option::destroy_some( bn254_utils::deserialize_fr(instance))
-            })
-        });
+        let pubs = public_inputs::from_bytes(&instances);
+        let instances = public_inputs::columns(&pubs);
+
         verify(params, protocol, vector::singleton(instances), proof, kzg_variant)
     }
 
-    public fun verify_single_vm(
+    public fun verify_single_proof(
         params: &Params,
         protocol: &Protocol,
         instances: PublicInputs<Fr>,
@@ -54,7 +52,7 @@ module halo2_verifier::halo2_verifier {
         kzg_variant: u8,
     ): bool {
 
-        let instances = public_inputs::as_vec(&instances);
+        let instances = public_inputs::columns(&instances);
         verify(params, protocol, vector::singleton(instances), proof, kzg_variant)
     }
 

@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "halo2-verifier",
-    "aptos-verifier-api",
-    "halo2",
-    "vk-gen-examples",
+    "crates/halo2-verifier",
+    "crates/aptos-verifier-api",
+    "crates/halo2",
+    "crates/vk-gen-examples",
 ]
 resolver = "2"
 
@@ -15,10 +15,10 @@ categories = ["cryptography"]
 edition = "2021"
 
 [workspace.dependencies]
-halo2-verifier={path="./halo2-verifier"}
-aptos-verifier-api={path="./aptos-verifier-api"}
-halo2={path="./halo2"}
-vk-gen-examples={path="./vk-gen-examples"}
+halo2-verifier={path="crates/halo2-verifier"}
+aptos-verifier-api={path="crates/aptos-verifier-api"}
+halo2={path="crates/halo2"}
+vk-gen-examples={path="crates/vk-gen-examples"}
 
 halo2_proofs = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["batch", "bits"] }
 halo2_frontend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["bits"] }

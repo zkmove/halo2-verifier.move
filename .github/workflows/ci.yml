@@ -23,12 +23,6 @@ jobs:
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            crates/aptos-verifier-api
-            crates/vk-gen-examples
-            crates/halo2
-            crates/halo2-verifier
 
       - name: Cache Aptos CLI
         id: cache-aptos
@@ -67,28 +61,16 @@ jobs:
         run: aptos --version
 
       - name: Code formatting check
-        run: |
-          cargo fmt --manifest-path ./crates/aptos-verifier-api/Cargo.toml -- --check
-          cargo fmt --manifest-path ./crates/vk-gen-examples/Cargo.toml -- --check
-          cargo fmt --manifest-path ./crates/halo2/Cargo.toml -- --check
-          cargo fmt --manifest-path ./crates/halo2-verifier/Cargo.toml -- --check
+        run: cargo fmt --all -- --check
 
       - name: Clippy lint
-        run: |
-          cargo clippy --manifest-path ./crates/aptos-verifier-api/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path ./crates/halo2/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo clippy --manifest-path ./crates/halo2-verifier/Cargo.toml --all-targets --all-features -- -D warnings      
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Run Move tests
         run: |
-#          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-#          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-#          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+        #          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+      #          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+      #          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
-        run: |
-          cargo test --manifest-path ./crates/aptos-verifier-api/Cargo.toml --all-features
-          cargo test --manifest-path ./crates/vk-gen-examples/Cargo.toml --all-features
-          cargo test --manifest-path ./crates/halo2/Cargo.toml --all-features
-          cargo test --manifest-path ./crates/halo2-verifier/Cargo.toml --all-features
+        run: cargo test --workspace --all-features
