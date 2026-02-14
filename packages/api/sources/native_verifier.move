@@ -1,4 +1,4 @@
-module verifier_api::fast_verifier {
+module verifier_api::native_verifier {
     use std::error;
     use std::option::Option;
     use std::signer;
@@ -6,7 +6,7 @@ module verifier_api::fast_verifier {
     use std::bcs;
     use std::proofs::verify_proof;
 
-    use verifier_api::param_store::get_serialized_params;
+    use verifier_api::params_store::get_serialized_params;
 
     const E_NOT_FOUND: u64 = 1;
     const E_EMPTY_VK: u64 = 2;
@@ -72,21 +72,21 @@ module verifier_api::fast_verifier {
     }
 
     /// Verify proof with the native verifier, aborts on failure
-    /// `param_address`: address where the params are published
+    /// `params_address`: address where the params are published
     /// `vk_address`: address where the verification key is published
     /// `public_inputs`: public inputs as vector of bytes
     /// `proof`: proof as vector of bytes
     /// `kzg_variant`: 0 for gwc, 1 for shplonk
     /// `k`: parameter to downsize params, None to use the full params
     public entry fun verify(
-        param_address: address,
+        params_address: address,
         vk_address: address,
         public_inputs: vector<u8>,
         proof: vector<u8>,
         kzg_variant: u8,
         k: Option<u32>,
     ) {
-        let params = get_serialized_params(param_address);
+        let params = get_serialized_params(params_address);
         let vk_bytes = get_serialized_vk(vk_address);
         let circuit_info = get_serialized_circuit(vk_address);
 
@@ -95,7 +95,7 @@ module verifier_api::fast_verifier {
 
     #[test_only]
     public fun mock_verify(
-        _param_address: address,
+        _params_address: address,
         _vk_address: address,
         _instances: vector<vector<vector<u8>>>,
         _proof: vector<u8>,

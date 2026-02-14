@@ -286,3 +286,24 @@ fn test_deserialize_circuit_and_verify() {
 
     assert!(result.is_ok(), "Verification failed: {:?}", result.err());
 }
+
+#[test]
+fn test_default_params() {
+    let params = load_default_kzg_params().expect("Failed to load default KZG params");
+    let g = params.g().first().unwrap();
+    let g2 = params.g2();
+    let s_g2 = params.s_g2();
+
+    let g_bytes = g.to_bytes().as_ref().to_vec();
+    let g2_bytes = g2.to_bytes().as_ref().to_vec();
+    let s_g2_bytes = s_g2.to_bytes().as_ref().to_vec();
+
+    let expected_g =
+        hex_literal::hex!("0100000000000000000000000000000000000000000000000000000000000000");
+    let expected_g2 = hex_literal::hex!("edf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e19");
+    let expected_s_g2 = hex_literal::hex!("e4115200acc86e7670c83ded726335def098657fe8668323e9e41e6781b83b0a9d83b54bbb00215323ce6d7f9d7f331a286d7707d03f7dbdd3125c6163588d13");
+
+    assert_eq!(g_bytes, expected_g, "g mismatch");
+    assert_eq!(g2_bytes, expected_g2, "g2 mismatch");
+    assert_eq!(s_g2_bytes, expected_s_g2, "s_g2 mismatch");
+}

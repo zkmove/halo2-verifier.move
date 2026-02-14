@@ -18,3 +18,5 @@ hex.workspace=true
 rand.workspace = true
 rand_core.workspace=true
 anyhow.workspace=true
+bcs.workspace = true
+group = "0.13"
