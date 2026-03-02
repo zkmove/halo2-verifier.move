@@ -39,9 +39,9 @@ jobs:
           # GitHub Actions ubuntu-latest uses Ubuntu 22.04 as of 2024-06
           if [[ "${{ runner.os }}" == "Linux" && "${{ runner.arch }}" == "X64" ]]; then
             if lsb_release -rs | grep -q "^24"; then
-              URL="https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.11.1/aptos-cli-7.11.1-Ubuntu-24.04-x86_64.zip"
+              URL="https://github.com/zkmove/aptos-core/releases/download/aptos-cli-v7.11.1-zkmove/aptos-cli-7.11.1-Ubuntu-24.04-x86_64.zip"
             else
-              URL="https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v7.11.1/aptos-cli-7.11.1-Ubuntu-22.04-x86_64.zip"
+              URL="https://github.com/zkmove/aptos-core/releases/download/aptos-cli-v7.11.1-zkmove/aptos-cli-7.11.1-Ubuntu-22.04-x86_64.zip"
             fi
           else
             echo "Unsupported runner: ${{ runner.os }} ${{ runner.arch }}"
@@ -68,9 +68,9 @@ jobs:
 
       - name: Run Move tests
         run: |
-        #          aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-      #          aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-      #          aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+#                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
         run: cargo test --workspace --all-features

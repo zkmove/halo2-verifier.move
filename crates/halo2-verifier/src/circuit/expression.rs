@@ -177,16 +177,10 @@ pub(crate) fn to_indexed_expression<C: CurveAffine>(
                 use_u8_index_for_query,
                 cs,
             )?;
-            if let IndexedExpression::ConstantIndex(idx, _) = &a_expr {
-                Ok(IndexedExpression::Scaled(Box::new(b_expr), *idx))
-            } else if let IndexedExpression::ConstantIndex(idx, _) = &b_expr {
-                Ok(IndexedExpression::Scaled(Box::new(a_expr), *idx))
-            } else {
-                Ok(IndexedExpression::Product(
-                    Box::new(a_expr),
-                    Box::new(b_expr),
-                ))
-            }
+            Ok(IndexedExpression::Product(
+                Box::new(a_expr),
+                Box::new(b_expr),
+            ))
         }
     }
 }

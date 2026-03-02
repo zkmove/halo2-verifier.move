@@ -2,7 +2,7 @@ module verifier_api::verifier {
     use std::error;
     use aptos_std::bn254_algebra::Fr;
 
-    use verifier_api::param_store::get_params;
+    use verifier_api::params_store::get_params;
     use halo2_common::public_inputs::PublicInputs;
     use halo2_verifier::halo2_verifier::{verify_single, verify_single_proof};
     use halo2_verifier::protocol::{Self, Protocol};
@@ -44,19 +44,19 @@ module verifier_api::verifier {
     
     /// Verify proof with move verifier, aborts on failure
     ///
-    /// `param_address`: address where the params are published
+    /// `params_address`: address where the params are published
     /// `circuit_address`: address where the circuit is published
     /// `public_inputs`: public inputs as vector of vector of bytes
     /// `proof`: proof as vector of bytes
     /// `kzg_variant`: 0 for gwc, 1 for shplonk
     public entry fun verify(
-        param_address: address,
+        params_address: address,
         circuit_address: address,
         public_inputs: vector<vector<vector<u8>>>,
         proof: vector<u8>,
         kzg_variant: u8,
     ) acquires Circuit {
-        let params = get_params(param_address);
+        let params = get_params(params_address);
         let circuit = borrow_global<Circuit>(circuit_address);
         let protocol = &circuit.protocol;
         assert!(verify_single(&params, protocol, public_inputs, proof, kzg_variant), error::aborted(E_VERIFY_PROOF));
@@ -66,13 +66,13 @@ module verifier_api::verifier {
     /// this function is not entry function, takes `PublicInputs` as input
     /// and returns `bool` instead of aborting on failure
     public fun verify_proof(
-        param_address: address,
+        params_address: address,
         circuit_address: address,
         public_inputs: PublicInputs<Fr>,
         proof: vector<u8>,
         kzg_variant: u8,
     ): bool acquires Circuit {
-        let params = get_params(param_address);
+        let params = get_params(params_address);
         let circuit = borrow_global<Circuit>(circuit_address);
         let protocol = &circuit.protocol;
         verify_single_proof(&params, protocol, public_inputs, proof, kzg_variant)
@@ -80,7 +80,7 @@ module verifier_api::verifier {
 
     #[test_only]
     public fun mock_verify_proof(
-        _param_address: address,
+        _params_address: address,
         _circuit_address: address,
         _instances: vector<vector<vector<u8>>>,
         _proof: vector<u8>,

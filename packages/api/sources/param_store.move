@@ -1,4 +1,4 @@
-module verifier_api::param_store {
+module verifier_api::params_store {
     use std::option;
     use std::error;
     use std::signer;

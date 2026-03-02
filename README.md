@@ -1,27 +1,15 @@
-# halo2 verifier in Move
+# Overview
 
-The project is a halo2 verifier written in Move language.
-Its objective to enhance the capability of the blockchains in the Move ecosystem by enabling halo2 zero-knowledge proofs to be verified on-chain.
+The project is a halo2 verifier written in Move language. It provides on-chain verification logic, helper utilities, and SDK tooling for verifying halo2 proofs on chain.
 
-## Why the project
+It supports two verifier variants:
+- A pure Move verifier for maximum portability.
+- A fast verifier backed by native functions for higher performance.
 
-Halo2 is a widely used plonk implementation. zcash, scroll, axiom, taiko and many other famous projects are developed based on halo2.
-There exists a general verification process for different circuits in rust,
-however, blockchains cannot utilize the code directly because of the gap in the language or api.
-several organizations are developing onchain verifiers(like [halo-solidity-verifier](https://github.com/privacy-scaling-explorations/halo2-solidity-verifier)) in solidity for EVM communities,
-although it’s not a general verifier code, only a general template generator.
-One still needs to generate a verifier contract for each circuit sharing most of the code.
+Key components:
+- `packages/common`: shared Move utilities (e.g., field/serialization helpers).
+- `packages/verifier`: the core Move verifier implementation.
+- `packages/api`: public-facing Move APIs and integration helpers.
+- `crates/*`: Rust tooling that supports the verifier (serialization, deserialization, SDK helpers, and examples).
 
-halo2-verifier.move uses a different approach, it tries to extract the information of a halo2 circuit, and abstract them out into a `Protocol` of the circuit(we call it the shape of a circuit), circuit’s shape includes:
-
-- Gates. Mainly the constraints you write in the circuit.
-- [Lookup arguments](https://zcash.github.io/halo2/design/proving-system/lookup.html). include the input expressions and table expressions.
-- Queries on each columns.
-- Commitments of fixed columns and [permutations](https://zcash.github.io/halo2/design/proving-system/permutation.html).
-- Other necessary informations like, `k`, `cs_degree`, `num_of_fixed_columns`.
-
-With these information, the general verifier can read commitments and evaluations in proofs of the circuit, and do verification accordingly using a polynomial commitment scheme.
-
-## Give it a try
-
-See [TUTORIAL.md](./TUTORIAL.md).
+See [TUTORIAL.md](./TUTORIAL.md) for step-by-step usage and workflows.
