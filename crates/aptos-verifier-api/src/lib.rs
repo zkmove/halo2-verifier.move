@@ -22,7 +22,6 @@ pub const FUNC_PUBLISH_VK_NATIVE: &str = "publish_serialized_vk";
 pub const FUNC_PUBLISH_CIRCUIT_NATIVE: &str = "publish_serialized_circuit";
 pub const FUNC_VERIFY_PROOF_NATIVE: &str = "verify";
 
-
 #[derive(Deserialize, Serialize)]
 /// JSON file format for function arguments.
 pub struct ArgWithTypeJSON {

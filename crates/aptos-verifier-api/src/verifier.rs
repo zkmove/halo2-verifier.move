@@ -1,12 +1,15 @@
-use crate::{ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes, FUNC_PUBLISH_CIRCUIT, FUNC_PUBLISH_PARAMS, FUNC_VERIFY_PROOF, MODULE_PARAMS, MODULE_VERIFIER};
+use crate::{
+    ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes, FUNC_PUBLISH_CIRCUIT,
+    FUNC_PUBLISH_PARAMS, FUNC_VERIFY_PROOF, MODULE_PARAMS, MODULE_VERIFIER,
+};
 use anyhow::{Error, Result};
+use group::GroupEncoding;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::plonk::Circuit;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
-use halo2_verifier::circuit::{generate_serialized_protocol};
+use halo2_verifier::circuit::generate_serialized_protocol;
 use serde_json::json;
-use group::GroupEncoding;
 
 /// build publish kzg params transaction payload for aptos.
 pub fn build_publish_params_transaction_payload(
@@ -88,7 +91,7 @@ pub fn build_verify_proof_transaction_payload(
     verifier_contract_address: &str,
     verifier_address: &str,
     params_address: &str,
-) ->Result<EntryFunctionArgumentsJSON, Error> {
+) -> Result<EntryFunctionArgumentsJSON, Error> {
     let instances = public_inputs
         .iter()
         .map(|fr| {

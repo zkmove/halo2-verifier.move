@@ -1,3 +1,8 @@
+use crate::{
+    ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes, FUNC_PUBLISH_CIRCUIT_NATIVE,
+    FUNC_PUBLISH_PARAMS_NATIVE, FUNC_PUBLISH_VK_NATIVE, FUNC_VERIFY_PROOF_NATIVE, MODULE_PARAMS,
+    MODULE_VERIFIER_NATIVE,
+};
 use anyhow::Error;
 use halo2_backend::arithmetic::CurveAffine;
 use halo2_backend::helpers::SerdeFormat;
@@ -7,11 +12,10 @@ use halo2_backend::poly::kzg::commitment::ParamsKZG;
 use halo2_proofs::halo2curves::bn256::{Bn256, G1Affine};
 use halo2_proofs::halo2curves::ff::FromUniformBytes;
 use halo2_proofs::plonk::Circuit;
-use serde_json::json;
 use halo2_verifier::circuit::generate_serialized_circuit;
 use halo2_verifier::params::serialize_kzg_params;
 use halo2_verifier::public_inputs::PublicInputs;
-use crate::{ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes, FUNC_PUBLISH_CIRCUIT_NATIVE, FUNC_PUBLISH_PARAMS_NATIVE, FUNC_PUBLISH_VK_NATIVE, FUNC_VERIFY_PROOF_NATIVE, MODULE_PARAMS, MODULE_VERIFIER_NATIVE};
+use serde_json::json;
 
 /// Build publish serialized kzg params transaction payload for aptos.
 pub fn build_publish_params_native_transaction_payload(
@@ -41,7 +45,10 @@ pub fn build_publish_vk_native_transaction_payload(
 ) -> Result<EntryFunctionArgumentsJSON, Error> {
     let vk_bytes = vk.to_bytes(SerdeFormat::RawBytes);
     let json = EntryFunctionArgumentsJSON {
-        function_id: format!("{}::{}::{}", native_verifier_contract_address, MODULE_VERIFIER_NATIVE, FUNC_PUBLISH_VK_NATIVE),
+        function_id: format!(
+            "{}::{}::{}",
+            native_verifier_contract_address, MODULE_VERIFIER_NATIVE, FUNC_PUBLISH_VK_NATIVE
+        ),
         type_args: vec![],
         args: vec![ArgWithTypeJSON {
             r#type: "hex".to_string(),
@@ -95,8 +102,8 @@ where
     C: CurveAffine,
 {
     let instances = PublicInputs::<C>(public_inputs).to_bytes();
-    let k_bytes = bcs::to_bytes(&k)
-        .map_err(|e| Error::msg(format!("serialize k option failed: {}", e)))?;
+    let k_bytes =
+        bcs::to_bytes(&k).map_err(|e| Error::msg(format!("serialize k option failed: {}", e)))?;
     let json = EntryFunctionArgumentsJSON {
         function_id: format!(
             "{}::{}::{}",

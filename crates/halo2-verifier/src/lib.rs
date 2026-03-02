@@ -22,8 +22,6 @@ pub mod public_inputs;
 #[cfg(test)]
 mod tests;
 
-use hex::encode;
-
 /// Deserializes the circuit and reconstructs the vk, verifies the proof using the SHPLONK multi-opening scheme with KZG commitments.
 ///
 /// # Arguments
@@ -70,11 +68,10 @@ pub fn deserialize_circuit_and_verify(
     let kzg_variant = KZG::from_u8(kzg)
         .ok_or_else(|| ErrorFront::Other("Invalid KZG variant (expected 0 or 1)".to_string()))?;
 
-    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant)
-        .map_err(|e| {
-            println!("Verification failed: {e}"); //todo: remove this
-            ErrorFront::Other(format!("Verification failed: {e}"))
-        })?;
+    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant).map_err(|e| {
+        println!("Verification failed: {e}"); //todo: remove this
+        ErrorFront::Other(format!("Verification failed: {e}"))
+    })?;
     Ok(())
 }
 
