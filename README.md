@@ -10,6 +10,6 @@ Key components:
 - `packages/common`: shared Move utilities (e.g., field/serialization helpers).
 - `packages/verifier`: the core Move verifier implementation.
 - `packages/api`: public-facing Move APIs and integration helpers.
-- `crates/*`: Rust tooling that primarily supports the fast native verifier (serialization, SDK helpers, and examples).
+- `crates/*`: Rust tooling that supports the verifier (serialization, deserialization, SDK helpers, and examples).
 
 See [TUTORIAL.md](./TUTORIAL.md) for step-by-step usage and workflows.

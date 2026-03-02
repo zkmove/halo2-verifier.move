@@ -40,7 +40,7 @@ This creates account in `.aptos/config.yaml`. You can check the account addresse
 aptos config show-profiles --profile <your-profile-for-contracts>
 ```
 
-Fund the accounts:
+Fund the accounts with faucet:
 ```shell
 aptos account fund-with-faucet --url http://127.0.0.1:8080 --amount 5000000000000000000 --profile <your-profile-for-contracts>
 aptos account fund-with-faucet --url http://127.0.0.1:8080 --amount 5000000000000000000 --profile <your-profile-for-params>
@@ -59,7 +59,7 @@ PROFILE=<your-profile-for-contracts> ./publish_contracts.sh
 
 Two verifier variants are available:
 - Native: uses native functions for faster verification.
-- Pure Move: implements verification entirely in Move.
+- Pure Move: implements verification entirely in Move, offering better portability.
 
 This section deploys the native verifier first. We use the Fibonacci circuit (project_root/examples/fibonacci) as an example to show how to deploy the verifier.
 
@@ -130,7 +130,8 @@ Assume you have generated the proof for the Fibonacci circuit with zkMove CLI an
 Build a verify-proof transaction for the native verifier:
 
 ```shell
-zkmove aptos build-verify-proof-native-aptos-txn --pubs-path example/proofs/test_fibonacci-1754384516414.instance --proof-path example/proofs/test_fibonacci-1754384516414.proof --native-verifier-contract-address <address-of-your-profile-for-contracts> --params-address <address-of-your-profile-for-params> --native-verifier-address <address-of-your-profile-for-verifier>
+# Replace `<your_parameter_k>` with the actual parameter k used when generating the proof.
+zkmove aptos build-verify-proof-native-aptos-txn --pubs-path example/proofs/test_fibonacci-1754384516414.instance --proof-path example/proofs/test_fibonacci-1754384516414.proof --k <your_parameter_k> --native-verifier-contract-address <address-of-your-profile-for-contracts> --params-address <address-of-your-profile-for-params> --native-verifier-address <address-of-your-profile-for-verifier>
 ```
 
 Or, build a verify-proof transaction for the pure Move verifier:
