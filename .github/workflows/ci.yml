@@ -1,6 +1,13 @@
 name: CI checks
 
 on:
+  workflow_dispatch:
+    inputs:
+      force_aptos_cli_install:
+        description: "Skip Aptos CLI cache and force reinstall"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
   push:
@@ -25,6 +32,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Cache Aptos CLI
+        if: ${{ inputs.force_aptos_cli_install != true }}
         id: cache-aptos
         uses: actions/cache@v4
         with:
@@ -32,7 +40,7 @@ jobs:
           key: aptos-cli-v7.11.1-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Aptos CLI v7.11.1 (fixed version)
-        if: steps.cache-aptos.outputs.cache-hit != 'true'
+        if: ${{ inputs.force_aptos_cli_install == true || steps.cache-aptos.outputs.cache-hit != 'true' }}
         run: |
           mkdir -p ~/aptos-cli
 
