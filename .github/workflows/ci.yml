@@ -1,6 +1,13 @@
 name: CI checks
 
 on:
+  workflow_dispatch:
+    inputs:
+      force_aptos_cli_install:
+        description: "Skip Aptos CLI cache and force reinstall"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
   push:
@@ -25,6 +32,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Cache Aptos CLI
+        if: ${{ inputs.force_aptos_cli_install != true }}
         id: cache-aptos
         uses: actions/cache@v4
         with:
@@ -32,7 +40,7 @@ jobs:
           key: aptos-cli-v7.11.1-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install Aptos CLI v7.11.1 (fixed version)
-        if: steps.cache-aptos.outputs.cache-hit != 'true'
+        if: ${{ inputs.force_aptos_cli_install == true || steps.cache-aptos.outputs.cache-hit != 'true' }}
         run: |
           mkdir -p ~/aptos-cli
 
@@ -70,7 +78,7 @@ jobs:
         run: |
                 aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
                 aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-#                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
         run: cargo test --workspace --all-features
