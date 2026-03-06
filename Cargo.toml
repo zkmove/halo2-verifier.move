@@ -8,7 +8,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "1.0.0"
 authors = [ "zkmove contributors" ]
 repository = "https://github.com/zkmove/halo2-verifier.move"
 categories = ["cryptography"]

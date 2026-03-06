@@ -1,7 +1,8 @@
 [package]
 name = "vk-gen-examples"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,11 +16,3 @@ hex.workspace=true
 rand.workspace = true
 rand_core.workspace=true
 anyhow.workspace=true
-
-
-#[patch."https://github.com/zkmove/halo2.git"]
-#halo2_proofs = { path = "../../../halo2/halo2_proofs" }
-#halo2_backend = { path = "../../../halo2/halo2_backend" }
-
-#[patch."https://github.com/zkmove/halo2curves"]
-#halo2curves = { path = "../../../halo2curves" }
