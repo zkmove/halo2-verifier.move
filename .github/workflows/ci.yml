@@ -70,7 +70,7 @@ jobs:
         run: |
                 aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
                 aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-#                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
 
       - name: Run Rust tests
         run: cargo test --workspace --all-features
