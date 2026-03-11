@@ -55,15 +55,15 @@ Run the script to publish the verifier contracts to the local network:
 PROFILE=<your-profile-for-contracts> ./publish_contracts.sh
 ```
 
-## Create verifier for specific circuit
+## Deploy verifier for specific circuit
 
 Two verifier variants are available:
 - Native: uses native functions for faster verification.
 - Pure Move: implements verification entirely in Move, offering better portability.
 
-This section deploys the native verifier first. We use the Fibonacci circuit (project_root/examples/fibonacci) as an example to show how to deploy the verifier.
+This section deploys the native verifier first, and then deploys the pure move verifier as an option. We use the Fibonacci circuit (project_root/examples/fibonacci) as an example to show how to deploy the verifier.
 
-### Deploy halo2 verifier (native functions)
+### Deploy the native halo2 verifier
 
 Publish KZG params:
 
@@ -95,7 +95,7 @@ aptos move run --json-file test_fibonacci-1747793629098-publish-vk-native.txn --
 aptos move run --json-file test_fibonacci-1747793629098-publish-circuit-native.txn --profile <your-profile-for-verifier>
 ```
 
-### Deploy halo2 verifier (pure Move)
+###  (Optional) Deploy the pure move verifier
 
 Publish KZG params:
 
@@ -134,18 +134,19 @@ Build a verify-proof transaction for the native verifier:
 zkmove aptos build-verify-proof-native-aptos-txn --pubs-path example/proofs/test_fibonacci-1754384516414.instance --proof-path example/proofs/test_fibonacci-1754384516414.proof --k <your_parameter_k> --native-verifier-contract-address <address-of-your-profile-for-contracts> --params-address <address-of-your-profile-for-params> --native-verifier-address <address-of-your-profile-for-verifier>
 ```
 
+Submit the verify-proof transaction (any user can submit the transaction):
+
+```shell
+aptos move run --json-file test_fibonacci-1747793629098-verify-proof-native.txn --profile <any-profile>
+```
+
 Or, build a verify-proof transaction for the pure Move verifier:
 
 ```shell
 zkmove aptos build-verify-proof-aptos-txn --pubs-path example/proofs/test_fibonacci-1754384516414.instance --proof-path example/proofs/test_fibonacci-1754384516414.proof --verifier-contract-address <address-of-your-profile-for-contracts> --params-address <address-of-your-profile-for-params> --verifier-address <address-of-your-profile-for-verifier>
 ```
+Submit the transaction:
 
-Submit the verify-proof transaction (anyone can submit the transaction):
-
-```shell
-aptos move run --json-file test_fibonacci-1747793629098-verify-proof-native.txn --profile <any-profile>
-```
-Or
 ```shell
 aptos move run --json-file test_fibonacci-1747793629098-verify-proof.txn --profile <any-profile>
 ```
