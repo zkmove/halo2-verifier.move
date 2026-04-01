@@ -82,7 +82,7 @@ module verifier_api::verifier {
     public fun mock_verify_proof(
         _params_address: address,
         _circuit_address: address,
-        _instances: vector<vector<vector<u8>>>,
+        _public_inputs: PublicInputs<Fr>,
         _proof: vector<u8>,
         _kzg_variant: u8,
     ) {
