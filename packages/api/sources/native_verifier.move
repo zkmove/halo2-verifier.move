@@ -4,8 +4,10 @@ module verifier_api::native_verifier {
     use std::signer;
     use std::vector;
     use std::bcs;
-    use std::proofs::verify_proof;
+    use std::proofs;
+    use aptos_std::bn254_algebra::Fr;
 
+    use halo2_common::public_inputs::{Self, PublicInputs};
     use verifier_api::params_store::get_serialized_params;
 
     const E_NOT_FOUND: u64 = 1;
@@ -74,8 +76,8 @@ module verifier_api::native_verifier {
     /// Verify proof with the native verifier, aborts on failure
     /// `params_address`: address where the params are published
     /// `vk_address`: address where the verification key is published
-    /// `public_inputs`: public inputs as vector of bytes
-    /// `proof`: proof as vector of bytes
+    /// `public_inputs`: public inputs as bytes
+    /// `proof`: proof as bytes
     /// `kzg_variant`: 0 for gwc, 1 for shplonk
     /// `k`: parameter to downsize params, None to use the full params
     public entry fun verify(
@@ -90,18 +92,37 @@ module verifier_api::native_verifier {
         let vk_bytes = get_serialized_vk(vk_address);
         let circuit_info = get_serialized_circuit(vk_address);
 
-        assert!(verify_proof(params,  vk_bytes, circuit_info, public_inputs, proof, kzg_variant, k), error::aborted(E_VERIFY_PROOF));
+        assert!(proofs::verify_proof(params, vk_bytes, circuit_info, public_inputs, proof, kzg_variant, k), error::aborted(E_VERIFY_PROOF));
+    }
+
+    /// Verify proof with the native verifier, different from `verify`,
+    /// this function is not entry function, takes `PublicInputs` as input
+    /// and returns `bool` instead of aborting on failure
+    public fun verify_proof(
+        params_address: address,
+        vk_address: address,
+        public_inputs: PublicInputs<Fr>,
+        proof: vector<u8>,
+        kzg_variant: u8,
+        k: Option<u32>,
+    ): bool {
+        let params = get_serialized_params(params_address);
+        let vk_bytes = get_serialized_vk(vk_address);
+        let circuit_info = get_serialized_circuit(vk_address);
+        let pi = public_inputs::to_bcs_bytes(&public_inputs);
+
+        proofs::verify_proof(params, vk_bytes, circuit_info, pi, proof, kzg_variant, k)
     }
 
     #[test_only]
-    public fun mock_verify(
+    public fun mock_verify_proof(
         _params_address: address,
         _vk_address: address,
-        _public_inputs: vector<u8>,
+        _public_inputs: PublicInputs<Fr>,
         _proof: vector<u8>,
         _kzg_variant: u8,
         _k: Option<u32>,
-    ) {
-        // do nothing
+    ): bool {
+        true
     }
 }

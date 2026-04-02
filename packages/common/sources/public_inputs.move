@@ -1,5 +1,6 @@
 /// Module for managing public inputs
 module halo2_common::public_inputs {
+    use std::bcs;
     use std::vector;
     use std::option;
     use aptos_std::crypto_algebra::{Self, Element};
@@ -54,7 +55,7 @@ module halo2_common::public_inputs {
         PublicInputs { columns, num_columns }
     }
 
-    /// Serialize PublicInputs to bytes
+    /// Serialize PublicInputs to vectors of bytes (column-major)
     public fun to_bytes(pi: &PublicInputs<Fr>): vector<vector<vector<u8>>> {
         let num_columns = pi.num_columns;
         let bytes = vector::empty<vector<vector<u8>>>();
@@ -70,11 +71,12 @@ module halo2_common::public_inputs {
         bytes
     }
 
-    /// Create PublicInputs from flat serialized bytes
+    /// Serialize PublicInputs to flat bytes
     public fun to_bytes_flat(pi: &PublicInputs<Fr>): vector<u8> {
         let bytes = vector::empty<u8>();
+        let num_columns = pi.num_columns;
         let col = 0;
-        while (col < VM_PUBLIC_INPUTS_COLUMN_COUNT) {
+        while (col < num_columns) {
             let column = vector::borrow(&pi.columns, col);
             let row = 0;
             let len = vector::length(column);
@@ -87,6 +89,12 @@ module halo2_common::public_inputs {
             col = col + 1;
         };
         bytes
+    }
+
+    /// Serialize PublicInputs to bcs bytes (column-major)
+    public fun to_bcs_bytes(pi: &PublicInputs<Fr>): vector<u8> {
+        let bytes = to_bytes(pi);
+        bcs::to_bytes(&bytes)
     }
 
     /// Get the columns of public inputs
