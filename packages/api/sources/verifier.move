@@ -47,7 +47,7 @@ module verifier_api::verifier {
     /// `params_address`: address where the params are published
     /// `circuit_address`: address where the circuit is published
     /// `public_inputs`: public inputs as vector of vector of bytes
-    /// `proof`: proof as vector of bytes
+    /// `proof`: proof as bytes
     /// `kzg_variant`: 0 for gwc, 1 for shplonk
     public entry fun verify(
         params_address: address,
@@ -85,7 +85,7 @@ module verifier_api::verifier {
         _public_inputs: PublicInputs<Fr>,
         _proof: vector<u8>,
         _kzg_variant: u8,
-    ) {
-        // do nothing
+    ): bool {
+        true
     }
 }
