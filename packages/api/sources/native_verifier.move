@@ -95,7 +95,7 @@ module verifier_api::native_verifier {
         assert!(proofs::verify_proof(params, vk_bytes, circuit_info, public_inputs, proof, kzg_variant, k), error::aborted(E_VERIFY_PROOF));
     }
 
-    /// Vefify proof with the native verifier, different from `verify`,
+    /// Verify proof with the native verifier, different from `verify`,
     /// this function is not entry function, takes `PublicInputs` as input
     /// and returns `bool` instead of aborting on failure
     public fun verify_proof(
