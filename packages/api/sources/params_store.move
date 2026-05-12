@@ -1,8 +1,6 @@
 module verifier_api::params_store {
     use std::option;
     use std::error;
-    use std::signer;
-    use std::vector;
 
     use halo2_common::bn254_utils;
     use halo2_common::params::{Self, Params};
@@ -19,11 +17,6 @@ module verifier_api::params_store {
         g1: vector<u8>,
         g2: vector<u8>,
         s_g2: vector<u8>,
-    }
-
-    /// Store the serialized KZG params
-    struct SerializedParams has key {
-        params_bytes: vector<u8>,
     }
 
     /// the serializaton of curve point should follow to arkworks serialzation.
@@ -54,28 +47,5 @@ module verifier_api::params_store {
             option::destroy_some(bn254_utils::deserialize_g2(&params.g2)),
             option::destroy_some(bn254_utils::deserialize_g2(&params.s_g2)),
         )
-    }
-
-    /// Publish the serialized params bytes for the signer
-    public entry fun publish_serialized_params(
-        owner: &signer,
-        params_bytes: vector<u8>,
-    ) {
-        assert!(!vector::is_empty(&params_bytes), error::invalid_argument(E_EMPTY_PARAMS));
-
-        let addr = signer::address_of(owner);
-
-        if (exists<SerializedParams>(addr)) {
-            let res = borrow_global_mut<SerializedParams>(addr);
-            res.params_bytes = params_bytes;
-        } else {
-            move_to(owner, SerializedParams { params_bytes });
-        }
-    }
-
-    /// Retrieves the serialized params bytes for a given address
-    public fun get_serialized_params(addr: address): vector<u8> acquires SerializedParams {
-        assert!(exists<SerializedParams>(addr), error::not_found(E_PARAMS_NOT_FOUND));
-        *&borrow_global<SerializedParams>(addr).params_bytes
     }
 }

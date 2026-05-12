@@ -5,10 +5,9 @@ module verifier_api::native_verifier {
     use std::vector;
     use std::bcs;
     use std::proofs;
-    use aptos_std::bn254_algebra::Fr;
 
-    use halo2_common::public_inputs::{Self, PublicInputs};
-    use verifier_api::params_store::get_serialized_params;
+    use halo2_common::serialized_public_inputs::{Self, PublicInputs};
+    use verifier_api::serialized_params_store::get_serialized_params;
 
     const E_NOT_FOUND: u64 = 1;
     const E_EMPTY_VK: u64 = 2;
@@ -101,7 +100,7 @@ module verifier_api::native_verifier {
     public fun verify_proof(
         params_address: address,
         vk_address: address,
-        public_inputs: PublicInputs<Fr>,
+        public_inputs: PublicInputs,
         proof: vector<u8>,
         kzg_variant: u8,
         k: Option<u32>,
@@ -109,7 +108,7 @@ module verifier_api::native_verifier {
         let params = get_serialized_params(params_address);
         let vk_bytes = get_serialized_vk(vk_address);
         let circuit_info = get_serialized_circuit(vk_address);
-        let pi = public_inputs::to_bcs_bytes(&public_inputs);
+        let pi = serialized_public_inputs::to_bcs_bytes(&public_inputs);
 
         proofs::verify_proof(params, vk_bytes, circuit_info, pi, proof, kzg_variant, k)
     }
@@ -118,7 +117,7 @@ module verifier_api::native_verifier {
     public fun mock_verify_proof(
         _params_address: address,
         _vk_address: address,
-        _public_inputs: PublicInputs<Fr>,
+        _public_inputs: PublicInputs,
         _proof: vector<u8>,
         _kzg_variant: u8,
         _k: Option<u32>,
