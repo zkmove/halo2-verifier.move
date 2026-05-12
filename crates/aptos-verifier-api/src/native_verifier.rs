@@ -1,7 +1,7 @@
 use crate::{
     ArgWithTypeJSON, EntryFunctionArgumentsJSON, HexEncodedBytes, FUNC_PUBLISH_CIRCUIT_NATIVE,
-    FUNC_PUBLISH_PARAMS_NATIVE, FUNC_PUBLISH_VK_NATIVE, FUNC_VERIFY_PROOF_NATIVE, MODULE_PARAMS,
-    MODULE_VERIFIER_NATIVE,
+    FUNC_PUBLISH_PARAMS_NATIVE, FUNC_PUBLISH_VK_NATIVE, FUNC_VERIFY_PROOF_NATIVE,
+    MODULE_PARAMS_NATIVE, MODULE_VERIFIER_NATIVE,
 };
 use anyhow::Error;
 use halo2_backend::arithmetic::CurveAffine;
@@ -27,7 +27,7 @@ pub fn build_publish_params_native_transaction_payload(
     let json = EntryFunctionArgumentsJSON {
         function_id: format!(
             "{}::{}::{}",
-            params_contract_address, MODULE_PARAMS, FUNC_PUBLISH_PARAMS_NATIVE
+            params_contract_address, MODULE_PARAMS_NATIVE, FUNC_PUBLISH_PARAMS_NATIVE
         ),
         type_args: vec![],
         args: vec![ArgWithTypeJSON {
