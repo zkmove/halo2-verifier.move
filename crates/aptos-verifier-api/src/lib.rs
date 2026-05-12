@@ -6,16 +6,15 @@ pub mod native_verifier;
 /// move verifier related APIs
 pub mod verifier;
 
-/// constants share by move verifier and native verifier
-pub const MODULE_PARAMS: &str = "params_store";
-
 /// constants for move verifier
+pub const MODULE_PARAMS: &str = "params_store";
 pub const MODULE_VERIFIER: &str = "verifier";
 pub const FUNC_PUBLISH_PARAMS: &str = "create";
 pub const FUNC_PUBLISH_CIRCUIT: &str = "publish_circuit";
 pub const FUNC_VERIFY_PROOF: &str = "verify";
 
 /// constants for native verifier
+pub const MODULE_PARAMS_NATIVE: &str = "serialized_params_store";
 pub const MODULE_VERIFIER_NATIVE: &str = "native_verifier";
 pub const FUNC_PUBLISH_PARAMS_NATIVE: &str = "publish_serialized_params";
 pub const FUNC_PUBLISH_VK_NATIVE: &str = "publish_serialized_vk";
