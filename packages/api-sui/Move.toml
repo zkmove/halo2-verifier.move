@@ -1,0 +1,11 @@
+[package]
+name = "verifier-api"
+version = "0.1.0"
+edition = "2024.beta"
+authors = ["zkmove contributors"]
+
+[addresses]
+verifier_api = "0x0"
+
+[dependencies]
+Sui = { local = "../../../zkmove_sui/crates/sui-framework/packages/sui-framework" }
