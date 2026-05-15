@@ -6,6 +6,7 @@ authors = ["zkmove contributors"]
 
 [addresses]
 verifier_api = "0x0"
+halo2_common = "0x0"
 
 [dependencies]
 Sui = { local = "../../../zkmove_sui/crates/sui-framework/packages/sui-framework" }
