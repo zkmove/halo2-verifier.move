@@ -3,6 +3,7 @@ module verifier_api::verifier_api_sui_tests;
 
 use halo2_common::serialized_public_inputs;
 use sui::hash;
+use verifier_api::input_limits;
 use verifier_api::native_verifier;
 use verifier_api::serialized_params_store;
 
@@ -23,6 +24,30 @@ fun test_verify_halo2_kzg_proof_through_object_api() {
         false,
         0,
     ));
+
+    serialized_params_store::destroy(params);
+    native_verifier::destroy_serialized_vk(vk);
+    native_verifier::destroy_serialized_circuit(circuit);
+}
+
+#[test]
+fun test_verify_halo2_kzg_proof_through_entry_api() {
+    let ctx = &mut tx_context::dummy();
+    let params = serialized_params_store::new_serialized_params(params(), ctx);
+    let vk = native_verifier::new_serialized_vk(vk(), ctx);
+    let circuit = native_verifier::new_serialized_circuit(circuit_info(), ctx);
+    let scalar = public_input_scalar();
+
+    native_verifier::verify(
+        &params,
+        &vk,
+        &circuit,
+        vector[vector[copy scalar, copy scalar, scalar]],
+        proof(),
+        native_verifier::kzg_gwc(),
+        false,
+        0,
+    );
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
@@ -75,7 +100,7 @@ fun test_digest_mismatch_returns_false_through_bytes_helper() {
 }
 
 #[test]
-#[expected_failure(abort_code = native_verifier::EInputTooLarge)]
+#[expected_failure(abort_code = input_limits::EInputTooLarge)]
 fun test_oversize_public_inputs_abort_in_api() {
     let oversized = zero_bytes(native_verifier::max_public_inputs_bytes() + 1);
     let empty = x"";
@@ -97,7 +122,7 @@ fun test_oversize_public_inputs_abort_in_api() {
 }
 
 #[test]
-#[expected_failure(abort_code = serialized_params_store::EInputTooLarge)]
+#[expected_failure(abort_code = input_limits::EInputTooLarge)]
 fun test_oversize_params_abort_on_object_creation() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(
@@ -120,8 +145,12 @@ fun circuit_info(): vector<u8> {
 }
 
 fun public_inputs(): serialized_public_inputs::PublicInputs {
-    let scalar = x"0600000000000000000000000000000000000000000000000000000000000000";
+    let scalar = public_input_scalar();
     serialized_public_inputs::from_bytes(vector[vector[copy scalar, copy scalar, scalar]])
+}
+
+fun public_input_scalar(): vector<u8> {
+    x"0600000000000000000000000000000000000000000000000000000000000000"
 }
 
 fun proof(): vector<u8> {

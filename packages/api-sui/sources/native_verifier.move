@@ -3,34 +3,32 @@ module verifier_api::native_verifier;
 use halo2_common::serialized_public_inputs::{Self, PublicInputs};
 use sui::hash;
 use sui::halo2_kzg;
+use verifier_api::input_limits;
 use verifier_api::serialized_params_store::{Self, SerializedParams};
 
-const EInputTooLarge: u64 = 1;
-
-const MAX_VK_BYTES: u64 = 240 * 1024;
-const MAX_CIRCUIT_INFO_BYTES: u64 = 240 * 1024;
-const MAX_PROOF_BYTES: u64 = 96 * 1024;
-const MAX_PUBLIC_INPUTS_BYTES: u64 = 16 * 1024;
+const EVerifyProof: u64 = 2;
 
 public struct SerializedVK has key, store {
     id: UID,
     vk_bytes: vector<u8>,
+    vk_digest: vector<u8>,
 }
 
 public struct SerializedCircuit has key, store {
     id: UID,
     circuit_bytes: vector<u8>,
+    circuit_digest: vector<u8>,
 }
 
 public fun max_params_bytes(): u64 { serialized_params_store::max_params_bytes() }
 
-public fun max_circuit_info_bytes(): u64 { MAX_CIRCUIT_INFO_BYTES }
+public fun max_circuit_info_bytes(): u64 { input_limits::max_circuit_info_bytes() }
 
-public fun max_vk_bytes(): u64 { MAX_VK_BYTES }
+public fun max_vk_bytes(): u64 { input_limits::max_vk_bytes() }
 
-public fun max_proof_bytes(): u64 { MAX_PROOF_BYTES }
+public fun max_proof_bytes(): u64 { input_limits::max_proof_bytes() }
 
-public fun max_public_inputs_bytes(): u64 { MAX_PUBLIC_INPUTS_BYTES }
+public fun max_public_inputs_bytes(): u64 { input_limits::max_public_inputs_bytes() }
 
 public fun kzg_gwc(): u8 { halo2_kzg::kzg_gwc() }
 
@@ -42,10 +40,12 @@ public fun new_serialized_vk(
     vk_bytes: vector<u8>,
     ctx: &mut TxContext,
 ): SerializedVK {
-    assert!(vk_bytes.length() <= MAX_VK_BYTES, EInputTooLarge);
+    input_limits::assert_vk_size(&vk_bytes);
+    let vk_digest = hash::blake2b256(&vk_bytes);
     SerializedVK {
         id: object::new(ctx),
         vk_bytes,
+        vk_digest,
     }
 }
 
@@ -60,8 +60,12 @@ public fun get_serialized_vk(vk: &SerializedVK): vector<u8> {
     vk.vk_bytes
 }
 
+public fun get_serialized_vk_digest(vk: &SerializedVK): vector<u8> {
+    vk.vk_digest
+}
+
 public fun destroy_serialized_vk(vk: SerializedVK) {
-    let SerializedVK { id, vk_bytes: _ } = vk;
+    let SerializedVK { id, vk_bytes: _, vk_digest: _ } = vk;
     object::delete(id)
 }
 
@@ -69,10 +73,12 @@ public fun new_serialized_circuit(
     circuit_bytes: vector<u8>,
     ctx: &mut TxContext,
 ): SerializedCircuit {
-    assert!(circuit_bytes.length() <= MAX_CIRCUIT_INFO_BYTES, EInputTooLarge);
+    input_limits::assert_circuit_info_size(&circuit_bytes);
+    let circuit_digest = hash::blake2b256(&circuit_bytes);
     SerializedCircuit {
         id: object::new(ctx),
         circuit_bytes,
+        circuit_digest,
     }
 }
 
@@ -87,8 +93,12 @@ public fun get_serialized_circuit(circuit: &SerializedCircuit): vector<u8> {
     circuit.circuit_bytes
 }
 
+public fun get_serialized_circuit_digest(circuit: &SerializedCircuit): vector<u8> {
+    circuit.circuit_digest
+}
+
 public fun destroy_serialized_circuit(circuit: SerializedCircuit) {
-    let SerializedCircuit { id, circuit_bytes: _ } = circuit;
+    let SerializedCircuit { id, circuit_bytes: _, circuit_digest: _ } = circuit;
     object::delete(id)
 }
 
@@ -105,12 +115,40 @@ public fun verify_proof_bytes(
     k_present: bool,
     k: u32,
 ): bool {
-    assert!(params.length() <= max_params_bytes(), EInputTooLarge);
-    assert!(vk.length() <= MAX_VK_BYTES, EInputTooLarge);
-    assert!(circuit_info.length() <= MAX_CIRCUIT_INFO_BYTES, EInputTooLarge);
-    assert!(proof.length() <= MAX_PROOF_BYTES, EInputTooLarge);
-    assert!(public_inputs.length() <= MAX_PUBLIC_INPUTS_BYTES, EInputTooLarge);
+    input_limits::assert_params_size(&params);
+    input_limits::assert_vk_size(&vk);
+    input_limits::assert_circuit_info_size(&circuit_info);
+    input_limits::assert_proof_size(&proof);
+    input_limits::assert_public_inputs_size(&public_inputs);
 
+    verify_proof_bytes_inner(
+        params,
+        params_digest,
+        vk,
+        vk_digest,
+        circuit_info,
+        circuit_info_digest,
+        public_inputs,
+        proof,
+        kzg_variant,
+        k_present,
+        k,
+    )
+}
+
+fun verify_proof_bytes_inner(
+    params: vector<u8>,
+    params_digest: vector<u8>,
+    vk: vector<u8>,
+    vk_digest: vector<u8>,
+    circuit_info: vector<u8>,
+    circuit_info_digest: vector<u8>,
+    public_inputs: vector<u8>,
+    proof: vector<u8>,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+): bool {
     halo2_kzg::verify_proof(
         params,
         params_digest,
@@ -137,21 +175,53 @@ public fun verify_proof(
     k: u32,
 ): bool {
     let params_bytes = serialized_params_store::params_bytes(params);
+    let params_digest = serialized_params_store::params_digest(params);
     let vk_bytes = get_serialized_vk(vk);
+    let vk_digest = get_serialized_vk_digest(vk);
     let circuit_info = get_serialized_circuit(circuit);
+    let circuit_digest = get_serialized_circuit_digest(circuit);
     let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&public_inputs);
 
-    verify_proof_bytes(
+    input_limits::assert_public_inputs_size(&public_inputs_bytes);
+
+    verify_proof_bytes_inner(
         params_bytes,
-        hash::blake2b256(&params_bytes),
+        params_digest,
         vk_bytes,
-        hash::blake2b256(&vk_bytes),
+        vk_digest,
         circuit_info,
-        hash::blake2b256(&circuit_info),
+        circuit_digest,
         public_inputs_bytes,
         proof,
         kzg_variant,
         k_present,
         k,
+    )
+}
+
+#[allow(lint(public_entry))]
+public entry fun verify(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    circuit: &SerializedCircuit,
+    public_inputs: vector<vector<vector<u8>>>,
+    proof: vector<u8>,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+) {
+    let public_inputs = serialized_public_inputs::from_bytes(public_inputs);
+    assert!(
+        verify_proof(
+            params,
+            vk,
+            circuit,
+            public_inputs,
+            proof,
+            kzg_variant,
+            k_present,
+            k,
+        ),
+        EVerifyProof,
     )
 }

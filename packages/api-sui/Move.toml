@@ -9,4 +9,4 @@ verifier_api = "0x0"
 halo2_common = "0x0"
 
 [dependencies]
-Sui = { local = "../../../zkmove_sui/crates/sui-framework/packages/sui-framework" }
+Sui = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105", subdir = "crates/sui-framework/packages/sui-framework" }

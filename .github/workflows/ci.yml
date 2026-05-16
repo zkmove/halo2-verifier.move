@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_sui_cli_install:
+        description: "Skip Sui CLI cache and force reinstall"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
   push:
@@ -16,6 +21,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  SUI_REV: 76269b3f6ff1ea56ddfcf258be8c19ffe21ce105
 
 jobs:
   test:
@@ -65,8 +73,32 @@ jobs:
       - name: Add Aptos CLI to PATH
         run: echo "$HOME/aptos-cli" >> $GITHUB_PATH
 
+      - name: Cache Sui CLI
+        if: ${{ inputs.force_sui_cli_install != true }}
+        id: cache-sui
+        uses: actions/cache@v4
+        with:
+          path: ~/sui-cli/bin/sui
+          key: sui-cli-${{ env.SUI_REV }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install Sui CLI
+        if: ${{ inputs.force_sui_cli_install == true || steps.cache-sui.outputs.cache-hit != 'true' }}
+        run: |
+          cargo install \
+            --git https://github.com/zkmove/sui.git \
+            --rev "$SUI_REV" \
+            --bin sui \
+            --locked \
+            --root ~/sui-cli
+
+      - name: Add Sui CLI to PATH
+        run: echo "$HOME/sui-cli/bin" >> $GITHUB_PATH
+
       - name: Verify Aptos CLI version
         run: aptos --version
+
+      - name: Verify Sui CLI version
+        run: sui --version
 
       - name: Code formatting check
         run: cargo fmt --all -- --check
@@ -79,6 +111,7 @@ jobs:
                 aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
                 aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
                 aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                sui move test --path ./packages/api-sui
 
       - name: Run Rust tests
         run: cargo test --workspace --all-features

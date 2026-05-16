@@ -1,24 +1,26 @@
 module verifier_api::serialized_params_store;
 
-const EInputTooLarge: u64 = 1;
-
-const MAX_PARAMS_BYTES: u64 = 240 * 1024;
+use sui::hash;
+use verifier_api::input_limits;
 
 public struct SerializedParams has key, store {
     id: UID,
     params_bytes: vector<u8>,
+    params_digest: vector<u8>,
 }
 
-public fun max_params_bytes(): u64 { MAX_PARAMS_BYTES }
+public fun max_params_bytes(): u64 { input_limits::max_params_bytes() }
 
 public fun new_serialized_params(
     params_bytes: vector<u8>,
     ctx: &mut TxContext,
 ): SerializedParams {
-    assert!(params_bytes.length() <= MAX_PARAMS_BYTES, EInputTooLarge);
+    input_limits::assert_params_size(&params_bytes);
+    let params_digest = hash::blake2b256(&params_bytes);
     SerializedParams {
         id: object::new(ctx),
         params_bytes,
+        params_digest,
     }
 }
 
@@ -36,7 +38,11 @@ public fun params_bytes(params: &SerializedParams): vector<u8> {
     params.params_bytes
 }
 
+public fun params_digest(params: &SerializedParams): vector<u8> {
+    params.params_digest
+}
+
 public fun destroy(params: SerializedParams) {
-    let SerializedParams { id, params_bytes: _ } = params;
+    let SerializedParams { id, params_bytes: _, params_digest: _ } = params;
     object::delete(id)
 }
