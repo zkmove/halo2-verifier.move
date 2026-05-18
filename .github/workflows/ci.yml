@@ -89,7 +89,8 @@ jobs:
             --rev "$SUI_REV" \
             --bin sui \
             --locked \
-            --root ~/sui-cli
+            --root ~/sui-cli \
+            sui
 
       - name: Add Sui CLI to PATH
         run: echo "$HOME/sui-cli/bin" >> $GITHUB_PATH
