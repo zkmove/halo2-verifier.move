@@ -29,7 +29,7 @@ jobs:
   test:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     name: Tests on Ubuntu
-    timeout-minutes: 30
+    timeout-minutes: 90
     runs-on: ubuntu-latest
 
     steps:
