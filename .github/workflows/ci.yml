@@ -83,6 +83,7 @@ jobs:
 
       - name: Install Sui CLI
         if: ${{ inputs.force_sui_cli_install == true || steps.cache-sui.outputs.cache-hit != 'true' }}
+        timeout-minutes: 90
         run: |
           cargo install \
             --git https://github.com/zkmove/sui.git \
