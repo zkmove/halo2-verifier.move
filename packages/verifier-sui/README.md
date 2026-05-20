@@ -9,10 +9,10 @@ This package is intentionally separate from `packages/verifier`, which remains t
 Ported:
 
 - `evaluator.move`
+- `transcript.move`
 
 Planned next modules:
 
-- `transcript.move`
 - `protocol.move`
 - `vanishing.move`
 - `permutation.move`
@@ -34,3 +34,4 @@ PATH=/Users/greg/work/sui/target/debug:$PATH sui move test
 - `packages/common-sui` owns the Sui BN254/common helper modules.
 - The package should not depend on Aptos framework modules.
 - The public API should stay close to the Aptos verifier so downstream ports can be incremental.
+- Sui reserves module `init` functions, so `transcript.move` uses `transcript::new` instead of Aptos `transcript::init`.
