@@ -11,13 +11,13 @@ Ported:
 - `evaluator.move`
 - `transcript.move`
 - `protocol.move`
-
-Planned next modules:
-
 - `vanishing.move`
 - `permutation.move`
 - `lookup.move`
 - `shuffle.move`
+
+Planned next modules:
+
 - `gwc.move`
 - `shplonk.move`
 - `halo2_verifier.move`
