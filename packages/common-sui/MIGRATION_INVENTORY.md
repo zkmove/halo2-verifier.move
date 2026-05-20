@@ -12,6 +12,10 @@ This document tracks the cleanup-first migration from `packages/common` to `pack
 - `column_query.move`
 - `params.move`
 - `msm.move`
+- `public_inputs.move`
+- `query.move`
+- `domain.move`
+- `plain_keccak.move`
 
 ## Phase 1: pure Move modules
 
@@ -21,15 +25,6 @@ These modules have no Aptos-only crypto dependencies and have been ported:
 - `vec_utils.move`
 - `column.move`
 - `column_query.move`
-
-## Deferred: Sui BN254 / verifier math modules
-
-These modules are live in the Aptos verifier/API and may be evaluated after Phase 1:
-
-- `public_inputs.move`
-- `query.move`
-- `domain.move`
-- `plain_keccak.move`
 
 ## Not migrating now
 
