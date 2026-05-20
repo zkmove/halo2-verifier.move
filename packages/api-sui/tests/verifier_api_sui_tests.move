@@ -1,10 +1,14 @@
 #[test_only]
 module verifier_api::verifier_api_sui_tests;
 
-use halo2_common::serialized_public_inputs;
+// Compact vector_mul Halo2 KZG fixture shared with the Sui framework native
+// verifier tests.
+use sui::event;
 use sui::hash;
+use verifier_api::artifact_builder;
 use verifier_api::input_limits;
 use verifier_api::native_verifier;
+use verifier_api::serialized_public_inputs;
 use verifier_api::serialized_params_store;
 
 #[test]
@@ -31,23 +35,53 @@ fun test_verify_halo2_kzg_proof_through_object_api() {
 }
 
 #[test]
-fun test_verify_halo2_kzg_proof_through_entry_api() {
+fun test_chunked_artifact_builders_verify_proof() {
     let ctx = &mut tx_context::dummy();
-    let params = serialized_params_store::new_serialized_params(params(), ctx);
-    let vk = native_verifier::new_serialized_vk(vk(), ctx);
-    let circuit = native_verifier::new_serialized_circuit(circuit_info(), ctx);
-    let scalar = public_input_scalar();
+    let params_bytes = params();
+    let vk_bytes = vk();
+    let circuit_info_bytes = circuit_info();
 
-    native_verifier::verify(
+    let mut params_builder = artifact_builder::new_params_builder(ctx);
+    let mut vk_builder = artifact_builder::new_vk_builder(ctx);
+    let mut circuit_builder = artifact_builder::new_circuit_info_builder(ctx);
+
+    append_in_two_chunks(&mut params_builder, &params_bytes);
+    append_in_two_chunks(&mut vk_builder, &vk_bytes);
+    append_in_two_chunks(&mut circuit_builder, &circuit_info_bytes);
+
+    assert!(artifact_builder::builder_len(&params_builder) == params_bytes.length(), 10);
+    assert!(artifact_builder::builder_len(&vk_builder) == vk_bytes.length(), 11);
+    assert!(artifact_builder::builder_len(&circuit_builder) == circuit_info_bytes.length(), 12);
+
+    let params = artifact_builder::finalize_params(
+        params_builder,
+        hash::blake2b256(&params_bytes),
+        ctx,
+    );
+    let vk = artifact_builder::finalize_vk(
+        vk_builder,
+        hash::blake2b256(&vk_bytes),
+        ctx,
+    );
+    let circuit = artifact_builder::finalize_circuit_info(
+        circuit_builder,
+        hash::blake2b256(&circuit_info_bytes),
+        ctx,
+    );
+
+    assert!(native_verifier::verify_proof(
         &params,
         &vk,
         &circuit,
-        vector[vector[copy scalar, copy scalar, scalar]],
+        public_inputs(),
         proof(),
         native_verifier::kzg_gwc(),
         false,
         0,
-    );
+    ));
+    assert!(event::events_by_type<artifact_builder::BuilderCreated>().length() == 3, 13);
+    assert!(event::events_by_type<artifact_builder::ChunkAppended>().length() == 6, 14);
+    assert!(event::events_by_type<artifact_builder::ArtifactFinalized>().length() == 3, 15);
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
@@ -71,6 +105,97 @@ fun test_invalid_proof_returns_false_through_object_api() {
         false,
         0,
     ));
+
+    serialized_params_store::destroy(params);
+    native_verifier::destroy_serialized_vk(vk);
+    native_verifier::destroy_serialized_circuit(circuit);
+}
+
+#[test]
+#[expected_failure(abort_code = artifact_builder::EWrongArtifactKind)]
+fun test_finalize_wrong_kind_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let params_bytes = params();
+    let mut builder = artifact_builder::new_params_builder(ctx);
+    artifact_builder::append_chunk(&mut builder, copy params_bytes);
+    let vk = artifact_builder::finalize_vk(
+        builder,
+        hash::blake2b256(&params_bytes),
+        ctx,
+    );
+    native_verifier::destroy_serialized_vk(vk);
+}
+
+#[test]
+#[expected_failure(abort_code = artifact_builder::EDigestMismatch)]
+fun test_chunked_finalize_digest_mismatch_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let mut builder = artifact_builder::new_params_builder(ctx);
+    artifact_builder::append_chunk(&mut builder, params());
+    let wrong_digest = x"0000000000000000000000000000000000000000000000000000000000000000";
+    let params = artifact_builder::finalize_params(builder, wrong_digest, ctx);
+    serialized_params_store::destroy(params);
+}
+
+#[test]
+#[expected_failure(abort_code = artifact_builder::EEmptyArtifact)]
+fun test_empty_finalize_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let empty = x"";
+    let builder = artifact_builder::new_params_builder(ctx);
+    let params = artifact_builder::finalize_params(
+        builder,
+        hash::blake2b256(&empty),
+        ctx,
+    );
+    serialized_params_store::destroy(params);
+}
+
+#[test]
+#[expected_failure(abort_code = input_limits::EChunkTooLarge)]
+fun test_chunk_too_large_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let mut builder = artifact_builder::new_params_builder(ctx);
+    artifact_builder::append_chunk(
+        &mut builder,
+        zero_bytes(artifact_builder::max_chunk_bytes() + 1),
+    );
+    artifact_builder::destroy(builder);
+}
+
+#[test]
+#[expected_failure(abort_code = input_limits::EInputTooLarge)]
+fun test_append_past_max_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let mut builder = artifact_builder::new_params_builder(ctx);
+    let chunk = zero_bytes(artifact_builder::max_chunk_bytes());
+    let mut i = 0;
+    while (i < 17u64) {
+        artifact_builder::append_chunk(&mut builder, copy chunk);
+        i = i + 1u64;
+    };
+    artifact_builder::destroy(builder);
+}
+
+#[test]
+fun test_digest_is_recomputed_from_bytes() {
+    let ctx = &mut tx_context::dummy();
+    let params_bytes = params();
+    let vk_bytes = vk();
+    let circuit_info_bytes = circuit_info();
+    let params = serialized_params_store::new_serialized_params(copy params_bytes, ctx);
+    let vk = native_verifier::new_serialized_vk(copy vk_bytes, ctx);
+    let circuit = native_verifier::new_serialized_circuit(copy circuit_info_bytes, ctx);
+
+    assert!(serialized_params_store::version(&params) == serialized_params_store::artifact_version(), 19);
+    assert!(native_verifier::serialized_vk_version(&vk) == native_verifier::artifact_version(), 23);
+    assert!(native_verifier::serialized_circuit_version(&circuit) == native_verifier::artifact_version(), 24);
+    assert!(serialized_params_store::params_digest(&params) == hash::blake2b256(&params_bytes), 20);
+    assert!(native_verifier::get_serialized_vk_digest(&vk) == hash::blake2b256(&vk_bytes), 21);
+    assert!(
+        native_verifier::get_serialized_circuit_digest(&circuit) == hash::blake2b256(&circuit_info_bytes),
+        22,
+    );
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
@@ -155,6 +280,25 @@ fun public_input_scalar(): vector<u8> {
 
 fun proof(): vector<u8> {
     x"e9445cc7533f61fff8af036209735753b9276900d0b1812e91405ce65da07d20d8994f4c3db10d08f37a602e0f56258c624c6076d800678adfd0ecbad2fc3a2065db9386aa1d60c6c8ccffb869093fada5eb6797ba9488c8fa8b39f39d88ea0d8b987dbc98354df75153951b34d21fef0ec49e419453aa9eabb8397cf70c4e8945f3d19d0b85a80b1c92dd1f67742a65a1407676aae21846619e7683ba3681074fe0f929405e17fdb6b5457fa2796587349001fc43ee6726ef6473a62d772e270c4f6c0720fbd0cc9b142f6b7019cce18ffbb071348b7252d92c15ed49cb34af5fb50e30a6f2ae37b39bbc5e0f08f511623fc2e347f9dbc241b7676af8c2068f4e424a79cdf9e47d3f81213b7ce0754e22a5900bc034d9ec14eb976f2e4fe68f13a964e497d8550450f29c3d207d1319e41d325463add88986caa6226d3f5a071c1a237da662f8bc7044c930ba01e78ebab10c8f3750ce3875ade4c17613f629d469b3c80240d084f8eb7c00d349f1ec2eb923405d065c45e05972117810750c129a65213a381020350769823427aa691c79b77591373c8c9a19ee97717bda1bd2e5fe1e693cea645a56976dac736f1e4729ffc503392660cff16d21c64679144b8ad3b2f7ffd36e26837178cdd403266fe5ef05eee9eccf87032c2be6327007fad06835aceec94fcd5018e0d7001da60be35da0a23d43f702c6a8da7c40433047344f70808328501fce9f1920c3f54187c36e36c4d3d410fe76295a2f0afe07e040ec38b721e1fdb068c0eea9e5ec3b88579674b13a9471f7e8f2d6e82a5e00bf6c1f64443eaac6a3e772d283e6a35839574d39fa183fa8ed0dbb87beb71e2412fe1918f814d4ad50bb2001a6d0afb2c98bbce25b1d516896fa431853965812000be23e6303955802b8c503385837aaf3a84459d99d426d2723d63a20d74c2c91afafcce1aa44c1faaaa5f088da984c557cd591fa0e8bd3ef31ad1c128b1e21e19032fd9c419d73a070165530851f8ddbfab0c6a0ee795428bbbe6ef74cbd2c99ffe15922ee1a3b9ae82e99d5783ad1d3804b5df5ececa5898a58167a426f0ff534a7c85ca4603eb202f5e6ee2993b5bf74ea2fd930687946ff421e0ed8b40f881fb309f422e050f35184f65e4f719c2f0fb8a68ee5de10fc474532d00c2122657efdc65431f313ec8d02ed8f017b9bb14fff3910dfc58f78c5f8f17f32ca1c8fb4abbcb1978e8c5f1d783025eb19fb8580e4f50bb3755136ff1a2c0ac903296bb6136ecf03ba35e23496dfd4d77b728532cb5b41ba46fc489926ddb5951a26b82e74bf0fd684b4f4a1c4728eedece37c52a970f30e5915fb931d804014992ba09392b14eca34c6a8e3915dac6afc2ef43041ec6691f4c7769bf230b9016614391af4f7d9df348ee7a0005c110e0563a65073f5f7383abc98912d8e249e3a13e0242be684a69ebe87cf7da07ede3ba9fd7041db88f3cba0469bd3b582393a9e"
+}
+
+fun append_in_two_chunks(
+    builder: &mut artifact_builder::ArtifactBuilder,
+    bytes: &vector<u8>,
+) {
+    let mid = bytes.length() / 2;
+    artifact_builder::append_chunk(builder, slice(bytes, 0, mid));
+    artifact_builder::append_chunk(builder, slice(bytes, mid, bytes.length()));
+}
+
+fun slice(bytes: &vector<u8>, start: u64, end: u64): vector<u8> {
+    let mut out = vector[];
+    let mut i = start;
+    while (i < end) {
+        out.push_back(bytes[i]);
+        i = i + 1;
+    };
+    out
 }
 
 fun zero_bytes(len: u64): vector<u8> {

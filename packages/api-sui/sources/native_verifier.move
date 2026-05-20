@@ -1,24 +1,30 @@
 module verifier_api::native_verifier;
 
-use halo2_common::serialized_public_inputs::{Self, PublicInputs};
 use sui::hash;
 use sui::halo2_kzg;
 use verifier_api::input_limits;
+use verifier_api::serialized_public_inputs::{Self, PublicInputs};
 use verifier_api::serialized_params_store::{Self, SerializedParams};
 
 const EVerifyProof: u64 = 2;
+const EUnsupportedVersion: u64 = 3;
+const VERSION: u16 = 1;
 
 public struct SerializedVK has key, store {
     id: UID,
+    version: u16,
     vk_bytes: vector<u8>,
     vk_digest: vector<u8>,
 }
 
 public struct SerializedCircuit has key, store {
     id: UID,
+    version: u16,
     circuit_bytes: vector<u8>,
     circuit_digest: vector<u8>,
 }
+
+public fun artifact_version(): u16 { VERSION }
 
 public fun max_params_bytes(): u64 { serialized_params_store::max_params_bytes() }
 
@@ -44,6 +50,7 @@ public fun new_serialized_vk(
     let vk_digest = hash::blake2b256(&vk_bytes);
     SerializedVK {
         id: object::new(ctx),
+        version: VERSION,
         vk_bytes,
         vk_digest,
     }
@@ -56,6 +63,10 @@ entry fun publish_serialized_vk(
     transfer::transfer(new_serialized_vk(vk_bytes, ctx), ctx.sender())
 }
 
+public fun serialized_vk_version(vk: &SerializedVK): u16 {
+    vk.version
+}
+
 public fun get_serialized_vk(vk: &SerializedVK): vector<u8> {
     vk.vk_bytes
 }
@@ -65,7 +76,7 @@ public fun get_serialized_vk_digest(vk: &SerializedVK): vector<u8> {
 }
 
 public fun destroy_serialized_vk(vk: SerializedVK) {
-    let SerializedVK { id, vk_bytes: _, vk_digest: _ } = vk;
+    let SerializedVK { id, version: _, vk_bytes: _, vk_digest: _ } = vk;
     object::delete(id)
 }
 
@@ -77,6 +88,7 @@ public fun new_serialized_circuit(
     let circuit_digest = hash::blake2b256(&circuit_bytes);
     SerializedCircuit {
         id: object::new(ctx),
+        version: VERSION,
         circuit_bytes,
         circuit_digest,
     }
@@ -89,6 +101,10 @@ entry fun publish_serialized_circuit(
     transfer::transfer(new_serialized_circuit(circuit_bytes, ctx), ctx.sender())
 }
 
+public fun serialized_circuit_version(circuit: &SerializedCircuit): u16 {
+    circuit.version
+}
+
 public fun get_serialized_circuit(circuit: &SerializedCircuit): vector<u8> {
     circuit.circuit_bytes
 }
@@ -98,11 +114,11 @@ public fun get_serialized_circuit_digest(circuit: &SerializedCircuit): vector<u8
 }
 
 public fun destroy_serialized_circuit(circuit: SerializedCircuit) {
-    let SerializedCircuit { id, circuit_bytes: _, circuit_digest: _ } = circuit;
+    let SerializedCircuit { id, version: _, circuit_bytes: _, circuit_digest: _ } = circuit;
     object::delete(id)
 }
 
-public fun verify_proof_bytes(
+public(package) fun verify_proof_bytes(
     params: vector<u8>,
     params_digest: vector<u8>,
     vk: vector<u8>,
@@ -164,6 +180,14 @@ fun verify_proof_bytes_inner(
     )
 }
 
+fun assert_supported_vk_version(vk: &SerializedVK) {
+    assert!(vk.version == VERSION, EUnsupportedVersion)
+}
+
+fun assert_supported_circuit_version(circuit: &SerializedCircuit) {
+    assert!(circuit.version == VERSION, EUnsupportedVersion)
+}
+
 public fun verify_proof(
     params: &SerializedParams,
     vk: &SerializedVK,
@@ -174,6 +198,10 @@ public fun verify_proof(
     k_present: bool,
     k: u32,
 ): bool {
+    serialized_params_store::assert_supported_version(params);
+    assert_supported_vk_version(vk);
+    assert_supported_circuit_version(circuit);
+
     let params_bytes = serialized_params_store::params_bytes(params);
     let params_digest = serialized_params_store::params_digest(params);
     let vk_bytes = get_serialized_vk(vk);
@@ -199,8 +227,7 @@ public fun verify_proof(
     )
 }
 
-#[allow(lint(public_entry))]
-public entry fun verify(
+entry fun verify(
     params: &SerializedParams,
     vk: &SerializedVK,
     circuit: &SerializedCircuit,
