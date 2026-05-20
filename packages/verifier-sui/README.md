@@ -15,11 +15,11 @@ Ported:
 - `permutation.move`
 - `lookup.move`
 - `shuffle.move`
+- `gwc.move`
+- `shplonk.move`
 
 Planned next modules:
 
-- `gwc.move`
-- `shplonk.move`
 - `halo2_verifier.move`
 
 ## Run tests
