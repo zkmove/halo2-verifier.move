@@ -10,10 +10,10 @@ Ported:
 
 - `evaluator.move`
 - `transcript.move`
+- `protocol.move`
 
 Planned next modules:
 
-- `protocol.move`
 - `vanishing.move`
 - `permutation.move`
 - `lookup.move`
