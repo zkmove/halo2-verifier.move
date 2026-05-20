@@ -1,5 +1,5 @@
 module halo2_common::bn254_utils {
-    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr, Fq};
+    use std::bn254_algebra::{Fr, G1, FormatFrLsb, FormatG1Compr, G2, FormatG2Compr, FormatG1Uncompr};
     use std::option::{Self, Option};
     use std::vector;
 
@@ -54,16 +54,6 @@ module halo2_common::bn254_utils {
         871749566700742666,
     ];
 
-    public fun sqrt_fq(e: &Element<Fq>): Option<Element<Fq>> {
-        // let tmp = pow(e, &FQ_SQRT_PRE_COMP);
-        let tmp = crypto_algebra::pow(e, &FQ_SQRT_PRE_COMP);
-        if (crypto_algebra::eq(&crypto_algebra::sqr(&tmp), e)) {
-            option::some(tmp)
-        } else {
-            option::none()
-        }
-    }
-
     fun pow<F>(e: &Element<F>, exp: &vector<u64>): Element<F> {
         crypto_algebra::pow(e, exp)
     }
@@ -92,10 +82,6 @@ module halo2_common::bn254_utils {
 
     public fun fr_from_u512_le(bytes_lo: &vector<u8>, bytes_hi: &vector<u8>): Element<Fr> {
         from_u512_le<Fr>(bytes_lo, bytes_hi)
-    }
-
-    public fun fq_from_u512_le(bytes_lo: &vector<u8>, bytes_hi: &vector<u8>): Element<Fq> {
-        from_u512_le<Fq>(bytes_lo, bytes_hi)
     }
 
     fun mod_r(u256_bytes: &vector<u8>): vector<u8> {
