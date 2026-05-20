@@ -1,7 +1,6 @@
 // Copyright (c) zkMove Authors
 
 module halo2_common::bn254_serialize {
-    use std::vector;
     use sui::bcs;
 
     const BN254_MODULUS: u256 = 21888242871839275222246405745257275088548364400416034343698204186575808495617;

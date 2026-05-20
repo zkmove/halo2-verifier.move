@@ -128,15 +128,15 @@ module halo2_common::i32 {
     public fun mul(a: &I32, b: &I32): I32 {
         if (a.bits >> 31 == 0) {
             if (b.bits >> 31 == 0) {
-                return I32 { bits: a.bits * b.bits }
+                I32 { bits: a.bits * b.bits }
             } else {
-                return I32 { bits: (1 << 31) | (a.bits * (b.bits - (1 << 31))) }
+                I32 { bits: (1 << 31) | (a.bits * (b.bits - (1 << 31))) }
             }
         } else {
             if (b.bits >> 31 == 0) {
-                return I32 { bits: (1 << 31) | (b.bits * (a.bits - (1 << 31))) }
+                I32 { bits: (1 << 31) | (b.bits * (a.bits - (1 << 31))) }
             } else {
-                return I32 { bits: (a.bits - (1 << 31)) * (b.bits - (1 << 31)) }
+                I32 { bits: (a.bits - (1 << 31)) * (b.bits - (1 << 31)) }
             }
         }
     }
@@ -145,15 +145,15 @@ module halo2_common::i32 {
     public fun div(a: &I32, b: &I32): I32 {
         if (a.bits >> 31 == 0) {
             if (b.bits >> 31 == 0) {
-                return I32 { bits: a.bits / b.bits }
+                I32 { bits: a.bits / b.bits }
             } else {
-                return I32 { bits: (1 << 31) | (a.bits / (b.bits - (1 << 31))) }
+                I32 { bits: (1 << 31) | (a.bits / (b.bits - (1 << 31))) }
             }
         } else {
             if (b.bits >> 31 == 0) {
-                return I32 { bits: (1 << 31) | ((a.bits - (1 << 31)) / b.bits) }
+                I32 { bits: (1 << 31) | ((a.bits - (1 << 31)) / b.bits) }
             } else {
-                return I32 { bits: (a.bits - (1 << 31)) / (b.bits - (1 << 31)) }
+                I32 { bits: (a.bits - (1 << 31)) / (b.bits - (1 << 31)) }
             }
         }
     }

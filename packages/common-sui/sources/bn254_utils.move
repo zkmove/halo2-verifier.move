@@ -2,8 +2,6 @@
 
 #[allow(implicit_const_copy)]
 module halo2_common::bn254_utils {
-    use std::option::{Self, Option};
-    use std::vector;
     use sui::bn254;
     use sui::group_ops::{Self, Element};
     use halo2_common::bn254_serialize;

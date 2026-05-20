@@ -6,10 +6,16 @@ This document tracks the cleanup-first migration from `packages/common` to `pack
 
 - `bn254_serialize.move`
 - `bn254_utils.move`
+- `i32.move`
+- `vec_utils.move`
+- `column.move`
+- `column_query.move`
+- `params.move`
+- `msm.move`
 
 ## Phase 1: pure Move modules
 
-These modules have no Aptos-only crypto dependencies and should be ported first:
+These modules have no Aptos-only crypto dependencies and have been ported:
 
 - `i32.move`
 - `vec_utils.move`
@@ -18,15 +24,16 @@ These modules have no Aptos-only crypto dependencies and should be ported first:
 
 ## Deferred: Sui BN254 / verifier math modules
 
-These modules are live in the Aptos verifier/API and should be ported after Phase 1:
+These modules are live in the Aptos verifier/API and may be evaluated after Phase 1:
 
-- `serialized_public_inputs.move`
 - `public_inputs.move`
-- `params.move`
-- `msm.move`
 - `query.move`
 - `domain.move`
 - `plain_keccak.move`
+
+## Not migrating now
+
+- `serialized_public_inputs.move`: keep using the active Sui implementation in `packages/api-sui/sources/serialized_public_inputs.move`. Do not duplicate it into `common-sui` unless shared reuse requirements change.
 
 ## Not currently ported
 
