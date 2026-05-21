@@ -17,10 +17,11 @@ Ported:
 - `shuffle.move`
 - `gwc.move`
 - `shplonk.move`
+- `halo2_verifier.move`
 
 Planned next modules:
 
-- `halo2_verifier.move`
+- None. The pure Move verifier module set has been ported; remaining work is fixture parity and downstream API wiring.
 
 ## Run tests
 

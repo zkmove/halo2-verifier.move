@@ -27,10 +27,31 @@ module halo2_common::params_msm_test {
         assert!(msm::eq(&a, &b));
     }
 
-    #[test, expected_failure(abort_code = group_ops::EInvalidInput)]
-    fun test_eval_empty_msm_aborts() {
+    #[test]
+    fun test_eval_empty_msm_returns_identity() {
         let empty = msm::empty_msm();
-        let _ = msm::eval(&empty);
+        assert!(group_ops::equal(&msm::eval(&empty), &bn254::g1_identity()));
+    }
+
+    #[test]
+    fun test_eval_msm_at_native_limit() {
+        let value = repeated_generator_msm(32);
+        let expected = bn254::g1_mul(&bn254::scalar_from_u64(528), &bn254::g1_generator());
+        assert!(group_ops::equal(&msm::eval(&value), &expected));
+    }
+
+    #[test]
+    fun test_eval_msm_combines_duplicate_bases_above_native_limit() {
+        let value = repeated_generator_msm(33);
+        let expected = bn254::g1_mul(&bn254::scalar_from_u64(561), &bn254::g1_generator());
+        assert!(group_ops::equal(&msm::eval(&value), &expected));
+    }
+
+    #[test]
+    fun test_eval_msm_chunks_distinct_bases_above_native_limit() {
+        let value = distinct_generator_msm(33);
+        let expected = bn254::g1_mul(&bn254::scalar_from_u64(561), &bn254::g1_generator());
+        assert!(group_ops::equal(&msm::eval(&value), &expected));
     }
 
     #[test]
@@ -90,5 +111,28 @@ module halo2_common::params_msm_test {
 
         assert!(msm::eq(&a, &b));
         assert!(!msm::eq(&a, &c));
+    }
+
+    fun repeated_generator_msm(count: u64): msm::MSM {
+        let g = bn254::g1_generator();
+        let mut value = msm::empty_msm();
+        let mut i = 0;
+        while (i < count) {
+            msm::append_term(&mut value, bn254::scalar_from_u64(i + 1), g);
+            i = i + 1;
+        };
+        value
+    }
+
+    fun distinct_generator_msm(count: u64): msm::MSM {
+        let g = bn254::g1_generator();
+        let one = bn254::scalar_one();
+        let mut value = msm::empty_msm();
+        let mut i = 0;
+        while (i < count) {
+            msm::append_term(&mut value, one, bn254::g1_mul(&bn254::scalar_from_u64(i + 1), &g));
+            i = i + 1;
+        };
+        value
     }
 }
