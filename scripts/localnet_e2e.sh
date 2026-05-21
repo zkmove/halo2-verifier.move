@@ -618,7 +618,6 @@ run_dark_forest() {
   call_json "${planet_out}" "${package_id}" game create_planet_from_bytes \
     --args \
     "${game_obj}" \
-    "${ACTIVE_ADDRESS}" \
     "${params_obj}" \
     "${vk_obj}" \
     "${circuit_obj}" \
