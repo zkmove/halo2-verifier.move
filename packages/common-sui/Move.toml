@@ -1,0 +1,11 @@
+[package]
+name = "halo2_common"
+version = "0.1.0"
+edition = "2024.beta"
+authors = ["zkmove contributors"]
+
+[addresses]
+halo2_common = "0x0"
+
+[dependencies]
+Sui = { local = "../../../sui/crates/sui-framework/packages/sui-framework" }
