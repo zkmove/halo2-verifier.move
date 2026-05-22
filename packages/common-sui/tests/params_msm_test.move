@@ -7,6 +7,8 @@ module halo2_common::params_msm_test {
     use halo2_common::msm;
     use halo2_common::params;
 
+    const LONG_MSM_INPUT_SIZE: u64 = 128;
+
     #[test]
     fun test_params_getters() {
         let g1 = bn254::g1_generator();
@@ -34,24 +36,21 @@ module halo2_common::params_msm_test {
     }
 
     #[test]
-    fun test_eval_msm_at_native_limit() {
+    fun test_eval_msm_with_32_terms() {
         let value = repeated_generator_msm(32);
-        let expected = bn254::g1_mul(&bn254::scalar_from_u64(528), &bn254::g1_generator());
-        assert!(group_ops::equal(&msm::eval(&value), &expected));
+        assert!(group_ops::equal(&msm::eval(&value), &expected_generator_multiple(32)));
     }
 
     #[test]
-    fun test_eval_msm_combines_duplicate_bases_above_native_limit() {
-        let value = repeated_generator_msm(33);
-        let expected = bn254::g1_mul(&bn254::scalar_from_u64(561), &bn254::g1_generator());
-        assert!(group_ops::equal(&msm::eval(&value), &expected));
+    fun test_eval_msm_repeated_bases_long_input() {
+        let value = repeated_generator_msm(LONG_MSM_INPUT_SIZE);
+        assert!(group_ops::equal(&msm::eval(&value), &expected_generator_multiple(LONG_MSM_INPUT_SIZE)));
     }
 
     #[test]
-    fun test_eval_msm_chunks_distinct_bases_above_native_limit() {
-        let value = distinct_generator_msm(33);
-        let expected = bn254::g1_mul(&bn254::scalar_from_u64(561), &bn254::g1_generator());
-        assert!(group_ops::equal(&msm::eval(&value), &expected));
+    fun test_eval_msm_distinct_bases_long_input() {
+        let value = distinct_generator_msm(LONG_MSM_INPUT_SIZE);
+        assert!(group_ops::equal(&msm::eval(&value), &expected_generator_multiple(LONG_MSM_INPUT_SIZE)));
     }
 
     #[test]
@@ -134,5 +133,13 @@ module halo2_common::params_msm_test {
             i = i + 1;
         };
         value
+    }
+
+    fun expected_generator_multiple(count: u64): group_ops::Element<bn254::G1> {
+        bn254::g1_mul(&bn254::scalar_from_u64(arithmetic_sum(count)), &bn254::g1_generator())
+    }
+
+    fun arithmetic_sum(count: u64): u64 {
+        count * (count + 1) / 2
     }
 }

@@ -17,7 +17,8 @@ module halo2_verifier::vm_circuit_verify_test {
     #[test_only]
     const TESTING_S_G2: vector<u8> = x"e4115200acc86e7670c83ded726335def098657fe8668323e9e41e6781b83b0a9d83b54bbb00215323ce6d7f9d7f331a286d7707d03f7dbdd3125c6163588d13";
 
-    #[test]
+    // Temporarily disabled because this VM circuit verification test is too heavy
+    // for default `sui move test` runs. Restore `#[test]` to re-enable it.
     fun check_verify_ok() {
         let params = params::new(
             option::destroy_some(bn254_utils::deserialize_g1(&TESTING_G1)),

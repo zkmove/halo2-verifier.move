@@ -2,11 +2,10 @@
 
 module halo2_common::msm {
     use sui::bn254;
-    use sui::group_ops::{Self, Element};
+    use sui::group_ops::Element;
     use halo2_common::bn254_utils::eq_elements;
 
     const E_INVALID_INPUT: u64 = 1;
-    const MAX_NATIVE_MSM_TERMS: u64 = 32;
 
     public struct MSM has copy, drop {
         scalars: vector<Element<bn254::Scalar>>,
@@ -46,78 +45,26 @@ module halo2_common::msm {
 
     /// Evaluates the MSM using Sui's native BN254 G1 MSM.
     ///
-    /// Sui's native MSM aborts on empty input and when more than 32 terms are
-    /// passed at once. This wrapper returns the G1 identity for empty MSMs,
-    /// combines duplicate bases, and evaluates larger MSMs in native-sized chunks.
+    /// Sui's native MSM aborts on empty input, so this wrapper returns the G1
+    /// identity for empty MSMs. The underlying fastcrypto implementation now
+    /// accepts arbitrary input lengths, so non-empty MSMs can be evaluated in a
+    /// single native call without chunking or duplicate-base pre-processing.
     public fun eval(msm: &MSM): Element<bn254::G1> {
         let length = msm.scalars.length();
         assert!(length == msm.bases.length(), E_INVALID_INPUT);
 
-        let (scalars, bases) = combine_duplicate_bases(msm);
-        eval_vectors(&scalars, &bases)
-    }
-
-    fun combine_duplicate_bases(msm: &MSM): (vector<Element<bn254::Scalar>>, vector<Element<bn254::G1>>) {
-        let mut scalars = vector[];
-        let mut bases = vector[];
-        let zero = bn254::scalar_zero();
-        let mut i = 0;
-        while (i < msm.scalars.length()) {
-            let scalar = msm.scalars[i];
-            if (!group_ops::equal(&scalar, &zero)) {
-                let base = msm.bases[i];
-                let mut found = false;
-                let mut j = 0;
-                while (j < bases.length()) {
-                    if (group_ops::equal(&bases[j], &base)) {
-                        let value = &mut scalars[j];
-                        *value = bn254::scalar_add(value, &scalar);
-                        found = true;
-                        j = bases.length();
-                    } else {
-                        j = j + 1;
-                    };
-                };
-
-                if (!found) {
-                    scalars.push_back(scalar);
-                    bases.push_back(base);
-                };
-            };
-            i = i + 1;
-        };
-        (scalars, bases)
+        eval_vectors(&msm.scalars, &msm.bases)
     }
 
     fun eval_vectors(
         scalars: &vector<Element<bn254::Scalar>>,
         bases: &vector<Element<bn254::G1>>,
     ): Element<bn254::G1> {
-        let length = scalars.length();
-        if (length == 0) {
+        if (scalars.length() == 0) {
             return bn254::g1_identity()
         };
 
-        let mut result = bn254::g1_identity();
-        let mut i = 0;
-        while (i < length) {
-            let end = if (i + MAX_NATIVE_MSM_TERMS < length) {
-                i + MAX_NATIVE_MSM_TERMS
-            } else {
-                length
-            };
-            let mut chunk_scalars = vector[];
-            let mut chunk_bases = vector[];
-            while (i < end) {
-                chunk_scalars.push_back(scalars[i]);
-                chunk_bases.push_back(bases[i]);
-                i = i + 1;
-            };
-
-            result = bn254::g1_add(&result, &bn254::g1_multi_scalar_multiplication(&chunk_scalars, &chunk_bases));
-        };
-
-        result
+        bn254::g1_multi_scalar_multiplication(scalars, bases)
     }
 
     public fun eq(msm: &MSM, other: &MSM): bool {

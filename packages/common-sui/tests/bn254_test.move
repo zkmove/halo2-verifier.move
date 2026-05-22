@@ -36,6 +36,8 @@ module halo2_common::bn254_test {
     const SHORT_G2_BYTES: vector<u8> =
         x"edf692d95cbdde46ddda5ef7d422436779445c5e66006a42761e1f12efde0018c212f3aeb785e49712e7a9353349aaf1255dfb31b7bf60723a480d9293938e";
 
+    const LONG_MSM_INPUT_SIZE: u64 = 128;
+
     #[test]
     fun test_scalar_ops() {
         let zero = bn254::scalar_from_u64(0);
@@ -408,17 +410,12 @@ module halo2_common::bn254_test {
         );
     }
 
-    #[test, expected_failure(abort_code = group_ops::EInputTooLong)]
-    fun test_msm_g1_too_long() {
-        let mut i = 0;
-        let mut scalars: vector<group_ops::Element<bn254::Scalar>> = vector[];
-        let mut elements: vector<group_ops::Element<bn254::G1>> = vector[];
-        while (i < 33) {
-            scalars.push_back(bn254::scalar_from_u64(i + 1));
-            elements.push_back(bn254::g1_generator());
-            i = i + 1;
-        };
-        let _ = bn254::g1_multi_scalar_multiplication(&scalars, &elements);
+    #[test]
+    fun test_msm_g1_long_input() {
+        let (scalars, elements) = long_g1_msm_input(LONG_MSM_INPUT_SIZE);
+        let result = bn254::g1_multi_scalar_multiplication(&scalars, &elements);
+        let expected = expected_g1_generator_multiple(LONG_MSM_INPUT_SIZE);
+        assert!(group_ops::equal(&result, &expected));
     }
 
     #[test]
@@ -463,17 +460,12 @@ module halo2_common::bn254_test {
         );
     }
 
-    #[test, expected_failure(abort_code = group_ops::EInputTooLong)]
-    fun test_msm_g2_too_long() {
-        let mut i = 0;
-        let mut scalars: vector<group_ops::Element<bn254::Scalar>> = vector[];
-        let mut elements: vector<group_ops::Element<bn254::G2>> = vector[];
-        while (i < 33) {
-            scalars.push_back(bn254::scalar_from_u64(i + 1));
-            elements.push_back(bn254::g2_generator());
-            i = i + 1;
-        };
-        let _ = bn254::g2_multi_scalar_multiplication(&scalars, &elements);
+    #[test]
+    fun test_msm_g2_long_input() {
+        let (scalars, elements) = long_g2_msm_input(LONG_MSM_INPUT_SIZE);
+        let result = bn254::g2_multi_scalar_multiplication(&scalars, &elements);
+        let expected = expected_g2_generator_multiple(LONG_MSM_INPUT_SIZE);
+        assert!(group_ops::equal(&result, &expected));
     }
 
     #[test]
@@ -587,5 +579,43 @@ module halo2_common::bn254_test {
     fun test_bn254_serialize_outputs_are_deserializable() {
         assert!(option::is_some(&bn254_utils::deserialize_fr(&bn254_serialize::u128_to_bn254_le_bytes(0xDEADBEEFCAFEBABEu128))));
         assert!(option::is_some(&bn254_utils::deserialize_fr(&bn254_serialize::u256_to_bn254_le_bytes(0xABCDEF1234567890u256))));
+    }
+
+    fun long_g1_msm_input(count: u64): (vector<group_ops::Element<bn254::Scalar>>, vector<group_ops::Element<bn254::G1>>) {
+        let g = bn254::g1_generator();
+        let mut scalars = vector[];
+        let mut elements = vector[];
+        let mut i = 0;
+        while (i < count) {
+            scalars.push_back(bn254::scalar_from_u64(i + 1));
+            elements.push_back(g);
+            i = i + 1;
+        };
+        (scalars, elements)
+    }
+
+    fun long_g2_msm_input(count: u64): (vector<group_ops::Element<bn254::Scalar>>, vector<group_ops::Element<bn254::G2>>) {
+        let g = bn254::g2_generator();
+        let mut scalars = vector[];
+        let mut elements = vector[];
+        let mut i = 0;
+        while (i < count) {
+            scalars.push_back(bn254::scalar_from_u64(i + 1));
+            elements.push_back(g);
+            i = i + 1;
+        };
+        (scalars, elements)
+    }
+
+    fun expected_g1_generator_multiple(count: u64): group_ops::Element<bn254::G1> {
+        bn254::g1_mul(&bn254::scalar_from_u64(arithmetic_sum(count)), &bn254::g1_generator())
+    }
+
+    fun expected_g2_generator_multiple(count: u64): group_ops::Element<bn254::G2> {
+        bn254::g2_mul(&bn254::scalar_from_u64(arithmetic_sum(count)), &bn254::g2_generator())
+    }
+
+    fun arithmetic_sum(count: u64): u64 {
+        count * (count + 1) / 2
     }
 }
