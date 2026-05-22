@@ -1,4 +1,4 @@
-module halo2_common::serialized_public_inputs;
+module verifier_api::serialized_public_inputs;
 
 use std::bcs;
 
