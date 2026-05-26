@@ -10,7 +10,7 @@ use std::io::{self};
 
 use halo2::proofs::KZG;
 use halo2_backend::poly::commitment::Params;
-use halo2_proofs::plonk::Error;
+use halo2_proofs::plonk::{Error, ErrorFront};
 use halo2_proofs::{
     halo2curves::bn256::{Bn256, Fr, G1Affine},
     poly::kzg::commitment::ParamsKZG,
@@ -19,8 +19,13 @@ use rand::rngs::mock::StepRng;
 
 use crate::params::load_default_kzg_params;
 use crate::{
-    circuit::circuit_info::CircuitInfo, circuit::generate_circuit_info,
-    deserialize_circuit_and_verify, test_verifier,
+    circuit::{
+        circuit_info::{CircuitInfo, Column, ColumnQuery, Rotation},
+        generate_circuit_info, reconstruct_cs_from_circuit_info,
+    },
+    classify_halo2_verification_error, deserialize_circuit_and_verify,
+    error::VerifyError,
+    test_verifier,
 };
 use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
@@ -84,6 +89,94 @@ fn test_halo2curves() -> Result<(), Box<dyn std::error::Error>> {
 fn create_test_params(k: u32) -> ParamsKZG<Bn256> {
     let rng = StepRng::new(0, 1);
     ParamsKZG::<Bn256>::setup(k, rng)
+}
+
+fn empty_circuit_info() -> CircuitInfo<G1Affine> {
+    CircuitInfo {
+        vk_transcript_repr: Fr::from(0),
+        fixed_commitments: Vec::new(),
+        permutation_commitments: Vec::new(),
+        k: 4,
+        max_num_query_of_advice_column: 0,
+        cs_degree: 0,
+        num_fixed_columns: 0,
+        num_instance_columns: 0,
+        advice_column_phase: Vec::new(),
+        challenge_phase: Vec::new(),
+        fields_pool: Vec::new(),
+        gates: Vec::new(),
+        advice_queries: Vec::new(),
+        instance_queries: Vec::new(),
+        fixed_queries: Vec::new(),
+        permutation_columns: Vec::new(),
+        lookups: Vec::new(),
+        shuffles: Vec::new(),
+    }
+}
+
+#[test]
+fn reconstruct_rejects_advice_query_out_of_bounds() {
+    let mut info = empty_circuit_info();
+    info.advice_queries.push(ColumnQuery {
+        column: Column {
+            index: 0,
+            column_type: 1,
+        },
+        rotation: Rotation {
+            rotation: 0,
+            next: true,
+        },
+    });
+
+    assert!(reconstruct_cs_from_circuit_info::<G1Affine>(&info).is_err());
+}
+
+#[test]
+fn reconstruct_rejects_instance_query_out_of_bounds() {
+    let mut info = empty_circuit_info();
+    info.instance_queries.push(ColumnQuery {
+        column: Column {
+            index: 0,
+            column_type: 3,
+        },
+        rotation: Rotation {
+            rotation: 0,
+            next: true,
+        },
+    });
+
+    assert!(reconstruct_cs_from_circuit_info::<G1Affine>(&info).is_err());
+}
+
+#[test]
+fn reconstruct_rejects_permutation_column_without_current_query() {
+    let mut info = empty_circuit_info();
+    info.advice_column_phase.push(0);
+    info.advice_queries.push(ColumnQuery {
+        column: Column {
+            index: 0,
+            column_type: 1,
+        },
+        rotation: Rotation {
+            rotation: 1,
+            next: true,
+        },
+    });
+    info.permutation_columns.push(Column {
+        index: 0,
+        column_type: 1,
+    });
+
+    assert!(reconstruct_cs_from_circuit_info::<G1Affine>(&info).is_err());
+}
+
+#[test]
+fn frontend_other_is_classified_as_malformed_input() {
+    let err = Error::Frontend(ErrorFront::Other("bad circuit info".to_string()));
+
+    let classified = classify_halo2_verification_error(err);
+
+    assert!(matches!(classified, VerifyError::MalformedInput(_)));
 }
 
 macro_rules! check_circuit_info {

@@ -13,6 +13,7 @@ use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::Rotation as Halo2Rotation;
 use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
+use std::convert::TryFrom;
 use std::marker::PhantomData;
 
 pub(crate) mod circuit_info;
@@ -65,6 +66,59 @@ fn any_from_type(column_type: u8) -> Result<Any, Error> {
         3 => Ok(Any::Instance),
         _ => Err(ErrorFront::Other("Invalid index for column type".to_string()).into()),
     }
+}
+
+fn circuit_info_error(message: impl Into<String>) -> Error {
+    ErrorFront::Other(message.into()).into()
+}
+
+fn checked_usize_from_u64(value: u64, field_name: &str) -> Result<usize, Error> {
+    usize::try_from(value)
+        .map_err(|_| circuit_info_error(format!("{field_name} does not fit in usize")))
+}
+
+fn validate_column(
+    column: ColumnMid,
+    expected_type: Any,
+    column_count: usize,
+    context: &str,
+) -> Result<(), Error> {
+    if column.column_type != expected_type {
+        return Err(circuit_info_error(format!(
+            "{context} has unexpected column type: expected {:?}, got {:?}",
+            expected_type, column.column_type
+        )));
+    }
+    if column.index >= column_count {
+        return Err(circuit_info_error(format!(
+            "{context} column index {} out of bounds for {} {:?} columns",
+            column.index, column_count, expected_type
+        )));
+    }
+    Ok(())
+}
+
+fn validate_any_column<F: Field>(
+    cs: &ConstraintSystem<F>,
+    column: ColumnMid,
+    context: &str,
+) -> Result<(), Error> {
+    match column.column_type {
+        Any::Advice => validate_column(column, Any::Advice, cs.num_advice_columns, context),
+        Any::Fixed => validate_column(column, Any::Fixed, cs.num_fixed_columns, context),
+        Any::Instance => validate_column(column, Any::Instance, cs.num_instance_columns, context),
+    }
+}
+
+fn has_current_query<F: Field>(cs: &ConstraintSystem<F>, column: ColumnMid) -> bool {
+    let queries = match column.column_type {
+        Any::Advice => &cs.advice_queries,
+        Any::Fixed => &cs.fixed_queries,
+        Any::Instance => &cs.instance_queries,
+    };
+    queries
+        .iter()
+        .any(|(query_column, rotation)| *query_column == column && rotation.0 == 0)
 }
 
 // Reconstruct Expression from IndexedExpression
@@ -126,7 +180,21 @@ fn reconstruct_expression<C: CurveAffine>(
                 rotation: rot,
             })))
         }
-        IndexedExpression::Challenge(ch) => Ok(Expression::Var(VarBack::Challenge(*ch))),
+        IndexedExpression::Challenge(ch) => {
+            if ch.index >= cs.challenge_phase.len() {
+                return Err(circuit_info_error(format!(
+                    "Challenge index {} out of bounds",
+                    ch.index
+                )));
+            }
+            if cs.challenge_phase[ch.index] != ch.phase {
+                return Err(circuit_info_error(format!(
+                    "Challenge phase mismatch at index {}",
+                    ch.index
+                )));
+            }
+            Ok(Expression::Var(VarBack::Challenge(*ch)))
+        }
         IndexedExpression::Negated(child) => Ok(Expression::Negated(Box::new(
             reconstruct_expression::<C>(child, cs, fields_pool)?,
         ))),
@@ -352,11 +420,7 @@ where
             .advice_queries()
             .iter()
             .fold(BTreeMap::default(), |mut m, (c, _r)| {
-                if let std::collections::btree_map::Entry::Vacant(e) = m.entry(c.index) {
-                    e.insert(1u32);
-                } else {
-                    *m.get_mut(&c.index).unwrap() += 1;
-                }
+                *m.entry(c.index).or_insert(0u32) += 1;
                 m
             })
             .values()
@@ -374,25 +438,16 @@ pub(crate) fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
 where
     C::Scalar: Field,
 {
-    // 1. Infer num_advice_columns from advice_queries (max column index + 1)
-    let num_advice_columns = if info.advice_queries.is_empty() {
-        0
-    } else {
-        info.advice_queries
-            .iter()
-            .map(|q| q.column.index as usize)
-            .max()
-            .ok_or(Error::Frontend(ErrorFront::Other(
-                "failed to infer num_advice_columns".to_string(),
-            )))?
-            + 1
-    };
+    let num_fixed_columns = checked_usize_from_u64(info.num_fixed_columns, "num_fixed_columns")?;
+    let num_instance_columns =
+        checked_usize_from_u64(info.num_instance_columns, "num_instance_columns")?;
+    let num_advice_columns = info.advice_column_phase.len();
 
     // 2. Create empty ConstraintSystem
     let mut cs = ConstraintSystem::<C::Scalar> {
-        num_fixed_columns: info.num_fixed_columns as usize,
+        num_fixed_columns,
         num_advice_columns,
-        num_instance_columns: info.num_instance_columns as usize,
+        num_instance_columns,
         num_challenges: info.challenge_phase.len(),
         unblinded_advice_columns: Vec::new(),
         advice_column_phase: info.advice_column_phase.clone(),
@@ -417,11 +472,10 @@ where
             index: q.column.index as usize,
             column_type,
         };
+        validate_column(col, Any::Advice, cs.num_advice_columns, "advice query")?;
         let rot = halo2_rotation_from_custom(&q.rotation);
         cs.advice_queries.push((col, rot));
-        if col.column_type == Any::Advice {
-            cs.num_advice_queries[col.index] += 1;
-        }
+        cs.num_advice_queries[col.index] += 1;
     }
 
     for q in &info.instance_queries {
@@ -430,6 +484,12 @@ where
             index: q.column.index as usize,
             column_type,
         };
+        validate_column(
+            col,
+            Any::Instance,
+            cs.num_instance_columns,
+            "instance query",
+        )?;
         let rot = halo2_rotation_from_custom(&q.rotation);
         cs.instance_queries.push((col, rot));
     }
@@ -440,6 +500,7 @@ where
             index: q.column.index as usize,
             column_type,
         };
+        validate_column(col, Any::Fixed, cs.num_fixed_columns, "fixed query")?;
         let rot = halo2_rotation_from_custom(&q.rotation);
         cs.fixed_queries.push((col, rot));
     }
@@ -450,10 +511,17 @@ where
         .iter()
         .map(|c| {
             let column_type = any_from_type(c.column_type)?;
-            Ok::<_, Error>(ColumnMid {
+            let column = ColumnMid {
                 index: c.index as usize,
                 column_type,
-            })
+            };
+            validate_any_column(&cs, column, "permutation column")?;
+            if !has_current_query(&cs, column) {
+                return Err(circuit_info_error(
+                    "permutation column is missing a current-rotation query",
+                ));
+            }
+            Ok::<_, Error>(column)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -486,6 +554,11 @@ where
             .iter()
             .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
             .collect::<Result<Vec<_>, _>>()?;
+        if input_expressions.len() != table_expressions.len() {
+            return Err(circuit_info_error(
+                "lookup input and table expression counts differ",
+            ));
+        }
         cs.lookups.push(LookupArgumentBack {
             name: "unknown".to_string(),
             input_expressions,
@@ -505,6 +578,11 @@ where
             .iter()
             .map(|e| reconstruct_expression::<C>(e, &cs, &info.fields_pool))
             .collect::<Result<Vec<_>, _>>()?;
+        if input_expressions.len() != shuffle_expressions.len() {
+            return Err(circuit_info_error(
+                "shuffle input and shuffle expression counts differ",
+            ));
+        }
         cs.shuffles.push(ShuffleArgumentBack {
             name: "unknown".to_string(),
             input_expressions,

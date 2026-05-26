@@ -40,3 +40,9 @@ hex-literal = { version = "0.4.1" }
 bcs = { version = "0.1.6" }
 blake2b_simd = { version = "1" }
 anyhow = { version = "1.0.38" }
+
+[patch."https://github.com/zkmove/halo2.git"]
+halo2_backend = { path = "../halo2/halo2_backend" }
+halo2_frontend = { path = "../halo2/halo2_frontend" }
+halo2_middleware = { path = "../halo2/halo2_middleware" }
+halo2_proofs = { path = "../halo2/halo2_proofs" }

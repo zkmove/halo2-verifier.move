@@ -1,13 +1,16 @@
 use crate::circuit::{
     circuit_info::CircuitInfo, generate_circuit_info, reconstruct_cs_from_circuit_info,
 };
+use crate::error::VerifyError;
 use crate::public_inputs::PublicInputs;
-use group::ff::Field;
+use group::ff::{Field, PrimeField};
 use halo2::proofs::{prove_circuit, verify_circuit};
 use halo2_backend::arithmetic::CurveAffine;
 use halo2_backend::plonk::ConstraintSystemBack as ConstraintSystem;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr, G1Affine};
-use halo2_proofs::plonk::{keygen_pk, keygen_vk, Circuit, Error, ErrorFront, VerifyingKey};
+use halo2_proofs::plonk::{
+    keygen_pk, keygen_vk, Circuit, Error, ErrorBack, ErrorFront, VerifyingKey,
+};
 use halo2_proofs::poly::commitment::Params;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
 use halo2_proofs::SerdeFormat;
@@ -16,8 +19,11 @@ use crate::params::serialize_kzg_params;
 pub use halo2::proofs::KZG;
 
 pub mod circuit;
+pub mod error;
 pub mod params;
 pub mod public_inputs;
+
+const MAX_QUOTIENT_POLY_DEGREE: usize = 1024;
 
 #[cfg(test)]
 mod tests;
@@ -43,36 +49,129 @@ pub fn deserialize_circuit_and_verify(
     proof: &[u8],
     kzg: u8,
     k: Option<u32>,
-) -> Result<(), Error> {
-    let mut params =
-        params::deserialize_kzg_params(params).expect("Failed to deserialize KZG parameters");
+) -> Result<(), VerifyError> {
+    let mut params = params::deserialize_kzg_params(params).map_err(|e| {
+        VerifyError::malformed_input(format!("KZG params deserialization failed: {e}"))
+    })?;
     if let Some(requested_k) = k {
         if requested_k > params.k() {
-            return Err(ErrorFront::Other(
-                "Cannot increase k beyond the original value".to_string(),
-            )
-            .into());
+            return Err(VerifyError::unsupported_config(
+                "cannot increase k beyond the serialized parameter size",
+            ));
         }
         params.downsize(requested_k);
     }
 
-    let cs = circuit::reconstruct_cs_from_circuit_bytes::<G1Affine>(circuit_bytes)
-        .map_err(|e| ErrorFront::Other(format!("Constraint system reconstruction failed: {e}")))?;
+    let cs =
+        circuit::reconstruct_cs_from_circuit_bytes::<G1Affine>(circuit_bytes).map_err(|e| {
+            VerifyError::malformed_input(format!("constraint system reconstruction failed: {e}"))
+        })?;
 
-    let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs)
-        .map_err(|e| ErrorFront::Other(format!("Verification key deserialization failed: {e}")))?;
+    let vk_k = read_vk_domain_k(vk_bytes)?;
+    if vk_k > params.k() {
+        return Err(VerifyError::unsupported_config(
+            "verification key domain k exceeds the serialized parameter size",
+        ));
+    }
+    validate_domain_bounds(&cs, vk_k)?;
 
-    let public_inputs = PublicInputs::<G1Affine>::from_bytes(public_inputs_bytes)
-        .map_err(|e| ErrorFront::Other(format!("Public inputs deserialization failed: {e}")))?;
+    let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs).map_err(|e| {
+        VerifyError::malformed_input(format!("verification key deserialization failed: {e}"))
+    })?;
+    validate_vk_shape(&vk)?;
+
+    let public_inputs = PublicInputs::<G1Affine>::from_bytes(public_inputs_bytes).map_err(|e| {
+        VerifyError::malformed_input(format!("public inputs deserialization failed: {e}"))
+    })?;
 
     let kzg_variant = KZG::from_u8(kzg)
-        .ok_or_else(|| ErrorFront::Other("Invalid KZG variant (expected 0 or 1)".to_string()))?;
+        .ok_or_else(|| VerifyError::unsupported_config("invalid KZG variant (expected 0 or 1)"))?;
 
-    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant).map_err(|e| {
-        println!("Verification failed: {e}"); //todo: remove this
-        ErrorFront::Other(format!("Verification failed: {e}"))
-    })?;
+    verify_circuit(public_inputs.0, &params, &vk, proof, kzg_variant)
+        .map_err(classify_halo2_verification_error)?;
     Ok(())
+}
+
+fn read_vk_domain_k(vk_bytes: &[u8]) -> Result<u32, VerifyError> {
+    vk_bytes.get(1).copied().map(u32::from).ok_or_else(|| {
+        VerifyError::malformed_input(format!(
+            "verification key is {} bytes; need at least 2",
+            vk_bytes.len()
+        ))
+    })
+}
+
+fn validate_domain_bounds(cs: &ConstraintSystem<Fr>, k: u32) -> Result<(), VerifyError> {
+    if k > Fr::S {
+        return Err(VerifyError::unsupported_config(format!(
+            "verification key domain k {k} exceeds scalar field capacity {}",
+            Fr::S
+        )));
+    }
+
+    let quotient_poly_degree = cs
+        .degree()
+        .checked_sub(1)
+        .ok_or_else(|| VerifyError::unsupported_config("constraint system degree is zero"))?;
+    if quotient_poly_degree > MAX_QUOTIENT_POLY_DEGREE {
+        return Err(VerifyError::unsupported_config(format!(
+            "constraint system quotient degree {quotient_poly_degree} exceeds supported maximum {MAX_QUOTIENT_POLY_DEGREE}"
+        )));
+    }
+
+    let n = 1u128
+        .checked_shl(k)
+        .ok_or_else(|| VerifyError::unsupported_config("verification key domain k is too large"))?;
+    let target = n
+        .checked_mul(quotient_poly_degree as u128)
+        .ok_or_else(|| VerifyError::unsupported_config("constraint system domain is too large"))?;
+    let extended_domain_size = target.checked_next_power_of_two().ok_or_else(|| {
+        VerifyError::unsupported_config("constraint system extended domain is too large")
+    })?;
+    let extended_k = extended_domain_size.trailing_zeros().max(k);
+    if extended_k > Fr::S {
+        return Err(VerifyError::unsupported_config(format!(
+            "extended domain k {extended_k} exceeds scalar field capacity {}",
+            Fr::S
+        )));
+    }
+
+    Ok(())
+}
+
+fn validate_vk_shape(vk: &VerifyingKey<G1Affine>) -> Result<(), VerifyError> {
+    if vk.fixed_commitments().len() != vk.cs().num_fixed_columns() {
+        return Err(VerifyError::malformed_input(
+            "verification key fixed commitment count does not match circuit info",
+        ));
+    }
+    if vk.permutation().commitments().len() != vk.cs().permutation().columns.len() {
+        return Err(VerifyError::malformed_input(
+            "verification key permutation commitment count does not match circuit info",
+        ));
+    }
+    Ok(())
+}
+
+fn classify_halo2_verification_error(err: Error) -> VerifyError {
+    let message = err.to_string();
+    match err {
+        Error::Backend(
+            ErrorBack::Opening | ErrorBack::ConstraintSystemFailure | ErrorBack::Transcript(_),
+        ) => VerifyError::invalid_proof(message),
+        Error::Backend(
+            ErrorBack::InvalidInstances
+            | ErrorBack::BoundsFailure
+            | ErrorBack::InstanceTooLarge
+            | ErrorBack::ColumnNotInPermutation(_),
+        ) => VerifyError::malformed_input(message),
+        Error::Backend(ErrorBack::NotEnoughRowsAvailable { .. }) => {
+            VerifyError::unsupported_config(message)
+        }
+        Error::Backend(ErrorBack::Other(message)) => VerifyError::internal(message),
+        Error::Frontend(ErrorFront::Other(message)) => VerifyError::malformed_input(message),
+        Error::Frontend(_) => VerifyError::unsupported_config(message),
+    }
 }
 
 pub struct VerifierTestData {
@@ -150,7 +249,7 @@ where
     .map_err(|e| ErrorFront::Other(format!("Verify with reconstructed vk failed: {e}")))?;
 
     let serialized_params = serialize_kzg_params(&params.verifier_params())
-        .expect("Failed to serialize KZG parameters");
+        .map_err(|e| ErrorFront::Other(format!("Serialize KZG parameters failed: {e}")))?;
 
     deserialize_circuit_and_verify(
         &serialized_params,
@@ -160,7 +259,8 @@ where
         proof.as_slice(),
         kzg.to_u8(),
         None,
-    )?;
+    )
+    .map_err(|e| ErrorFront::Other(format!("Deserialize and verify failed: {e}")))?;
 
     Ok(VerifierTestData {
         serialized_params,
