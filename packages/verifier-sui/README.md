@@ -2,7 +2,7 @@
 
 Sui Move port of the pure Move Halo2 verifier.
 
-This package is intentionally separate from `packages/verifier`, which remains the Aptos verifier package. The Sui port depends on `packages/common-sui` and the local Sui framework.
+This package is intentionally separate from `packages/verifier-aptos`, which remains the Aptos verifier package. The Sui port depends on `packages/common-sui` and the local Sui framework.
 
 ## Current migration status
 

@@ -7,9 +7,9 @@ It supports two verifier variants:
 - A fast verifier backed by native functions for higher performance.
 
 Key components:
-- `packages/common`: shared Move utilities (e.g., field/serialization helpers).
-- `packages/verifier`: the core verifier implementation.
-- `packages/api`: public-facing Move APIs and integration helpers.
+- `packages/common-aptos`: shared Aptos Move utilities (e.g., field/serialization helpers).
+- `packages/verifier-aptos`: the core Aptos verifier implementation.
+- `packages/api-aptos`: public-facing Aptos Move APIs and integration helpers.
 - `crates/*`: Rust tooling that supports the verifier (serialization/deserialization, SDK helpers, and examples).
 
 See [TUTORIAL.md](./TUTORIAL.md) for step-by-step usage and workflows.

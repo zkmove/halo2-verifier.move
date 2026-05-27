@@ -110,9 +110,9 @@ jobs:
 
       - name: Run Move tests
         run: |
-                aptos move test --package-dir ./packages/common --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-                aptos move test --package-dir ./packages/verifier --skip-fetch-latest-git-deps --dev --experiments spec-check=off
-                aptos move test --package-dir ./packages/api --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/common-aptos --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/verifier-aptos --skip-fetch-latest-git-deps --dev --experiments spec-check=off
+                aptos move test --package-dir ./packages/api-aptos --skip-fetch-latest-git-deps --dev --experiments spec-check=off
                 sui move test --path ./packages/api-sui
 
       - name: Run Rust tests
