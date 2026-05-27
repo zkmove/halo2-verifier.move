@@ -8,4 +8,5 @@ authors = ["zkmove contributors"]
 halo2_common = "0x0"
 
 [dependencies]
-Sui = { local = "../../../sui/crates/sui-framework/packages/sui-framework" }
+# Note: we use the bn254 branch of the sui repo, which contains the bn254 implementation of the Sui framework.
+Sui = { git = "https://github.com/zkmove/sui.git", rev = "0bce1eb666bf44ff71621386ae5c07c0cb8c319d", subdir = "crates/sui-framework/packages/sui-framework" }
