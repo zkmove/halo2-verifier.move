@@ -136,6 +136,51 @@ fun test_chunked_artifact_builders_verify_proof() {
 }
 
 #[test]
+fun test_chunked_public_inputs_and_proof_builders_verify_proof() {
+    let ctx = &mut tx_context::dummy();
+    let params = serialized_params_store::new_serialized_params(vm_params(), ctx);
+    let vk = native_verifier::new_serialized_vk(vm_bool_vk(), ctx);
+    let circuit = native_verifier::new_serialized_circuit(vm_bool_circuit_info(), ctx);
+
+    let public_inputs = vm_public_inputs_u64_10();
+    let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&public_inputs);
+    let proof_bytes = vm_bool_proof();
+
+    let mut public_inputs_builder = artifact_builder::new_public_inputs_builder(ctx);
+    let mut proof_builder = artifact_builder::new_proof_builder(ctx);
+    append_in_two_chunks(&mut public_inputs_builder, &public_inputs_bytes);
+    append_in_two_chunks(&mut proof_builder, &proof_bytes);
+
+    let serialized_public_inputs = artifact_builder::finalize_public_inputs(
+        public_inputs_builder,
+        hash::blake2b256(&public_inputs_bytes),
+        ctx,
+    );
+    let proof = artifact_builder::finalize_proof(
+        proof_builder,
+        hash::blake2b256(&proof_bytes),
+        ctx,
+    );
+
+    assert!(native_verifier::verify_serialized_inputs_and_proof(
+        &params,
+        &vk,
+        &circuit,
+        &serialized_public_inputs,
+        &proof,
+        native_verifier::kzg_gwc(),
+        false,
+        0,
+    ));
+
+    serialized_params_store::destroy(params);
+    native_verifier::destroy_serialized_vk(vk);
+    native_verifier::destroy_serialized_circuit(circuit);
+    serialized_public_inputs::destroy_serialized_public_inputs(serialized_public_inputs);
+    native_verifier::destroy_serialized_proof(proof);
+}
+
+#[test]
 fun test_invalid_proof_returns_false_through_object_api() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(params(), ctx);

@@ -3,7 +3,7 @@ module verifier_api::native_verifier;
 use sui::hash;
 use sui::halo2_kzg;
 use verifier_api::input_limits;
-use verifier_api::serialized_public_inputs::{Self, PublicInputs};
+use verifier_api::serialized_public_inputs::{Self, PublicInputs, SerializedPublicInputs};
 use verifier_api::serialized_params_store::{Self, SerializedParams};
 
 const EVerifyProof: u64 = 2;
@@ -22,6 +22,13 @@ public struct SerializedCircuit has key, store {
     version: u16,
     circuit_bytes: vector<u8>,
     circuit_digest: vector<u8>,
+}
+
+public struct SerializedProof has key, store {
+    id: UID,
+    version: u16,
+    proof_bytes: vector<u8>,
+    proof_digest: vector<u8>,
 }
 
 public fun artifact_version(): u16 { VERSION }
@@ -101,6 +108,27 @@ entry fun publish_serialized_circuit(
     transfer::transfer(new_serialized_circuit(circuit_bytes, ctx), ctx.sender())
 }
 
+public fun new_serialized_proof(
+    proof_bytes: vector<u8>,
+    ctx: &mut TxContext,
+): SerializedProof {
+    input_limits::assert_proof_size(&proof_bytes);
+    let proof_digest = hash::blake2b256(&proof_bytes);
+    SerializedProof {
+        id: object::new(ctx),
+        version: VERSION,
+        proof_bytes,
+        proof_digest,
+    }
+}
+
+entry fun publish_serialized_proof(
+    proof_bytes: vector<u8>,
+    ctx: &mut TxContext,
+) {
+    transfer::transfer(new_serialized_proof(proof_bytes, ctx), ctx.sender())
+}
+
 public fun serialized_circuit_version(circuit: &SerializedCircuit): u16 {
     circuit.version
 }
@@ -115,6 +143,23 @@ public fun get_serialized_circuit_digest(circuit: &SerializedCircuit): vector<u8
 
 public fun destroy_serialized_circuit(circuit: SerializedCircuit) {
     let SerializedCircuit { id, version: _, circuit_bytes: _, circuit_digest: _ } = circuit;
+    object::delete(id)
+}
+
+public fun serialized_proof_version(proof: &SerializedProof): u16 {
+    proof.version
+}
+
+public fun get_serialized_proof(proof: &SerializedProof): vector<u8> {
+    proof.proof_bytes
+}
+
+public fun get_serialized_proof_digest(proof: &SerializedProof): vector<u8> {
+    proof.proof_digest
+}
+
+public fun destroy_serialized_proof(proof: SerializedProof) {
+    let SerializedProof { id, version: _, proof_bytes: _, proof_digest: _ } = proof;
     object::delete(id)
 }
 
@@ -188,6 +233,10 @@ fun assert_supported_circuit_version(circuit: &SerializedCircuit) {
     assert!(circuit.version == VERSION, EUnsupportedVersion)
 }
 
+fun assert_supported_proof_version(proof: &SerializedProof) {
+    assert!(proof.version == VERSION, EUnsupportedVersion)
+}
+
 public fun verify_proof(
     params: &SerializedParams,
     vk: &SerializedVK,
@@ -227,6 +276,70 @@ public fun verify_proof(
     )
 }
 
+public fun verify_serialized_proof(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    circuit: &SerializedCircuit,
+    public_inputs: PublicInputs,
+    proof: &SerializedProof,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+): bool {
+    serialized_params_store::assert_supported_version(params);
+    assert_supported_vk_version(vk);
+    assert_supported_circuit_version(circuit);
+    assert_supported_proof_version(proof);
+
+    let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&public_inputs);
+    input_limits::assert_public_inputs_size(&public_inputs_bytes);
+
+    verify_proof_bytes_inner(
+        serialized_params_store::params_bytes(params),
+        serialized_params_store::params_digest(params),
+        get_serialized_vk(vk),
+        get_serialized_vk_digest(vk),
+        get_serialized_circuit(circuit),
+        get_serialized_circuit_digest(circuit),
+        public_inputs_bytes,
+        get_serialized_proof(proof),
+        kzg_variant,
+        k_present,
+        k,
+    )
+}
+
+public fun verify_serialized_inputs_and_proof(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    circuit: &SerializedCircuit,
+    public_inputs: &SerializedPublicInputs,
+    proof: &SerializedProof,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+): bool {
+    serialized_params_store::assert_supported_version(params);
+    assert_supported_vk_version(vk);
+    assert_supported_circuit_version(circuit);
+    serialized_public_inputs::assert_supported_version(public_inputs);
+    assert_supported_proof_version(proof);
+
+    verify_proof_bytes_inner(
+        serialized_params_store::params_bytes(params),
+        serialized_params_store::params_digest(params),
+        get_serialized_vk(vk),
+        get_serialized_vk_digest(vk),
+        get_serialized_circuit(circuit),
+        get_serialized_circuit_digest(circuit),
+        serialized_public_inputs::public_inputs_bytes(public_inputs),
+        get_serialized_proof(proof),
+        kzg_variant,
+        k_present,
+        k,
+    )
+}
+
 entry fun verify(
     params: &SerializedParams,
     vk: &SerializedVK,
@@ -240,6 +353,57 @@ entry fun verify(
     let public_inputs = serialized_public_inputs::from_bytes(public_inputs);
     assert!(
         verify_proof(
+            params,
+            vk,
+            circuit,
+            public_inputs,
+            proof,
+            kzg_variant,
+            k_present,
+            k,
+        ),
+        EVerifyProof,
+    )
+}
+
+entry fun verify_with_serialized_proof(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    circuit: &SerializedCircuit,
+    public_inputs: vector<vector<vector<u8>>>,
+    proof: &SerializedProof,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+) {
+    let public_inputs = serialized_public_inputs::from_bytes(public_inputs);
+    assert!(
+        verify_serialized_proof(
+            params,
+            vk,
+            circuit,
+            public_inputs,
+            proof,
+            kzg_variant,
+            k_present,
+            k,
+        ),
+        EVerifyProof,
+    )
+}
+
+entry fun verify_serialized_inputs(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    circuit: &SerializedCircuit,
+    public_inputs: &SerializedPublicInputs,
+    proof: &SerializedProof,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+) {
+    assert!(
+        verify_serialized_inputs_and_proof(
             params,
             vk,
             circuit,

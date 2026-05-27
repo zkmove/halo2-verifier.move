@@ -39,6 +39,7 @@ SENDER_ADDRESS="${SENDER_ADDRESS:-}"
 TEST_ADDRESS_ALIAS="${TEST_ADDRESS_ALIAS:-e2e-$$}"
 RUN_CONFIDENTIAL_ASSET="${RUN_CONFIDENTIAL_ASSET:-1}"
 RUN_DARK_FOREST="${RUN_DARK_FOREST:-1}"
+E2E_PUBLIC_U256="${E2E_PUBLIC_U256:-10}"
 
 LOCALNET_PID=""
 LOCALNET_CHAIN_ID=""
@@ -383,12 +384,42 @@ for offset in range(0, len(data), chunk_size):
 PY
 }
 
-public_inputs_json() {
+vm_public_inputs_bcs_hex() {
   python3 - "$1" <<'PY'
 import sys
-scalar = list(bytes.fromhex(sys.argv[1]))
-inner = "[" + ",".join(str(b) for b in scalar) + "]"
-print("[[" + ",".join([inner, inner, inner]) + "]]")
+
+value = int(sys.argv[1], 0)
+
+def uleb128(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = n & 0x7f
+        n >>= 7
+        if n:
+            out.append(byte | 0x80)
+        else:
+            out.append(byte)
+            return bytes(out)
+
+def vec(items):
+    return uleb128(len(items)) + b"".join(items)
+
+def bytes_vec(data: bytes):
+    return uleb128(len(data)) + data
+
+def scalar_u128(n: int) -> bytes:
+    return int(n).to_bytes(16, "little") + bytes(16)
+
+zero = scalar_u128(0)
+scalar = scalar_u128(value)
+columns = [
+    [zero],
+    [zero],
+    [scalar],
+    [zero],
+]
+payload = vec([vec([bytes_vec(cell) for cell in col]) for col in columns])
+print(payload.hex())
 PY
 }
 
@@ -568,8 +599,7 @@ run_confidential_asset() {
   local params_obj="$2"
   local vk_obj="$3"
   local circuit_obj="$4"
-  local public_inputs="$5"
-  local proof="$6"
+  local proof_obj="$5"
 
   log "Running confidential-asset e2e"
   local cap_out store_out mint_out cap_obj store_obj
@@ -585,17 +615,16 @@ run_confidential_asset() {
   store_obj="$(created_object_id_contains "::token::Store" <"${store_out}")"
   [[ -n "${store_obj}" ]] || die "could not parse Store object id"
 
-  call_json "${mint_out}" "${package_id}" token mint_from_bytes \
+  call_json "${mint_out}" "${package_id}" token mint_with_proof_entry \
     --args \
     "${cap_obj}" \
     "${store_obj}" \
     "${params_obj}" \
     "${vk_obj}" \
     "${circuit_obj}" \
-    "1" \
-    "${public_inputs}" \
-    "${proof}"
-  log "confidential-asset mint_from_bytes succeeded"
+    "${E2E_PUBLIC_U256}" \
+    "${proof_obj}"
+  log "confidential-asset mint_with_proof_entry succeeded"
 }
 
 run_dark_forest() {
@@ -603,8 +632,7 @@ run_dark_forest() {
   local params_obj="$2"
   local vk_obj="$3"
   local circuit_obj="$4"
-  local public_inputs="$5"
-  local proof="$6"
+  local proof_obj="$5"
 
   log "Running dark-forest e2e"
   local game_out planet_out game_obj
@@ -615,16 +643,38 @@ run_dark_forest() {
   game_obj="$(created_object_id_contains "::game::Game" <"${game_out}")"
   [[ -n "${game_obj}" ]] || die "could not parse Game object id"
 
-  call_json "${planet_out}" "${package_id}" game create_planet_from_bytes \
+  call_json "${planet_out}" "${package_id}" game create_planet_with_proof_entry \
     --args \
     "${game_obj}" \
     "${params_obj}" \
     "${vk_obj}" \
     "${circuit_obj}" \
-    "1" \
-    "${public_inputs}" \
-    "${proof}"
-  log "dark-forest create_planet_from_bytes succeeded"
+    "${E2E_PUBLIC_U256}" \
+    "${proof_obj}"
+  log "dark-forest create_planet_with_proof_entry succeeded"
+}
+
+run_serialized_inputs_verify() {
+  local api_package="$1"
+  local params_obj="$2"
+  local vk_obj="$3"
+  local circuit_obj="$4"
+  local public_inputs_obj="$5"
+  local proof_obj="$6"
+  local verify_out="${WORK_DIR}/native_verifier.serialized_inputs.json"
+
+  log "Verifying serialized public inputs and proof objects"
+  call_json "${verify_out}" "${api_package}" native_verifier verify_serialized_inputs \
+    --args \
+    "${params_obj}" \
+    "${vk_obj}" \
+    "${circuit_obj}" \
+    "${public_inputs_obj}" \
+    "${proof_obj}" \
+    "0" \
+    "false" \
+    "0"
+  log "native_verifier verify_serialized_inputs succeeded"
 }
 
 main() {
@@ -642,41 +692,43 @@ main() {
   start_localnet
   prepare_package_copies
 
-  local params_hex vk_hex circuit_hex scalar_hex proof_hex
-  params_hex="$(extract_hex_fixture params)"
-  vk_hex="$(extract_hex_fixture vk)"
-  circuit_hex="$(extract_hex_fixture circuit_info)"
-  scalar_hex="$(extract_hex_fixture public_input_scalar)"
-  proof_hex="$(extract_hex_fixture proof)"
+  local params_hex vk_hex circuit_hex public_inputs_hex proof_hex
+  params_hex="$(extract_hex_fixture vm_params)"
+  vk_hex="$(extract_hex_fixture vm_bool_vk)"
+  circuit_hex="$(extract_hex_fixture vm_bool_circuit_info)"
+  public_inputs_hex="$(vm_public_inputs_bcs_hex "${E2E_PUBLIC_U256}")"
+  proof_hex="$(extract_hex_fixture vm_bool_proof)"
 
-  local proof_json public_inputs
-  proof_json="$(hex_to_json_array "${proof_hex}")"
-  public_inputs="$(public_inputs_json "${scalar_hex}")"
-
-  local api_package params_obj vk_obj circuit_obj
+  local api_package params_obj vk_obj circuit_obj public_inputs_obj proof_obj
   api_package="$(publish_package "${API_PUBLISH_DIR}" "verifier_api")"
   log "verifier-api package: ${api_package}"
 
   params_obj="$(upload_artifact "${api_package}" "${params_hex}" publish_params_builder finalize_params_to_sender "::serialized_params_store::SerializedParams" params)"
   vk_obj="$(upload_artifact "${api_package}" "${vk_hex}" publish_vk_builder finalize_vk_to_sender "::native_verifier::SerializedVK" vk)"
   circuit_obj="$(upload_artifact "${api_package}" "${circuit_hex}" publish_circuit_info_builder finalize_circuit_info_to_sender "::native_verifier::SerializedCircuit" circuit)"
+  public_inputs_obj="$(upload_artifact "${api_package}" "${public_inputs_hex}" publish_public_inputs_builder finalize_public_inputs_to_sender "::serialized_public_inputs::SerializedPublicInputs" public_inputs)"
+  proof_obj="$(upload_artifact "${api_package}" "${proof_hex}" publish_proof_builder finalize_proof_to_sender "::native_verifier::SerializedProof" proof)"
 
   log "SerializedParams object: ${params_obj}"
   log "SerializedVK object: ${vk_obj}"
   log "SerializedCircuit object: ${circuit_obj}"
+  log "SerializedPublicInputs object: ${public_inputs_obj}"
+  log "SerializedProof object: ${proof_obj}"
+
+  run_serialized_inputs_verify "${api_package}" "${params_obj}" "${vk_obj}" "${circuit_obj}" "${public_inputs_obj}" "${proof_obj}"
 
   if [[ "${RUN_CONFIDENTIAL_ASSET}" == "1" ]]; then
     local confidential_package
     confidential_package="$(publish_package "${CONFIDENTIAL_ASSET_PUBLISH_DIR}" "confidential_asset_sui")"
     log "confidential-asset package: ${confidential_package}"
-    run_confidential_asset "${confidential_package}" "${params_obj}" "${vk_obj}" "${circuit_obj}" "${public_inputs}" "${proof_json}"
+    run_confidential_asset "${confidential_package}" "${params_obj}" "${vk_obj}" "${circuit_obj}" "${proof_obj}"
   fi
 
   if [[ "${RUN_DARK_FOREST}" == "1" ]]; then
     local dark_forest_package
     dark_forest_package="$(publish_package "${DARK_FOREST_PUBLISH_DIR}" "dark_forest_sui")"
     log "dark-forest package: ${dark_forest_package}"
-    run_dark_forest "${dark_forest_package}" "${params_obj}" "${vk_obj}" "${circuit_obj}" "${public_inputs}" "${proof_json}"
+    run_dark_forest "${dark_forest_package}" "${params_obj}" "${vk_obj}" "${circuit_obj}" "${proof_obj}"
   fi
 
   log "E2E completed successfully"

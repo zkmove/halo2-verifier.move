@@ -1,6 +1,6 @@
 # Tutorial on halo2-verifier
 
-This guide explains how to use on-chain halo2 verifier. Before you start, make sure you have go through the `Tutorial on zkMove CLI` to get familiar with zkMove CLI and have a proof for the example circuit generated.
+This guide explains how to use the Aptos on-chain halo2 verifier from `packages/*-aptos`. Before you start, make sure you have go through the `Tutorial on zkMove CLI` to get familiar with zkMove CLI and have a proof for the example circuit generated.
 
 ## Install `aptos` CLI
 
