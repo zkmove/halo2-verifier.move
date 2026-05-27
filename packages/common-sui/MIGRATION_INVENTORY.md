@@ -1,6 +1,6 @@
 # common-sui migration inventory
 
-This document tracks the cleanup-first migration from `packages/common` to `packages/common-sui`.
+This document tracks the cleanup-first migration from `packages/common-aptos` to `packages/common-sui`.
 
 ## Ported
 
@@ -36,6 +36,6 @@ These modules have no Aptos-only crypto dependencies and have been ported:
 
 ## Notes
 
-- Keep `packages/common` intact while Aptos packages still depend on it.
+- Keep `packages/common-aptos` intact while Aptos packages still depend on it.
 - Prefer Sui-native APIs in `common-sui`, especially `sui::bn254` and `sui::group_ops`.
 - Preserve byte layouts for public inputs and BN254 serialization.

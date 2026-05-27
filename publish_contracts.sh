@@ -31,8 +31,8 @@ fi
 cd "${SCRIPT_DIR}"
 
 echo "==> publish move packages"
-(cd "${SCRIPT_DIR}/packages/common" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}" --experiments spec-check=off)
-(cd "${SCRIPT_DIR}/packages/verifier" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}",halo2_verifier="${PROFILE}" --experiments spec-check=off)
-(cd "${SCRIPT_DIR}/packages/api" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}",halo2_verifier="${PROFILE}",verifier_api="${PROFILE}" --experiments spec-check=off)
+(cd "${SCRIPT_DIR}/packages/common-aptos" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}" --experiments spec-check=off)
+(cd "${SCRIPT_DIR}/packages/verifier-aptos" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}",halo2_verifier="${PROFILE}" --experiments spec-check=off)
+(cd "${SCRIPT_DIR}/packages/api-aptos" && aptos move publish "${APTOS_ARGS[@]}" --named-addresses halo2_common="${PROFILE}",halo2_verifier="${PROFILE}",verifier_api="${PROFILE}" --experiments spec-check=off)
 
 echo "done"
