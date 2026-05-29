@@ -5,6 +5,7 @@ use halo2_proofs::halo2curves::ff::PrimeField;
 use serde_json::json;
 
 /// Build a Sui Move call descriptor for `sui::halo2_kzg::verify_with_artifacts`.
+#[allow(clippy::too_many_arguments)]
 pub fn build_verify_proof_native_transaction_payload<C>(
     proof: Vec<u8>,
     proof_kzg_variant: u8,
