@@ -4,17 +4,19 @@ use sui::event;
 use sui::hash;
 use verifier_api::input_limits;
 use verifier_api::native_verifier;
-use verifier_api::native_verifier::{SerializedCircuit, SerializedVK};
+use verifier_api::native_verifier::SerializedVK;
 use verifier_api::serialized_params_store;
-use verifier_api::serialized_params_store::SerializedParams;
+use verifier_api::serialized_params_store::{SerializedParams, SerializedParamsStore};
 
 const EWrongArtifactKind: u64 = 3;
 const EDigestMismatch: u64 = 4;
 const EEmptyArtifact: u64 = 5;
+const EVerifyProof: u64 = 6;
 
 const KIND_PARAMS: u8 = 0;
 const KIND_VK: u8 = 1;
 const KIND_CIRCUIT_INFO: u8 = 2;
+const KIND_PROOF: u8 = 3;
 
 public struct ArtifactBuilder has key, store {
     id: UID,
@@ -46,11 +48,26 @@ public struct ArtifactFinalized has copy, drop {
     owner: address,
 }
 
+/// Emitted by `finalize_vk` when both vk and circuit-info builders are
+/// consumed together to produce a single `SerializedVK`.
+public struct VkArtifactFinalized has copy, drop {
+    vk_builder_id: ID,
+    circuit_builder_id: ID,
+    artifact_id: ID,
+    vk_digest: vector<u8>,
+    circuit_digest: vector<u8>,
+    vk_len: u64,
+    circuit_len: u64,
+    owner: address,
+}
+
 public fun kind_params(): u8 { KIND_PARAMS }
 
 public fun kind_vk(): u8 { KIND_VK }
 
 public fun kind_circuit_info(): u8 { KIND_CIRCUIT_INFO }
+
+public fun kind_proof(): u8 { KIND_PROOF }
 
 public fun max_chunk_bytes(): u64 { input_limits::max_chunk_bytes() }
 
@@ -66,6 +83,10 @@ public fun new_circuit_info_builder(ctx: &mut TxContext): ArtifactBuilder {
     new_builder(KIND_CIRCUIT_INFO, input_limits::max_circuit_info_bytes(), ctx)
 }
 
+public fun new_proof_builder(ctx: &mut TxContext): ArtifactBuilder {
+    new_builder(KIND_PROOF, input_limits::max_proof_bytes(), ctx)
+}
+
 entry fun publish_params_builder(ctx: &mut TxContext) {
     transfer::transfer(new_params_builder(ctx), ctx.sender())
 }
@@ -76,6 +97,10 @@ entry fun publish_vk_builder(ctx: &mut TxContext) {
 
 entry fun publish_circuit_info_builder(ctx: &mut TxContext) {
     transfer::transfer(new_circuit_info_builder(ctx), ctx.sender())
+}
+
+entry fun publish_proof_builder(ctx: &mut TxContext) {
+    transfer::transfer(new_proof_builder(ctx), ctx.sender())
 }
 
 public fun append_chunk(builder: &mut ArtifactBuilder, chunk: vector<u8>) {
@@ -109,40 +134,107 @@ public fun finalize_params(
     params
 }
 
+/// Consume a vk builder and a circuit-info builder, verify both digests, and
+/// emit a single `SerializedVK` that bundles vk + circuit. This is the
+/// canonical chunked-upload finalization path now that vk and circuit info
+/// are stored together on Sui.
 public fun finalize_vk(
-    builder: ArtifactBuilder,
-    expected_digest: vector<u8>,
+    vk_builder: ArtifactBuilder,
+    circuit_builder: ArtifactBuilder,
+    expected_vk_digest: vector<u8>,
+    expected_circuit_digest: vector<u8>,
     ctx: &mut TxContext,
 ): SerializedVK {
-    let (builder_id, bytes) = finish(builder, KIND_VK, expected_digest);
-    let vk = native_verifier::new_serialized_vk(bytes, ctx);
-    emit_finalized(
-        builder_id,
-        object::id(&vk),
-        KIND_VK,
-        native_verifier::get_serialized_vk_digest(&vk),
-        native_verifier::get_serialized_vk(&vk).length(),
-        ctx,
-    );
+    let (vk_builder_id, vk_bytes) = finish(vk_builder, KIND_VK, expected_vk_digest);
+    let (circuit_builder_id, circuit_bytes) =
+        finish(circuit_builder, KIND_CIRCUIT_INFO, expected_circuit_digest);
+
+    let vk_len = vk_bytes.length();
+    let circuit_len = circuit_bytes.length();
+    let vk = native_verifier::new_serialized_vk(vk_bytes, circuit_bytes, ctx);
+    event::emit(VkArtifactFinalized {
+        vk_builder_id,
+        circuit_builder_id,
+        artifact_id: object::id(&vk),
+        vk_digest: native_verifier::get_serialized_vk_digest(&vk),
+        circuit_digest: native_verifier::get_serialized_circuit_digest(&vk),
+        vk_len,
+        circuit_len,
+        owner: ctx.sender(),
+    });
     vk
 }
 
-public fun finalize_circuit_info(
+public fun verify_proof_from_builder(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    proof_builder: ArtifactBuilder,
+    expected_proof_digest: vector<u8>,
+    public_inputs: vector<u8>,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+): bool {
+    let (_, proof) = finish(proof_builder, KIND_PROOF, expected_proof_digest);
+    native_verifier::verify_proof_bcs(
+        params,
+        vk,
+        public_inputs,
+        proof,
+        kzg_variant,
+        k_present,
+        k,
+    )
+}
+
+entry fun verify_proof_builder(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    proof_builder: ArtifactBuilder,
+    expected_proof_digest: vector<u8>,
+    public_inputs: vector<u8>,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+) {
+    assert!(
+        verify_proof_from_builder(
+            params,
+            vk,
+            proof_builder,
+            expected_proof_digest,
+            public_inputs,
+            kzg_variant,
+            k_present,
+            k,
+        ),
+        EVerifyProof,
+    )
+}
+
+/// Canonical chunked-publish entry: consume the params builder, validate the
+/// digest, and write the resulting bytes into the shared
+/// `SerializedParamsStore` under `publisher`. Emits both `ArtifactFinalized`
+/// (builder telemetry) and `SerializedParamsPublished` (publish event from
+/// the store module).
+entry fun finalize_params_to_store(
+    store: &mut SerializedParamsStore,
+    publisher: address,
     builder: ArtifactBuilder,
     expected_digest: vector<u8>,
-    ctx: &mut TxContext,
-): SerializedCircuit {
-    let (builder_id, bytes) = finish(builder, KIND_CIRCUIT_INFO, expected_digest);
-    let circuit = native_verifier::new_serialized_circuit(bytes, ctx);
-    emit_finalized(
+) {
+    let (builder_id, bytes) = finish(builder, KIND_PARAMS, expected_digest);
+    let total_len = bytes.length();
+    let digest = hash::blake2b256(&bytes);
+    serialized_params_store::publish_serialized_params(store, publisher, bytes);
+    event::emit(ArtifactFinalized {
         builder_id,
-        object::id(&circuit),
-        KIND_CIRCUIT_INFO,
-        native_verifier::get_serialized_circuit_digest(&circuit),
-        native_verifier::get_serialized_circuit(&circuit).length(),
-        ctx,
-    );
-    circuit
+        artifact_id: object::id(store),
+        kind: KIND_PARAMS,
+        total_len,
+        digest,
+        owner: publisher,
+    })
 }
 
 entry fun finalize_params_to_sender(
@@ -154,19 +246,22 @@ entry fun finalize_params_to_sender(
 }
 
 entry fun finalize_vk_to_sender(
-    builder: ArtifactBuilder,
-    expected_digest: vector<u8>,
+    vk_builder: ArtifactBuilder,
+    circuit_builder: ArtifactBuilder,
+    expected_vk_digest: vector<u8>,
+    expected_circuit_digest: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    transfer::public_transfer(finalize_vk(builder, expected_digest, ctx), ctx.sender())
-}
-
-entry fun finalize_circuit_info_to_sender(
-    builder: ArtifactBuilder,
-    expected_digest: vector<u8>,
-    ctx: &mut TxContext,
-) {
-    transfer::public_transfer(finalize_circuit_info(builder, expected_digest, ctx), ctx.sender())
+    transfer::public_transfer(
+        finalize_vk(
+            vk_builder,
+            circuit_builder,
+            expected_vk_digest,
+            expected_circuit_digest,
+            ctx,
+        ),
+        ctx.sender(),
+    )
 }
 
 entry fun finalize_params_and_freeze(
@@ -178,19 +273,21 @@ entry fun finalize_params_and_freeze(
 }
 
 entry fun finalize_vk_and_freeze(
-    builder: ArtifactBuilder,
-    expected_digest: vector<u8>,
+    vk_builder: ArtifactBuilder,
+    circuit_builder: ArtifactBuilder,
+    expected_vk_digest: vector<u8>,
+    expected_circuit_digest: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    transfer::public_freeze_object(finalize_vk(builder, expected_digest, ctx))
-}
-
-entry fun finalize_circuit_info_and_freeze(
-    builder: ArtifactBuilder,
-    expected_digest: vector<u8>,
-    ctx: &mut TxContext,
-) {
-    transfer::public_freeze_object(finalize_circuit_info(builder, expected_digest, ctx))
+    transfer::public_freeze_object(
+        finalize_vk(
+            vk_builder,
+            circuit_builder,
+            expected_vk_digest,
+            expected_circuit_digest,
+            ctx,
+        ),
+    )
 }
 
 public fun builder_kind(builder: &ArtifactBuilder): u8 {

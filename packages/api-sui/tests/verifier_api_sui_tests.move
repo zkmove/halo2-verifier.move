@@ -15,13 +15,11 @@ use verifier_api::serialized_params_store;
 fun test_verify_halo2_kzg_proof_through_object_api() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(params(), ctx);
-    let vk = native_verifier::new_serialized_vk(vk(), ctx);
-    let circuit = native_verifier::new_serialized_circuit(circuit_info(), ctx);
+    let vk = native_verifier::new_serialized_vk(vk(), circuit_info(), ctx);
 
     assert!(native_verifier::verify_proof(
         &params,
         &vk,
-        &circuit,
         public_inputs(),
         proof(),
         native_verifier::kzg_gwc(),
@@ -31,7 +29,6 @@ fun test_verify_halo2_kzg_proof_through_object_api() {
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
 }
 
 
@@ -39,13 +36,11 @@ fun test_verify_halo2_kzg_proof_through_object_api() {
 fun verify_vm_circuit_with_native_verifier() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(vm_params(), ctx);
-    let vk = native_verifier::new_serialized_vk(vm_vk(), ctx);
-    let circuit = native_verifier::new_serialized_circuit(vm_circuit_info(), ctx);
+    let vk = native_verifier::new_serialized_vk(vm_vk(), vm_circuit_info(), ctx);
 
     assert!(native_verifier::verify_proof(
         &params,
         &vk,
-        &circuit,
         vm_zero_public_inputs(),
         vm_proof(),
         native_verifier::kzg_gwc(),
@@ -55,20 +50,17 @@ fun verify_vm_circuit_with_native_verifier() {
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
 }
 
 #[test]
 fun verify_vm_circuit_with_native_verifier_bool() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(vm_params(), ctx);
-    let vk = native_verifier::new_serialized_vk(vm_bool_vk(), ctx);
-    let circuit = native_verifier::new_serialized_circuit(vm_bool_circuit_info(), ctx);
+    let vk = native_verifier::new_serialized_vk(vm_bool_vk(), vm_bool_circuit_info(), ctx);
 
     assert!(native_verifier::verify_proof(
         &params,
         &vk,
-        &circuit,
         vm_public_inputs_u64_10(),
         vm_bool_proof(),
         native_verifier::kzg_gwc(),
@@ -78,7 +70,6 @@ fun verify_vm_circuit_with_native_verifier_bool() {
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
 }
 
 #[test]
@@ -87,18 +78,22 @@ fun test_chunked_artifact_builders_verify_proof() {
     let params_bytes = params();
     let vk_bytes = vk();
     let circuit_info_bytes = circuit_info();
+    let proof_bytes = proof();
 
     let mut params_builder = artifact_builder::new_params_builder(ctx);
     let mut vk_builder = artifact_builder::new_vk_builder(ctx);
     let mut circuit_builder = artifact_builder::new_circuit_info_builder(ctx);
+    let mut proof_builder = artifact_builder::new_proof_builder(ctx);
 
     append_in_two_chunks(&mut params_builder, &params_bytes);
     append_in_two_chunks(&mut vk_builder, &vk_bytes);
     append_in_two_chunks(&mut circuit_builder, &circuit_info_bytes);
+    append_in_two_chunks(&mut proof_builder, &proof_bytes);
 
     assert!(artifact_builder::builder_len(&params_builder) == params_bytes.length(), 10);
     assert!(artifact_builder::builder_len(&vk_builder) == vk_bytes.length(), 11);
     assert!(artifact_builder::builder_len(&circuit_builder) == circuit_info_bytes.length(), 12);
+    assert!(artifact_builder::builder_len(&proof_builder) == proof_bytes.length(), 17);
 
     let params = artifact_builder::finalize_params(
         params_builder,
@@ -107,45 +102,44 @@ fun test_chunked_artifact_builders_verify_proof() {
     );
     let vk = artifact_builder::finalize_vk(
         vk_builder,
-        hash::blake2b256(&vk_bytes),
-        ctx,
-    );
-    let circuit = artifact_builder::finalize_circuit_info(
         circuit_builder,
+        hash::blake2b256(&vk_bytes),
         hash::blake2b256(&circuit_info_bytes),
         ctx,
     );
 
-    assert!(native_verifier::verify_proof(
+    let inputs = public_inputs();
+    let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&inputs);
+    assert!(artifact_builder::verify_proof_from_builder(
         &params,
         &vk,
-        &circuit,
-        public_inputs(),
-        proof(),
+        proof_builder,
+        hash::blake2b256(&proof_bytes),
+        public_inputs_bytes,
         native_verifier::kzg_gwc(),
         false,
         0,
     ));
-    assert!(event::events_by_type<artifact_builder::BuilderCreated>().length() == 3, 13);
-    assert!(event::events_by_type<artifact_builder::ChunkAppended>().length() == 6, 14);
-    assert!(event::events_by_type<artifact_builder::ArtifactFinalized>().length() == 3, 15);
+    assert!(event::events_by_type<artifact_builder::BuilderCreated>().length() == 4, 13);
+    assert!(event::events_by_type<artifact_builder::ChunkAppended>().length() == 8, 14);
+    // Params builder still emits ArtifactFinalized; vk+circuit builders combine into one
+    // VkArtifactFinalized event.
+    assert!(event::events_by_type<artifact_builder::ArtifactFinalized>().length() == 1, 15);
+    assert!(event::events_by_type<artifact_builder::VkArtifactFinalized>().length() == 1, 16);
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
 }
 
 #[test]
 fun test_invalid_proof_returns_false_through_object_api() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(params(), ctx);
-    let vk = native_verifier::new_serialized_vk(vk(), ctx);
-    let circuit = native_verifier::new_serialized_circuit(circuit_info(), ctx);
+    let vk = native_verifier::new_serialized_vk(vk(), circuit_info(), ctx);
 
     assert!(!native_verifier::verify_proof(
         &params,
         &vk,
-        &circuit,
         public_inputs(),
         x"00",
         native_verifier::kzg_gwc(),
@@ -155,7 +149,6 @@ fun test_invalid_proof_returns_false_through_object_api() {
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
 }
 
 #[test]
@@ -163,11 +156,17 @@ fun test_invalid_proof_returns_false_through_object_api() {
 fun test_finalize_wrong_kind_aborts() {
     let ctx = &mut tx_context::dummy();
     let params_bytes = params();
-    let mut builder = artifact_builder::new_params_builder(ctx);
-    artifact_builder::append_chunk(&mut builder, copy params_bytes);
+    let circuit_info_bytes = circuit_info();
+    // Pass a params-kind builder where vk is expected - must abort.
+    let mut wrong_vk_builder = artifact_builder::new_params_builder(ctx);
+    artifact_builder::append_chunk(&mut wrong_vk_builder, copy params_bytes);
+    let mut circuit_builder = artifact_builder::new_circuit_info_builder(ctx);
+    artifact_builder::append_chunk(&mut circuit_builder, copy circuit_info_bytes);
     let vk = artifact_builder::finalize_vk(
-        builder,
+        wrong_vk_builder,
+        circuit_builder,
         hash::blake2b256(&params_bytes),
+        hash::blake2b256(&circuit_info_bytes),
         ctx,
     );
     native_verifier::destroy_serialized_vk(vk);
@@ -231,22 +230,65 @@ fun test_digest_is_recomputed_from_bytes() {
     let vk_bytes = vk();
     let circuit_info_bytes = circuit_info();
     let params = serialized_params_store::new_serialized_params(copy params_bytes, ctx);
-    let vk = native_verifier::new_serialized_vk(copy vk_bytes, ctx);
-    let circuit = native_verifier::new_serialized_circuit(copy circuit_info_bytes, ctx);
+    let vk = native_verifier::new_serialized_vk(copy vk_bytes, copy circuit_info_bytes, ctx);
 
     assert!(serialized_params_store::version(&params) == serialized_params_store::artifact_version(), 19);
     assert!(native_verifier::serialized_vk_version(&vk) == native_verifier::artifact_version(), 23);
-    assert!(native_verifier::serialized_circuit_version(&circuit) == native_verifier::artifact_version(), 24);
     assert!(serialized_params_store::params_digest(&params) == hash::blake2b256(&params_bytes), 20);
     assert!(native_verifier::get_serialized_vk_digest(&vk) == hash::blake2b256(&vk_bytes), 21);
     assert!(
-        native_verifier::get_serialized_circuit_digest(&circuit) == hash::blake2b256(&circuit_info_bytes),
+        native_verifier::get_serialized_circuit_digest(&vk) == hash::blake2b256(&circuit_info_bytes),
         22,
     );
 
     serialized_params_store::destroy(params);
     native_verifier::destroy_serialized_vk(vk);
-    native_verifier::destroy_serialized_circuit(circuit);
+}
+
+#[test]
+fun test_serialized_params_publish_overwrites_by_publisher() {
+    let ctx = &mut tx_context::dummy();
+    let first = x"01";
+    let second = x"0203";
+    let publisher = @0xCAFE;
+    let mut store = serialized_params_store::new_serialized_params_store(ctx);
+
+    serialized_params_store::publish_serialized_params(&mut store, publisher, copy first);
+
+    assert!(serialized_params_store::contains_serialized_params(&store, publisher), 30);
+    assert!(serialized_params_store::get_serialized_params(&store, publisher) == first, 31);
+    assert!(
+        event::events_by_type<serialized_params_store::SerializedParamsPublished>().length() == 1,
+        32,
+    );
+
+    serialized_params_store::publish_serialized_params(&mut store, publisher, copy second);
+
+    assert!(serialized_params_store::get_serialized_params(&store, publisher) == second, 33);
+    assert!(
+        serialized_params_store::get_serialized_params_digest(&store, publisher)
+            == hash::blake2b256(&second),
+        34,
+    );
+    assert!(
+        serialized_params_store::get_serialized_params_version(&store, publisher)
+            == serialized_params_store::artifact_version(),
+        35,
+    );
+    assert!(
+        event::events_by_type<serialized_params_store::SerializedParamsPublished>().length() == 2,
+        36,
+    );
+
+    serialized_params_store::destroy_store(store);
+}
+
+#[test, expected_failure(abort_code = 2, location = serialized_params_store)]
+fun test_get_serialized_params_missing_addr_aborts() {
+    let ctx = &mut tx_context::dummy();
+    let store = serialized_params_store::new_serialized_params_store(ctx);
+    let _bytes = serialized_params_store::get_serialized_params(&store, @0xCAFE);
+    serialized_params_store::destroy_store(store);
 }
 
 #[test]

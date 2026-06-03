@@ -10,16 +10,19 @@ const EVerifyProof: u64 = 2;
 const EUnsupportedVersion: u64 = 3;
 const VERSION: u16 = 1;
 
+/// A verification key + its matching circuit info, stored together.
+///
+/// The Aptos counterpart publishes `SerializedVK` and `SerializedCircuit`
+/// as two separate resources at the same owner address and the verify
+/// entry reads both off that address. Sui's object model doesn't allow
+/// "look up an object by owner inside Move", so we mirror that coupling
+/// by packing both byte blobs into a single object - clients only need to
+/// reference one object id when calling `verify`.
 public struct SerializedVK has key, store {
     id: UID,
     version: u16,
     vk_bytes: vector<u8>,
     vk_digest: vector<u8>,
-}
-
-public struct SerializedCircuit has key, store {
-    id: UID,
-    version: u16,
     circuit_bytes: vector<u8>,
     circuit_digest: vector<u8>,
 }
@@ -42,31 +45,41 @@ public fun kzg_shplonk(): u8 { halo2_kzg::kzg_shplonk() }
 
 public fun native_abi_version(): u64 { halo2_kzg::abi_version() }
 
+/// Construct a `SerializedVK` from raw vk and circuit bytes.
 public fun new_serialized_vk(
     vk_bytes: vector<u8>,
+    circuit_bytes: vector<u8>,
     ctx: &mut TxContext,
 ): SerializedVK {
     input_limits::assert_vk_size(&vk_bytes);
+    input_limits::assert_circuit_info_size(&circuit_bytes);
     let vk_digest = hash::blake2b256(&vk_bytes);
+    let circuit_digest = hash::blake2b256(&circuit_bytes);
     SerializedVK {
         id: object::new(ctx),
         version: VERSION,
         vk_bytes,
         vk_digest,
+        circuit_bytes,
+        circuit_digest,
     }
 }
 
+/// Entry-friendly wrapper around `new_serialized_vk` that transfers the
+/// resulting object to the transaction sender.
 entry fun publish_serialized_vk(
     vk_bytes: vector<u8>,
+    circuit_bytes: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    transfer::transfer(new_serialized_vk(vk_bytes, ctx), ctx.sender())
+    transfer::transfer(new_serialized_vk(vk_bytes, circuit_bytes, ctx), ctx.sender())
 }
 
 public fun serialized_vk_version(vk: &SerializedVK): u16 {
     vk.version
 }
 
+/// Return the vk byte payload (the Halo2 verification key blob).
 public fun get_serialized_vk(vk: &SerializedVK): vector<u8> {
     vk.vk_bytes
 }
@@ -75,46 +88,25 @@ public fun get_serialized_vk_digest(vk: &SerializedVK): vector<u8> {
     vk.vk_digest
 }
 
+/// Return the circuit-info byte payload bound to this verification key.
+/// Mirrors `verifier_api::native_verifier::get_serialized_circuit(addr)` on Aptos.
+public fun get_serialized_circuit(vk: &SerializedVK): vector<u8> {
+    vk.circuit_bytes
+}
+
+public fun get_serialized_circuit_digest(vk: &SerializedVK): vector<u8> {
+    vk.circuit_digest
+}
+
 public fun destroy_serialized_vk(vk: SerializedVK) {
-    let SerializedVK { id, version: _, vk_bytes: _, vk_digest: _ } = vk;
-    object::delete(id)
-}
-
-public fun new_serialized_circuit(
-    circuit_bytes: vector<u8>,
-    ctx: &mut TxContext,
-): SerializedCircuit {
-    input_limits::assert_circuit_info_size(&circuit_bytes);
-    let circuit_digest = hash::blake2b256(&circuit_bytes);
-    SerializedCircuit {
-        id: object::new(ctx),
-        version: VERSION,
-        circuit_bytes,
-        circuit_digest,
-    }
-}
-
-entry fun publish_serialized_circuit(
-    circuit_bytes: vector<u8>,
-    ctx: &mut TxContext,
-) {
-    transfer::transfer(new_serialized_circuit(circuit_bytes, ctx), ctx.sender())
-}
-
-public fun serialized_circuit_version(circuit: &SerializedCircuit): u16 {
-    circuit.version
-}
-
-public fun get_serialized_circuit(circuit: &SerializedCircuit): vector<u8> {
-    circuit.circuit_bytes
-}
-
-public fun get_serialized_circuit_digest(circuit: &SerializedCircuit): vector<u8> {
-    circuit.circuit_digest
-}
-
-public fun destroy_serialized_circuit(circuit: SerializedCircuit) {
-    let SerializedCircuit { id, version: _, circuit_bytes: _, circuit_digest: _ } = circuit;
+    let SerializedVK {
+        id,
+        version: _,
+        vk_bytes: _,
+        vk_digest: _,
+        circuit_bytes: _,
+        circuit_digest: _,
+    } = vk;
     object::delete(id)
 }
 
@@ -184,14 +176,14 @@ fun assert_supported_vk_version(vk: &SerializedVK) {
     assert!(vk.version == VERSION, EUnsupportedVersion)
 }
 
-fun assert_supported_circuit_version(circuit: &SerializedCircuit) {
-    assert!(circuit.version == VERSION, EUnsupportedVersion)
-}
-
+/// Verify a proof against `params` + `vk` (which carries the circuit info).
+///
+/// This is the in-Move callable; takes a typed `PublicInputs` and returns
+/// `bool` instead of aborting. Use this from another Move module that wants
+/// to make a decision on the result.
 public fun verify_proof(
     params: &SerializedParams,
     vk: &SerializedVK,
-    circuit: &SerializedCircuit,
     public_inputs: PublicInputs,
     proof: vector<u8>,
     kzg_variant: u8,
@@ -200,26 +192,38 @@ public fun verify_proof(
 ): bool {
     serialized_params_store::assert_supported_version(params);
     assert_supported_vk_version(vk);
-    assert_supported_circuit_version(circuit);
 
-    let params_bytes = serialized_params_store::params_bytes(params);
-    let params_digest = serialized_params_store::params_digest(params);
-    let vk_bytes = get_serialized_vk(vk);
-    let vk_digest = get_serialized_vk_digest(vk);
-    let circuit_info = get_serialized_circuit(circuit);
-    let circuit_digest = get_serialized_circuit_digest(circuit);
     let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&public_inputs);
-
     input_limits::assert_public_inputs_size(&public_inputs_bytes);
 
+    verify_proof_bcs(params, vk, public_inputs_bytes, proof, kzg_variant, k_present, k)
+}
+
+/// Verify a proof where public inputs are already BCS-encoded. This is used by
+/// chunked proof upload flows that cannot pass `proof` as one Sui pure argument.
+public(package) fun verify_proof_bcs(
+    params: &SerializedParams,
+    vk: &SerializedVK,
+    public_inputs: vector<u8>,
+    proof: vector<u8>,
+    kzg_variant: u8,
+    k_present: bool,
+    k: u32,
+): bool {
+    serialized_params_store::assert_supported_version(params);
+    assert_supported_vk_version(vk);
+
+    input_limits::assert_public_inputs_size(&public_inputs);
+    input_limits::assert_proof_size(&proof);
+
     verify_proof_bytes_inner(
-        params_bytes,
-        params_digest,
-        vk_bytes,
-        vk_digest,
-        circuit_info,
-        circuit_digest,
-        public_inputs_bytes,
+        serialized_params_store::params_bytes(params),
+        serialized_params_store::params_digest(params),
+        vk.vk_bytes,
+        vk.vk_digest,
+        vk.circuit_bytes,
+        vk.circuit_digest,
+        public_inputs,
         proof,
         kzg_variant,
         k_present,
@@ -227,28 +231,42 @@ public fun verify_proof(
     )
 }
 
+/// Verify entry mirroring `verifier_api::native_verifier::verify` on Aptos:
+/// only two object references (`params`, `vk`) and a single BCS-encoded
+/// `public_inputs: vector<u8>` payload. Aborts with `EVerifyProof` on failure.
+///
+/// Clients build `public_inputs` exactly like Aptos:
+///   `bcs::to_bytes(&Vec<Vec<Vec<u8>>>)` over the column-major scalar layout.
+/// The Sui Move helper `serialized_public_inputs::to_bcs_bytes(&pi)` produces
+/// the same bytes.
 entry fun verify(
     params: &SerializedParams,
     vk: &SerializedVK,
-    circuit: &SerializedCircuit,
-    public_inputs: vector<vector<vector<u8>>>,
+    public_inputs: vector<u8>,
     proof: vector<u8>,
     kzg_variant: u8,
     k_present: bool,
     k: u32,
 ) {
-    let public_inputs = serialized_public_inputs::from_bytes(public_inputs);
     assert!(
-        verify_proof(
-            params,
-            vk,
-            circuit,
-            public_inputs,
-            proof,
-            kzg_variant,
-            k_present,
-            k,
-        ),
+        verify_proof_bcs(params, vk, public_inputs, proof, kzg_variant, k_present, k),
         EVerifyProof,
     )
+}
+
+/// Test-only twin of `verify_proof` that always returns `true`. Mirrors
+/// `verifier_api::native_verifier::mock_verify_proof` on Aptos. Use this in
+/// downstream example tests that exercise non-ZKP paths without a real
+/// proof fixture.
+#[test_only]
+public fun mock_verify_proof(
+    _params: &SerializedParams,
+    _vk: &SerializedVK,
+    _public_inputs: PublicInputs,
+    _proof: vector<u8>,
+    _kzg_variant: u8,
+    _k_present: bool,
+    _k: u32,
+): bool {
+    true
 }
