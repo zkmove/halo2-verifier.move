@@ -382,7 +382,7 @@ main() {
   log "Output dir: ${OUT_DIR}"
 
   local params_hex vk_hex circuit_hex
-  params_hex="$(json_byte_arg_hex "${PARAMS_TXN}" 2)"
+  params_hex="$(json_byte_arg_hex "${PARAMS_TXN}" 1)"
   vk_hex="$(json_byte_arg_hex "${VK_TXN}" 0)"
   circuit_hex="$(json_byte_arg_hex "${VK_TXN}" 1)"
 

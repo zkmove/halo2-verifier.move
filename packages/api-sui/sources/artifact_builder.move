@@ -6,7 +6,7 @@ use verifier_api::input_limits;
 use verifier_api::native_verifier;
 use verifier_api::native_verifier::SerializedVK;
 use verifier_api::serialized_params_store;
-use verifier_api::serialized_params_store::{SerializedParams, SerializedParamsStore};
+use verifier_api::serialized_params_store::SerializedParams;
 
 const EWrongArtifactKind: u64 = 3;
 const EDigestMismatch: u64 = 4;
@@ -212,28 +212,29 @@ entry fun verify_proof_builder(
     )
 }
 
-/// Canonical chunked-publish entry: consume the params builder, validate the
-/// digest, and write the resulting bytes into the shared
-/// `SerializedParamsStore` under `publisher`. Emits both `ArtifactFinalized`
-/// (builder telemetry) and `SerializedParamsPublished` (publish event from
-/// the store module).
+/// Chunked-publish into a shared `SerializedParams` store: consume the
+/// params builder, validate the digest, and overwrite the bytes on
+/// `store`. Auth check (`store.publisher == sender`) happens inside
+/// `serialized_params_store::publish_serialized_params`. Emits both
+/// `ArtifactFinalized` (builder telemetry) and `SerializedParamsPublished`
+/// (publish event from the store module).
 entry fun finalize_params_to_store(
-    store: &mut SerializedParamsStore,
-    publisher: address,
+    store: &mut SerializedParams,
     builder: ArtifactBuilder,
     expected_digest: vector<u8>,
+    ctx: &TxContext,
 ) {
     let (builder_id, bytes) = finish(builder, KIND_PARAMS, expected_digest);
     let total_len = bytes.length();
     let digest = hash::blake2b256(&bytes);
-    serialized_params_store::publish_serialized_params(store, publisher, bytes);
+    serialized_params_store::publish_serialized_params(store, bytes, ctx);
     event::emit(ArtifactFinalized {
         builder_id,
         artifact_id: object::id(store),
         kind: KIND_PARAMS,
         total_len,
         digest,
-        owner: publisher,
+        owner: serialized_params_store::publisher(store),
     })
 }
 

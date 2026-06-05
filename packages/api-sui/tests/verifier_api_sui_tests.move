@@ -247,48 +247,78 @@ fun test_digest_is_recomputed_from_bytes() {
 
 #[test]
 fun test_serialized_params_publish_overwrites_by_publisher() {
-    let ctx = &mut tx_context::dummy();
+    let publisher = @0xCAFE;
+    let ctx = &mut tx_context::new(
+        publisher,
+        x"0000000000000000000000000000000000000000000000000000000000000000",
+        0,
+        0,
+        0,
+    );
     let first = x"01";
     let second = x"0203";
-    let publisher = @0xCAFE;
-    let mut store = serialized_params_store::new_serialized_params_store(ctx);
+    let mut store = serialized_params_store::new_empty(ctx);
 
-    serialized_params_store::publish_serialized_params(&mut store, publisher, copy first);
+    assert!(serialized_params_store::publisher(&store) == publisher, 29);
 
-    assert!(serialized_params_store::contains_serialized_params(&store, publisher), 30);
-    assert!(serialized_params_store::get_serialized_params(&store, publisher) == first, 31);
+    serialized_params_store::publish_serialized_params(&mut store, copy first, ctx);
+
+    assert!(serialized_params_store::params_bytes(&store) == first, 30);
     assert!(
         event::events_by_type<serialized_params_store::SerializedParamsPublished>().length() == 1,
-        32,
+        31,
     );
 
-    serialized_params_store::publish_serialized_params(&mut store, publisher, copy second);
+    serialized_params_store::publish_serialized_params(&mut store, copy second, ctx);
 
-    assert!(serialized_params_store::get_serialized_params(&store, publisher) == second, 33);
+    assert!(serialized_params_store::params_bytes(&store) == second, 32);
     assert!(
-        serialized_params_store::get_serialized_params_digest(&store, publisher)
-            == hash::blake2b256(&second),
+        serialized_params_store::params_digest(&store) == hash::blake2b256(&second),
+        33,
+    );
+    assert!(
+        serialized_params_store::version(&store) == serialized_params_store::artifact_version(),
         34,
     );
     assert!(
-        serialized_params_store::get_serialized_params_version(&store, publisher)
-            == serialized_params_store::artifact_version(),
+        event::events_by_type<serialized_params_store::SerializedParamsPublished>().length() == 2,
         35,
     );
-    assert!(
-        event::events_by_type<serialized_params_store::SerializedParamsPublished>().length() == 2,
-        36,
-    );
 
-    serialized_params_store::destroy_store(store);
+    serialized_params_store::destroy(store);
+}
+
+#[test, expected_failure(abort_code = 3, location = serialized_params_store)]
+fun test_publish_by_non_publisher_aborts() {
+    let publisher = @0xCAFE;
+    let attacker = @0xBAD;
+    let create_ctx = &mut tx_context::new(
+        publisher,
+        x"0000000000000000000000000000000000000000000000000000000000000000",
+        0,
+        0,
+        0,
+    );
+    let mut store = serialized_params_store::new_empty(create_ctx);
+
+    let attacker_ctx = &tx_context::new(
+        attacker,
+        x"0101010101010101010101010101010101010101010101010101010101010101",
+        0,
+        0,
+        0,
+    );
+    serialized_params_store::publish_serialized_params(&mut store, x"01", attacker_ctx);
+
+    serialized_params_store::destroy(store);
 }
 
 #[test, expected_failure(abort_code = 2, location = serialized_params_store)]
-fun test_get_serialized_params_missing_addr_aborts() {
+fun test_params_bytes_on_empty_store_aborts() {
     let ctx = &mut tx_context::dummy();
-    let store = serialized_params_store::new_serialized_params_store(ctx);
-    let _bytes = serialized_params_store::get_serialized_params(&store, @0xCAFE);
-    serialized_params_store::destroy_store(store);
+    let store = serialized_params_store::new_empty(ctx);
+    let _bytes = serialized_params_store::params_bytes(&store);
+    serialized_params_store::destroy(store);
 }
 
 #[test]

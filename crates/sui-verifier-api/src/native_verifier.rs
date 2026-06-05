@@ -53,11 +53,15 @@ fn move_call(
 }
 
 /// Build publish serialized KZG params transaction payload for Sui.
+///
+/// Targets `serialized_params_store::publish_serialized_params(store, params_bytes)`.
+/// `store` must be an existing shared `SerializedParams` object created by
+/// the publisher via `create_serialized_params_store`; the on-chain entry
+/// requires the transaction sender to equal `store.publisher`.
 pub fn build_publish_params_native_transaction_payload(
     params: &ParamsKZG<Bn256>,
     verifier_api_package: &str,
     params_store_object_id: &str,
-    publisher_address: &str,
 ) -> anyhow::Result<SuiMoveCallJSON, Error> {
     let params_bytes = serialize_kzg_params(&params.verifier_params())
         .map_err(|e| Error::msg(format!("serialize kzg params failed: {}", e)))?;
@@ -66,26 +70,23 @@ pub fn build_publish_params_native_transaction_payload(
         params_bytes,
         verifier_api_package,
         params_store_object_id,
-        publisher_address,
     )
 }
 
 /// Build publish serialized KZG params transaction payload from already serialized bytes.
+///
+/// See [`build_publish_params_native_transaction_payload`] for the on-chain
+/// signature this targets.
 pub fn build_publish_params_native_transaction_payload_from_bytes(
     params_bytes: Vec<u8>,
     verifier_api_package: &str,
     params_store_object_id: &str,
-    publisher_address: &str,
 ) -> anyhow::Result<SuiMoveCallJSON, Error> {
     move_call(
         verifier_api_package,
         MODULE_PARAMS_NATIVE,
         FUNC_PUBLISH_PARAMS_NATIVE,
-        vec![
-            json!(params_store_object_id),
-            json!(publisher_address),
-            bytes_arg(params_bytes),
-        ],
+        vec![json!(params_store_object_id), bytes_arg(params_bytes)],
     )
 }
 
@@ -179,17 +180,13 @@ mod tests {
             vec![1, 2, 3],
             "0xapi",
             "0xstore",
-            "0xpub",
         )
         .unwrap();
 
         assert_eq!(payload.package, "0xapi");
         assert_eq!(payload.module, "serialized_params_store");
         assert_eq!(payload.function, "publish_serialized_params");
-        assert_eq!(
-            payload.args,
-            vec![json!("0xstore"), json!("0xpub"), json!([1, 2, 3])]
-        );
+        assert_eq!(payload.args, vec![json!("0xstore"), json!([1, 2, 3])]);
         assert_eq!(
             payload.cli_args,
             [
@@ -201,7 +198,6 @@ mod tests {
                 "publish_serialized_params",
                 "--args",
                 "0xstore",
-                "0xpub",
                 "[1,2,3]"
             ]
         );
