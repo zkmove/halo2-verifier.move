@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 
 pub mod native_verifier;
 
-pub const DEFAULT_HALO2_KZG_PACKAGE: &str = "0x2";
-pub const MODULE_HALO2_KZG: &str = "halo2_kzg";
-pub const FUNC_VERIFY_WITH_ARTIFACTS: &str = "verify_with_artifacts";
+pub const MODULE_PARAMS_NATIVE: &str = "serialized_params_store";
+pub const MODULE_VERIFIER_NATIVE: &str = "native_verifier";
+pub const FUNC_PUBLISH_PARAMS_NATIVE: &str = "publish_serialized_params";
+pub const FUNC_PUBLISH_VK_NATIVE: &str = "publish_serialized_vk";
+pub const FUNC_VERIFY_PROOF_NATIVE: &str = "verify";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HexEncodedBytes(pub Vec<u8>);
