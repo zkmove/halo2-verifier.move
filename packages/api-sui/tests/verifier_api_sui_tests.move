@@ -132,6 +132,67 @@ fun test_chunked_artifact_builders_verify_proof() {
 }
 
 #[test]
+fun test_chunked_artifact_builders_verify_vm_proof() {
+    let ctx = &mut tx_context::dummy();
+    let params_bytes = vm_params();
+    let vk_bytes = vm_vk();
+    let circuit_info_bytes = vm_circuit_info();
+    let proof_bytes = vm_proof();
+
+    assert!(circuit_info_bytes.length() > artifact_builder::max_chunk_bytes(), 36);
+    assert!(proof_bytes.length() > artifact_builder::max_chunk_bytes(), 37);
+    assert!(proof_bytes.length() <= native_verifier::max_proof_bytes(), 38);
+
+    let mut params_builder = artifact_builder::new_params_builder(ctx);
+    let mut vk_builder = artifact_builder::new_vk_builder(ctx);
+    let mut circuit_builder = artifact_builder::new_circuit_info_builder(ctx);
+    let mut proof_builder = artifact_builder::new_proof_builder(ctx);
+
+    append_in_max_chunks(&mut params_builder, &params_bytes);
+    append_in_max_chunks(&mut vk_builder, &vk_bytes);
+    append_in_max_chunks(&mut circuit_builder, &circuit_info_bytes);
+    append_in_max_chunks(&mut proof_builder, &proof_bytes);
+
+    assert!(artifact_builder::builder_len(&params_builder) == params_bytes.length(), 39);
+    assert!(artifact_builder::builder_len(&vk_builder) == vk_bytes.length(), 40);
+    assert!(artifact_builder::builder_len(&circuit_builder) == circuit_info_bytes.length(), 41);
+    assert!(artifact_builder::builder_len(&proof_builder) == proof_bytes.length(), 42);
+
+    let params = artifact_builder::finalize_params(
+        params_builder,
+        hash::blake2b256(&params_bytes),
+        ctx,
+    );
+    let vk = artifact_builder::finalize_vk(
+        vk_builder,
+        circuit_builder,
+        hash::blake2b256(&vk_bytes),
+        hash::blake2b256(&circuit_info_bytes),
+        ctx,
+    );
+
+    let inputs = vm_zero_public_inputs();
+    let public_inputs_bytes = serialized_public_inputs::to_bcs_bytes(&inputs);
+    assert!(artifact_builder::verify_proof_from_builder(
+        &params,
+        &vk,
+        proof_builder,
+        hash::blake2b256(&proof_bytes),
+        public_inputs_bytes,
+        native_verifier::kzg_gwc(),
+        false,
+        0,
+    ));
+    assert!(event::events_by_type<artifact_builder::BuilderCreated>().length() == 4, 43);
+    assert!(event::events_by_type<artifact_builder::ChunkAppended>().length() == 6, 44);
+    assert!(event::events_by_type<artifact_builder::ArtifactFinalized>().length() == 1, 45);
+    assert!(event::events_by_type<artifact_builder::VkArtifactFinalized>().length() == 1, 46);
+
+    serialized_params_store::destroy(params);
+    native_verifier::destroy_serialized_vk(vk);
+}
+
+#[test]
 fun test_invalid_proof_returns_false_through_object_api() {
     let ctx = &mut tx_context::dummy();
     let params = serialized_params_store::new_serialized_params(params(), ctx);
@@ -465,6 +526,22 @@ fun append_in_two_chunks(
     let mid = bytes.length() / 2;
     artifact_builder::append_chunk(builder, slice(bytes, 0, mid));
     artifact_builder::append_chunk(builder, slice(bytes, mid, bytes.length()));
+}
+
+fun append_in_max_chunks(
+    builder: &mut artifact_builder::ArtifactBuilder,
+    bytes: &vector<u8>,
+) {
+    let max_chunk = artifact_builder::max_chunk_bytes();
+    let mut start = 0;
+    while (start < bytes.length()) {
+        let mut end = start + max_chunk;
+        if (end > bytes.length()) {
+            end = bytes.length();
+        };
+        artifact_builder::append_chunk(builder, slice(bytes, start, end));
+        start = end;
+    }
 }
 
 fun slice(bytes: &vector<u8>, start: u64, end: u64): vector<u8> {
