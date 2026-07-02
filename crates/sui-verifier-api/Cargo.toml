@@ -14,3 +14,4 @@ halo2_proofs.workspace = true
 halo2_backend.workspace = true
 hex.workspace = true
 anyhow.workspace = true
+blake2b_simd.workspace = true

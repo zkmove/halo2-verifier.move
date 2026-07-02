@@ -20,7 +20,6 @@ The finalized objects are:
 ```text
 verifier_api::serialized_params_store::SerializedParams
 verifier_api::native_verifier::SerializedVK
-verifier_api::native_verifier::SerializedCircuit
 ```
 
 Use a chunk size no larger than:
@@ -106,11 +105,8 @@ move_call $API_PACKAGE::artifact_builder::finalize_params_to_sender(
 
 move_call $API_PACKAGE::artifact_builder::finalize_vk_to_sender(
   $VK_BUILDER,
-  $VK_DIGEST,
-)
-
-move_call $API_PACKAGE::artifact_builder::finalize_circuit_info_to_sender(
   $CIRCUIT_INFO_BUILDER,
+  $VK_DIGEST,
   $CIRCUIT_INFO_DIGEST,
 )
 ```
@@ -120,7 +116,6 @@ The sender receives reusable verifier artifact objects:
 ```text
 $PARAMS_OBJECT
 $VK_OBJECT
-$CIRCUIT_OBJECT
 ```
 
 For artifacts that should be reused by multiple dapps/users, prefer finalizing
@@ -129,7 +124,6 @@ directly to immutable objects:
 ```text
 move_call $API_PACKAGE::artifact_builder::finalize_params_and_freeze(...)
 move_call $API_PACKAGE::artifact_builder::finalize_vk_and_freeze(...)
-move_call $API_PACKAGE::artifact_builder::finalize_circuit_info_and_freeze(...)
 ```
 
 Otherwise, use the `*_to_sender` variants and freeze the objects in a later PTB
@@ -159,7 +153,6 @@ move_call $DAPP_PACKAGE::token::mint_from_bytes(
   &mut $STORE,
   &$PARAMS_OBJECT,
   &$VK_OBJECT,
-  &$CIRCUIT_OBJECT,
   $ENCRYPTED_AMOUNT,
   $PUBLIC_INPUTS,
   $PROOF,
@@ -174,7 +167,6 @@ move_call $DAPP_PACKAGE::game::create_planet_from_bytes(
   $PLAYER_ADDRESS,
   &$PARAMS_OBJECT,
   &$VK_OBJECT,
-  &$CIRCUIT_OBJECT,
   $COORD_HASH,
   $PUBLIC_INPUTS,
   $PROOF,

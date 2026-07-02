@@ -1,0 +1,20 @@
+[package]
+name = "sui-ptb-helper"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+sui-verifier-api.workspace = true
+
+shared-crypto = { path = "../../../zkmove_sui/crates/shared-crypto" }
+sui-config = { path = "../../../zkmove_sui/crates/sui-config" }
+sui-json = { path = "../../../zkmove_sui/crates/sui-json" }
+sui-keys = { path = "../../../zkmove_sui/crates/sui-keys" }
+sui-sdk = { path = "../../../zkmove_sui/crates/sui-sdk" }
+sui-types = { path = "../../../zkmove_sui/crates/sui-types" }
