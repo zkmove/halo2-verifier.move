@@ -1,4 +1,7 @@
-use crate::artifact::{ChunkPlan, Digest32};
+use crate::artifact::{
+    ensure_artifact_size, ChunkPlan, Digest32, MAX_CIRCUIT_INFO_BYTES, MAX_PARAMS_BYTES,
+    MAX_PROOF_BYTES, MAX_VK_BYTES,
+};
 use anyhow::{ensure, Context};
 use serde::{Deserialize, Serialize};
 use sui_ptb_helper::{
@@ -147,6 +150,7 @@ impl<'a> ArtifactPtb<'a> {
         proof: Vec<u8>,
         chunk_size: Option<usize>,
     ) -> anyhow::Result<StagedProof> {
+        ensure_artifact_size("proof", proof.len(), MAX_PROOF_BYTES)?;
         let plan = ChunkPlan::new(proof, chunk_size)?;
         let proof_builder = self.proof_builder()?;
         let chunk_count = self.append_chunks(proof_builder, plan.chunks)?;
@@ -165,6 +169,10 @@ impl<'a> ArtifactPtb<'a> {
         circuit: Vec<u8>,
         chunk_size: Option<usize>,
     ) -> anyhow::Result<StagedVerifierArtifacts> {
+        ensure_artifact_size("params", params.len(), MAX_PARAMS_BYTES)?;
+        ensure_artifact_size("vk", vk.len(), MAX_VK_BYTES)?;
+        ensure_artifact_size("circuit info", circuit.len(), MAX_CIRCUIT_INFO_BYTES)?;
+
         let params = ChunkPlan::new(params, chunk_size)
             .context("failed to chunk serialized params artifact")?;
         let vk =
@@ -319,5 +327,33 @@ mod tests {
         assert!(commands.contains(FUNC_NEW_CIRCUIT_INFO_BUILDER));
         assert!(commands.contains(FUNC_FINALIZE_PARAMS));
         assert!(commands.contains(FUNC_FINALIZE_VK));
+    }
+
+    #[test]
+    fn stage_proof_rejects_oversized_proof_before_building_commands() {
+        let mut ptb = ProgrammableTransactionBuilder::new();
+        let err = {
+            let mut artifact_ptb = ArtifactPtb::new(&mut ptb, "0x2");
+            artifact_ptb
+                .stage_proof(vec![0; MAX_PROOF_BYTES + 1], Some(2))
+                .unwrap_err()
+        };
+
+        assert!(err.to_string().contains("proof artifact"));
+        assert!(ptb.finish().commands.is_empty());
+    }
+
+    #[test]
+    fn stage_verifier_artifacts_rejects_oversized_params_before_building_commands() {
+        let mut ptb = ProgrammableTransactionBuilder::new();
+        let err = {
+            let mut artifact_ptb = ArtifactPtb::new(&mut ptb, "0x2");
+            artifact_ptb
+                .stage_verifier_artifacts(vec![0; MAX_PARAMS_BYTES + 1], vec![1], vec![2], Some(2))
+                .unwrap_err()
+        };
+
+        assert!(err.to_string().contains("params artifact"));
+        assert!(ptb.finish().commands.is_empty());
     }
 }

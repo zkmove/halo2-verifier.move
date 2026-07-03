@@ -30,6 +30,11 @@ halo2_middleware = { git = "https://github.com/zkmove/halo2.git", branch = "zkmo
 halo2_backend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
 halo2curves = { git = "https://github.com/zkmove/halo2curves", branch = "zkmove" }
 
+shared-crypto = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-config = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-keys = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-sdk = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+
 ff = { version = "0.13.0" }
 num-traits = { version = "0.2.17" }
 derivative = { version = "2.2.0" }

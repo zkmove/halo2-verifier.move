@@ -1,3 +1,10 @@
+//! Shared Sui PTB primitives for app integrations.
+//!
+//! Downstream apps should use the Sui types re-exported by this crate instead of
+//! declaring their own `sui-*` dependencies. Keeping the PTB builder and
+//! argument types on this single API surface avoids cross-workspace duplicate
+//! Sui dependency graphs.
+
 use anyhow::{anyhow, ensure, Context};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

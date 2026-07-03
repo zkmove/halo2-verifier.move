@@ -11,7 +11,7 @@ anyhow.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 
-shared-crypto = { path = "../../../zkmove_sui/crates/shared-crypto" }
-sui-config = { path = "../../../zkmove_sui/crates/sui-config" }
-sui-keys = { path = "../../../zkmove_sui/crates/sui-keys" }
-sui-sdk = { path = "../../../zkmove_sui/crates/sui-sdk" }
+shared-crypto.workspace = true
+sui-config.workspace = true
+sui-keys.workspace = true
+sui-sdk.workspace = true
