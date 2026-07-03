@@ -2,6 +2,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 pub mod artifact;
+pub mod artifact_ptb;
 pub mod native_verifier;
 
 pub const MODULE_PARAMS_NATIVE: &str = "serialized_params_store";

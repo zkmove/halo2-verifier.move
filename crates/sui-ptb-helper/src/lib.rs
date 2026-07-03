@@ -5,7 +5,6 @@ use shared_crypto::intent::Intent;
 use std::path::PathBuf;
 use std::str::FromStr;
 use sui_config::{sui_config_dir, SUI_KEYSTORE_FILENAME};
-use sui_json::SuiJsonValue;
 use sui_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use sui_sdk::rpc_types::{
     ObjectChange, SuiObjectDataOptions, SuiParsedData, SuiTransactionBlockResponse,
@@ -18,18 +17,8 @@ use sui_sdk::types::transaction::{
     ObjectArg, SharedObjectMutability, Transaction, TransactionData,
 };
 use sui_sdk::types::transaction_driver_types::ExecuteTransactionRequestType;
-use sui_sdk::types::Identifier;
+use sui_sdk::types::{Identifier, TypeTag};
 use sui_sdk::{SuiClient, SuiClientBuilder};
-pub use sui_verifier_api::artifact::{ChunkPlan, DEFAULT_CHUNK_SIZE};
-
-const MODULE_ARTIFACT_BUILDER: &str = "artifact_builder";
-const FUNC_PUBLISH_PARAMS_BUILDER: &str = "publish_params_builder";
-const FUNC_PUBLISH_VK_BUILDER: &str = "publish_vk_builder";
-const FUNC_PUBLISH_CIRCUIT_INFO_BUILDER: &str = "publish_circuit_info_builder";
-const FUNC_PUBLISH_PROOF_BUILDER: &str = "publish_proof_builder";
-const FUNC_APPEND_CHUNK: &str = "append_chunk";
-const FUNC_FINALIZE_PARAMS_TO_SENDER: &str = "finalize_params_to_sender";
-const FUNC_FINALIZE_VK_TO_SENDER: &str = "finalize_vk_to_sender";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SuiPtbConfig {
@@ -37,7 +26,6 @@ pub struct SuiPtbConfig {
     pub keystore_path: Option<PathBuf>,
     pub sender: Option<String>,
     pub gas_budget: u64,
-    pub chunk_size: Option<usize>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -54,24 +42,53 @@ pub struct CreatedObject {
     pub object_type: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UploadedProofRef {
-    pub proof_builder: String,
-    pub proof_digest: Vec<u8>,
-    pub proof_bytes: usize,
-    pub tx_digests: Vec<String>,
+impl TxResponse {
+    pub fn created_object_id(&self, type_suffix: &str) -> anyhow::Result<String> {
+        self.created_objects
+            .iter()
+            .find(|object| object.object_type.ends_with(type_suffix))
+            .map(|object| object.object_id.clone())
+            .ok_or_else(|| anyhow!("transaction {} did not create {type_suffix}", self.digest))
+    }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UploadedVerifierArtifacts {
-    pub params_object_id: String,
-    pub vk_object_id: String,
-    pub params_digest: Vec<u8>,
-    pub vk_digest: Vec<u8>,
-    pub circuit_digest: Vec<u8>,
-    pub tx_digests: Vec<String>,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ObjectAccess {
+    Immutable,
+    Mutable,
+}
+
+impl ObjectAccess {
+    fn shared_mutability(self) -> SharedObjectMutability {
+        match self {
+            Self::Immutable => SharedObjectMutability::Immutable,
+            Self::Mutable => SharedObjectMutability::Mutable,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MoveTarget {
+    package: ObjectID,
+    module: Identifier,
+    function: Identifier,
+    type_arguments: Vec<TypeTag>,
+}
+
+impl MoveTarget {
+    pub fn new(package: &str, module: &str, function: &str) -> anyhow::Result<Self> {
+        Ok(Self {
+            package: parse_object_id(package, "package")?,
+            module: Identifier::new(module)?,
+            function: Identifier::new(function)?,
+            type_arguments: vec![],
+        })
+    }
+
+    pub fn with_type_arguments(mut self, type_arguments: Vec<TypeTag>) -> Self {
+        self.type_arguments = type_arguments;
+        self
+    }
 }
 
 pub struct SuiPtbClient {
@@ -79,7 +96,6 @@ pub struct SuiPtbClient {
     keystore: FileBasedKeystore,
     sender: SuiAddress,
     gas_budget: u64,
-    chunk_size: usize,
 }
 
 impl SuiPtbClient {
@@ -113,7 +129,6 @@ impl SuiPtbClient {
             keystore,
             sender,
             gas_budget: config.gas_budget,
-            chunk_size: config.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE),
         })
     }
 
@@ -121,7 +136,7 @@ impl SuiPtbClient {
         self.sender
     }
 
-    pub async fn execute_ptb(&self, ptb: ProgrammableTransaction) -> anyhow::Result<TxResponse> {
+    pub async fn execute(&self, ptb: ProgrammableTransaction) -> anyhow::Result<TxResponse> {
         let input_objects = ptb
             .input_objects()
             .context("failed to collect PTB input objects")?
@@ -144,11 +159,11 @@ impl SuiPtbClient {
         self.sign_and_execute(tx_data).await
     }
 
-    pub async fn object_input(
+    pub async fn input_object(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         object_id: &str,
-        mutable: bool,
+        access: ObjectAccess,
     ) -> anyhow::Result<Argument> {
         let object_id = parse_object_id(object_id, "object id")?;
         let full_ref = self
@@ -161,44 +176,10 @@ impl SuiPtbClient {
             FullObjectID::Consensus((id, initial_shared_version)) => ObjectArg::SharedObject {
                 id,
                 initial_shared_version,
-                mutability: if mutable {
-                    SharedObjectMutability::Mutable
-                } else {
-                    SharedObjectMutability::Immutable
-                },
+                mutability: access.shared_mutability(),
             },
         };
         builder.obj(object_arg)
-    }
-
-    pub async fn move_call(
-        &self,
-        package: &str,
-        module: &str,
-        function: &str,
-        args: Vec<Value>,
-    ) -> anyhow::Result<TxResponse> {
-        let package = parse_object_id(package, "package")?;
-        let args = args
-            .into_iter()
-            .map(SuiJsonValue::new)
-            .collect::<anyhow::Result<Vec<_>>>()?;
-        let tx_data = self
-            .client
-            .transaction_builder()
-            .move_call(
-                self.sender,
-                package,
-                module,
-                function,
-                vec![],
-                args,
-                None,
-                self.gas_budget,
-                None,
-            )
-            .await?;
-        self.sign_and_execute(tx_data).await
     }
 
     async fn sign_and_execute(&self, tx_data: TransactionData) -> anyhow::Result<TxResponse> {
@@ -216,138 +197,6 @@ impl SuiPtbClient {
             )
             .await?;
         tx_response(response)
-    }
-
-    pub async fn upload_proof(
-        &self,
-        verifier_api_package: &str,
-        proof: Vec<u8>,
-    ) -> anyhow::Result<UploadedProofRef> {
-        let plan = ChunkPlan::new(proof, Some(self.chunk_size))?;
-        let mut tx_digests = Vec::new();
-        let builder_tx = self
-            .move_call(
-                verifier_api_package,
-                MODULE_ARTIFACT_BUILDER,
-                FUNC_PUBLISH_PROOF_BUILDER,
-                vec![],
-            )
-            .await?;
-        let proof_builder = created_object_id(&builder_tx, "::artifact_builder::ArtifactBuilder")?;
-        tx_digests.push(builder_tx.digest);
-
-        for chunk in &plan.chunks {
-            let append_tx = self
-                .move_call(
-                    verifier_api_package,
-                    MODULE_ARTIFACT_BUILDER,
-                    FUNC_APPEND_CHUNK,
-                    vec![Value::String(proof_builder.clone()), byte_array_json(chunk)],
-                )
-                .await?;
-            tx_digests.push(append_tx.digest);
-        }
-
-        Ok(UploadedProofRef {
-            proof_builder,
-            proof_digest: plan.digest.to_vec(),
-            proof_bytes: plan.total_len,
-            tx_digests,
-        })
-    }
-
-    pub async fn upload_verifier_artifacts(
-        &self,
-        verifier_api_package: &str,
-        params: Vec<u8>,
-        vk: Vec<u8>,
-        circuit: Vec<u8>,
-    ) -> anyhow::Result<UploadedVerifierArtifacts> {
-        let params = ChunkPlan::new(params, Some(self.chunk_size))?;
-        let vk = ChunkPlan::new(vk, Some(self.chunk_size))?;
-        let circuit = ChunkPlan::new(circuit, Some(self.chunk_size))?;
-        let mut tx_digests = Vec::new();
-
-        let params_builder = self
-            .create_builder(
-                verifier_api_package,
-                FUNC_PUBLISH_PARAMS_BUILDER,
-                &mut tx_digests,
-            )
-            .await?;
-        let vk_builder = self
-            .create_builder(
-                verifier_api_package,
-                FUNC_PUBLISH_VK_BUILDER,
-                &mut tx_digests,
-            )
-            .await?;
-        let circuit_builder = self
-            .create_builder(
-                verifier_api_package,
-                FUNC_PUBLISH_CIRCUIT_INFO_BUILDER,
-                &mut tx_digests,
-            )
-            .await?;
-
-        self.append_chunks(
-            verifier_api_package,
-            &params_builder,
-            &params.chunks,
-            &mut tx_digests,
-        )
-        .await?;
-        self.append_chunks(
-            verifier_api_package,
-            &vk_builder,
-            &vk.chunks,
-            &mut tx_digests,
-        )
-        .await?;
-        self.append_chunks(
-            verifier_api_package,
-            &circuit_builder,
-            &circuit.chunks,
-            &mut tx_digests,
-        )
-        .await?;
-
-        let params_tx = self
-            .move_call(
-                verifier_api_package,
-                MODULE_ARTIFACT_BUILDER,
-                FUNC_FINALIZE_PARAMS_TO_SENDER,
-                vec![Value::String(params_builder), params.digest.to_json_value()],
-            )
-            .await?;
-        let params_object_id =
-            created_object_id(&params_tx, "::serialized_params_store::SerializedParams")?;
-        tx_digests.push(params_tx.digest);
-
-        let vk_tx = self
-            .move_call(
-                verifier_api_package,
-                MODULE_ARTIFACT_BUILDER,
-                FUNC_FINALIZE_VK_TO_SENDER,
-                vec![
-                    Value::String(vk_builder),
-                    Value::String(circuit_builder),
-                    vk.digest.to_json_value(),
-                    circuit.digest.to_json_value(),
-                ],
-            )
-            .await?;
-        let vk_object_id = created_object_id(&vk_tx, "::native_verifier::SerializedVK")?;
-        tx_digests.push(vk_tx.digest);
-
-        Ok(UploadedVerifierArtifacts {
-            params_object_id,
-            vk_object_id,
-            params_digest: params.digest.to_vec(),
-            vk_digest: vk.digest.to_vec(),
-            circuit_digest: circuit.digest.to_vec(),
-            tx_digests,
-        })
     }
 
     pub async fn read_object_field(
@@ -390,87 +239,20 @@ impl SuiPtbClient {
             .ok_or_else(|| anyhow!("object {object_id} has no field {field_name}"))?;
         Ok(value.to_json_value())
     }
-
-    async fn create_builder(
-        &self,
-        package: &str,
-        function: &str,
-        tx_digests: &mut Vec<String>,
-    ) -> anyhow::Result<String> {
-        let tx = self
-            .move_call(package, MODULE_ARTIFACT_BUILDER, function, vec![])
-            .await?;
-        let object_id = created_object_id(&tx, "::artifact_builder::ArtifactBuilder")?;
-        tx_digests.push(tx.digest);
-        Ok(object_id)
-    }
-
-    async fn append_chunks(
-        &self,
-        package: &str,
-        builder: &str,
-        chunks: &[Vec<u8>],
-        tx_digests: &mut Vec<String>,
-    ) -> anyhow::Result<()> {
-        ensure!(!chunks.is_empty(), "chunk list must not be empty");
-        for chunk in chunks {
-            let tx = self
-                .move_call(
-                    package,
-                    MODULE_ARTIFACT_BUILDER,
-                    FUNC_APPEND_CHUNK,
-                    vec![Value::String(builder.to_string()), byte_array_json(chunk)],
-                )
-                .await?;
-            tx_digests.push(tx.digest);
-        }
-        Ok(())
-    }
 }
 
-pub fn add_new_proof_builder_call(
+pub fn move_call(
     builder: &mut ProgrammableTransactionBuilder,
-    verifier_api_package: &str,
-) -> anyhow::Result<Argument> {
-    add_move_call(
-        builder,
-        verifier_api_package,
-        MODULE_ARTIFACT_BUILDER,
-        "new_proof_builder",
-        vec![],
-    )
-}
-
-pub fn add_append_chunk_call(
-    builder: &mut ProgrammableTransactionBuilder,
-    verifier_api_package: &str,
-    proof_builder: Argument,
-    chunk: Vec<u8>,
-) -> anyhow::Result<Argument> {
-    let chunk = builder.pure(chunk)?;
-    add_move_call(
-        builder,
-        verifier_api_package,
-        MODULE_ARTIFACT_BUILDER,
-        FUNC_APPEND_CHUNK,
-        vec![proof_builder, chunk],
-    )
-}
-
-pub fn add_move_call(
-    builder: &mut ProgrammableTransactionBuilder,
-    package: &str,
-    module: &str,
-    function: &str,
+    target: MoveTarget,
     args: Vec<Argument>,
-) -> anyhow::Result<Argument> {
-    Ok(builder.programmable_move_call(
-        parse_object_id(package, "package")?,
-        Identifier::new(module)?,
-        Identifier::new(function)?,
-        vec![],
+) -> Argument {
+    builder.programmable_move_call(
+        target.package,
+        target.module,
+        target.function,
+        target.type_arguments,
         args,
-    ))
+    )
 }
 
 fn parse_object_id(value: &str, label: &str) -> anyhow::Result<ObjectID> {
@@ -507,39 +289,34 @@ fn tx_response(response: SuiTransactionBlockResponse) -> anyhow::Result<TxRespon
     })
 }
 
-fn created_object_id(tx: &TxResponse, type_suffix: &str) -> anyhow::Result<String> {
-    tx.created_objects
-        .iter()
-        .find(|object| object.object_type.ends_with(type_suffix))
-        .map(|object| object.object_id.clone())
-        .ok_or_else(|| anyhow!("transaction {} did not create {type_suffix}", tx.digest))
-}
-
-fn byte_array_json(bytes: &[u8]) -> Value {
-    Value::Array(bytes.iter().copied().map(Value::from).collect())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn byte_array_json_matches_sui_cli_shape() {
-        assert_eq!(byte_array_json(&[1, 2, 3]), serde_json::json!([1, 2, 3]));
-    }
-
-    #[test]
-    fn created_object_parser_filters_by_suffix() {
+    fn created_object_id_filters_by_suffix() {
         let tx = TxResponse {
             digest: "abc".to_string(),
             created_objects: vec![CreatedObject {
                 object_id: "0x1".to_string(),
-                object_type: "0x2::artifact_builder::ArtifactBuilder".to_string(),
+                object_type: "0x2::example::CreatedThing".to_string(),
             }],
         };
         assert_eq!(
-            created_object_id(&tx, "::artifact_builder::ArtifactBuilder").unwrap(),
+            tx.created_object_id("::example::CreatedThing").unwrap(),
             "0x1"
         );
+    }
+
+    #[test]
+    fn move_call_appends_ptb_command() {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let result = move_call(
+            &mut builder,
+            MoveTarget::new("0x1", "module_name", "function_name").unwrap(),
+            vec![],
+        );
+        assert_eq!(result, Argument::Result(0));
+        assert_eq!(builder.finish().commands.len(), 1);
     }
 }
