@@ -32,3 +32,8 @@ Move.lock
 .aptos
 
 *.txn
+
+.rtk/
+txns/
+Pub.local*.toml*
+Pub.localnet.toml*

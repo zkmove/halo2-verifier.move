@@ -1,0 +1,19 @@
+[package]
+name = "sui-ptb-helper"
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+categories.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+# Keep starlark_map 0.13 on allocative's hashbrown 0.14 impls.
+allocative.workspace = true
+
+shared-crypto.workspace = true
+sui-config.workspace = true
+sui-keys.workspace = true
+sui-sdk.workspace = true

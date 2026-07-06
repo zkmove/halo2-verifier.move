@@ -3,6 +3,7 @@ members = [
     "crates/halo2-verifier",
     "crates/aptos-verifier-api",
     "crates/sui-verifier-api",
+    "crates/sui-ptb-helper",
     "crates/halo2",
     "crates/vk-gen-examples",
 ]
@@ -20,6 +21,7 @@ halo2-verifier={path="crates/halo2-verifier"}
 aptos-verifier-api={path="crates/aptos-verifier-api"}
 sui-verifier-api={path="crates/sui-verifier-api"}
 halo2={path="crates/halo2"}
+sui-ptb-helper={path="crates/sui-ptb-helper"}
 vk-gen-examples={path="crates/vk-gen-examples"}
 
 halo2_proofs = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove", default-features = false, features = ["batch", "bits"] }
@@ -27,6 +29,11 @@ halo2_frontend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove
 halo2_middleware = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
 halo2_backend = { git = "https://github.com/zkmove/halo2.git", branch = "zkmove" }
 halo2curves = { git = "https://github.com/zkmove/halo2curves", branch = "zkmove" }
+
+shared-crypto = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-config = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-keys = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
+sui-sdk = { git = "https://github.com/zkmove/sui.git", rev = "76269b3f6ff1ea56ddfcf258be8c19ffe21ce105" }
 
 ff = { version = "0.13.0" }
 num-traits = { version = "0.2.17" }
@@ -40,3 +47,4 @@ hex-literal = { version = "0.4.1" }
 bcs = { version = "0.1.6" }
 blake2b_simd = { version = "1" }
 anyhow = { version = "1.0.38" }
+allocative = { version = "=0.3.4" }
