@@ -1,6 +1,6 @@
 use crate::artifact::{
-    ensure_artifact_size, ChunkPlan, Digest32, MAX_CIRCUIT_INFO_BYTES, MAX_PARAMS_BYTES,
-    MAX_PROOF_BYTES, MAX_VK_BYTES,
+    ensure_artifact_size, ChunkPlan, Digest32, MAX_CHUNK_SIZE, MAX_CIRCUIT_INFO_BYTES,
+    MAX_PARAMS_BYTES, MAX_PROOF_BYTES, MAX_VK_BYTES,
 };
 use anyhow::{ensure, Context};
 use serde::{Deserialize, Serialize};
@@ -97,9 +97,16 @@ impl<'a> ArtifactPtb<'a> {
         &mut self,
         artifact_builder: Argument,
         chunk: Vec<u8>,
-    ) -> anyhow::Result<Argument> {
+    ) -> anyhow::Result<()> {
+        ensure!(
+            chunk.len() <= MAX_CHUNK_SIZE,
+            "chunk is {} bytes, exceeds max chunk size {}",
+            chunk.len(),
+            MAX_CHUNK_SIZE
+        );
         let chunk = self.ptb.pure(chunk)?;
-        self.artifact_call(FUNC_APPEND_CHUNK, vec![artifact_builder, chunk])
+        let _ = self.artifact_call(FUNC_APPEND_CHUNK, vec![artifact_builder, chunk])?;
+        Ok(())
     }
 
     pub fn append_chunks(
@@ -327,6 +334,23 @@ mod tests {
         assert!(commands.contains(FUNC_NEW_CIRCUIT_INFO_BUILDER));
         assert!(commands.contains(FUNC_FINALIZE_PARAMS));
         assert!(commands.contains(FUNC_FINALIZE_VK));
+    }
+
+    #[test]
+    fn append_chunk_rejects_oversized_chunk_before_building_command() {
+        let mut ptb = ProgrammableTransactionBuilder::new();
+        let err = {
+            let mut artifact_ptb = ArtifactPtb::new(&mut ptb, "0x2");
+            let proof_builder = artifact_ptb.proof_builder().unwrap();
+            artifact_ptb
+                .append_chunk(proof_builder, vec![0; MAX_CHUNK_SIZE + 1])
+                .unwrap_err()
+        };
+
+        let tx = ptb.finish();
+        assert!(err.to_string().contains("exceeds max chunk size"));
+        assert_eq!(tx.commands.len(), 1);
+        assert!(!format!("{:?}", tx.commands).contains(FUNC_APPEND_CHUNK));
     }
 
     #[test]
