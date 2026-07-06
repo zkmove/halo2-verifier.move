@@ -10,6 +10,8 @@ edition.workspace = true
 anyhow.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+# Keep starlark_map 0.13 on allocative's hashbrown 0.14 impls.
+allocative.workspace = true
 
 shared-crypto.workspace = true
 sui-config.workspace = true
