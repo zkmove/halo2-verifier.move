@@ -1,4 +1,4 @@
-use crate::circuit::helpers::encode_field;
+use crate::helpers::encode_field;
 use bcs::Error as BcsError;
 use byteorder::{LittleEndian, ReadBytesExt};
 use halo2_backend::plonk::{

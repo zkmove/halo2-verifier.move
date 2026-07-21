@@ -1,5 +1,5 @@
-use crate::circuit::expression::{deserialize_exprs, serialize_exprs, IndexedExpression};
-use crate::circuit::helpers::{bytes_to_affines, decode_field, encode_field};
+use crate::expression::{deserialize_exprs, serialize_exprs, IndexedExpression};
+use crate::helpers::{bytes_to_affines, decode_field, encode_field};
 use bcs::Error as BcsError;
 use byteorder::{LittleEndian, ReadBytesExt};
 use halo2_proofs::arithmetic::{CurveAffine, Field};
@@ -10,7 +10,7 @@ use std::io::Cursor;
 use std::marker::PhantomData;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) struct CircuitInfo<C: CurveAffine> {
+pub struct CircuitInfo<C: CurveAffine> {
     pub(crate) vk_transcript_repr: C::Scalar,
     pub(crate) fixed_commitments: Vec<C>,
     pub(crate) permutation_commitments: Vec<C>,

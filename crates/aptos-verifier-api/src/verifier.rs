@@ -4,11 +4,11 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use group::GroupEncoding;
+use halo2_circuit_info::generate_serialized_protocol;
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr};
 use halo2_proofs::halo2curves::ff::PrimeField;
 use halo2_proofs::plonk::Circuit;
 use halo2_proofs::poly::kzg::commitment::ParamsKZG;
-use halo2_verifier::circuit::generate_serialized_protocol;
 use serde_json::json;
 
 /// build publish kzg params transaction payload for aptos.

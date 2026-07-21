@@ -1,11 +1,12 @@
-use crate::circuit::{
-    circuit_info::CircuitInfo, generate_circuit_info, reconstruct_cs_from_circuit_info,
-};
 use crate::public_inputs::PublicInputs;
 use group::ff::Field;
 use halo2::proofs::{prove_circuit, verify_circuit};
 use halo2_backend::arithmetic::CurveAffine;
 use halo2_backend::plonk::ConstraintSystemBack as ConstraintSystem;
+use halo2_circuit_info::{
+    circuit_info::CircuitInfo, generate_circuit_info, reconstruct_cs_from_circuit_bytes,
+    reconstruct_cs_from_circuit_info,
+};
 use halo2_proofs::halo2curves::bn256::{Bn256, Fr, G1Affine};
 use halo2_proofs::plonk::{keygen_pk, keygen_vk, Circuit, Error, ErrorFront, VerifyingKey};
 use halo2_proofs::poly::commitment::Params;
@@ -15,7 +16,6 @@ use halo2_proofs::SerdeFormat;
 use crate::params::serialize_kzg_params;
 pub use halo2::proofs::KZG;
 
-pub mod circuit;
 pub mod params;
 pub mod public_inputs;
 
@@ -56,7 +56,7 @@ pub fn deserialize_circuit_and_verify(
         params.downsize(requested_k);
     }
 
-    let cs = circuit::reconstruct_cs_from_circuit_bytes::<G1Affine>(circuit_bytes)
+    let cs = reconstruct_cs_from_circuit_bytes::<G1Affine>(circuit_bytes)
         .map_err(|e| ErrorFront::Other(format!("Constraint system reconstruction failed: {e}")))?;
 
     let vk = VerifyingKey::from_bytes(vk_bytes, SerdeFormat::RawBytes, cs)

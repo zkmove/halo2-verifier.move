@@ -10,6 +10,7 @@ edition.workspace = true
 
 [dependencies]
 halo2-verifier.workspace=true
+halo2-circuit-info.workspace=true
 serde.workspace=true
 serde_json.workspace=true
 halo2_proofs.workspace=true

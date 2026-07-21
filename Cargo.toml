@@ -17,6 +17,7 @@ categories = ["cryptography"]
 edition = "2021"
 
 [workspace.dependencies]
+halo2-circuit-info={path="crates/halo2-circuit-info"}
 halo2-verifier={path="crates/halo2-verifier"}
 aptos-verifier-api={path="crates/aptos-verifier-api"}
 sui-verifier-api={path="crates/sui-verifier-api"}
