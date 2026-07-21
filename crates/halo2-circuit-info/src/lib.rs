@@ -15,7 +15,7 @@ use helpers::encode_field;
 use std::collections::{BTreeMap, HashMap};
 use std::marker::PhantomData;
 
-pub(crate) mod circuit_info;
+pub mod circuit_info;
 mod expression;
 mod helpers;
 
@@ -157,7 +157,7 @@ fn reconstruct_expression<C: CurveAffine>(
 }
 
 // Generate CircuitInfo containing compressed information of a given circuit.
-pub(crate) fn generate_circuit_info<C, P, ConcreteCircuit>(
+pub fn generate_circuit_info<C, P, ConcreteCircuit>(
     params: &P,
     circuit: &ConcreteCircuit,
 ) -> Result<CircuitInfo<C>, Error>
@@ -368,7 +368,7 @@ where
 }
 
 // Reconstruct ConstraintSystem from CircuitInfo
-pub(crate) fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
+pub fn reconstruct_cs_from_circuit_info<C: CurveAffine>(
     info: &CircuitInfo<C>,
 ) -> Result<ConstraintSystem<C::Scalar>, Error>
 where

@@ -1,0 +1,16 @@
+[package]
+name = "halo2-circuit-info"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+# Shared circuit info (compressed circuit description) used by both the
+# pure Move verifier and the native verifier.
+
+[dependencies]
+halo2_proofs.workspace = true
+halo2_backend.workspace = true
+halo2_middleware.workspace = true
+bcs.workspace = true
+blake2b_simd.workspace = true
+byteorder = "1.5.0"

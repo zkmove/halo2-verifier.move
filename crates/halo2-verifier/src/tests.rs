@@ -18,10 +18,8 @@ use halo2_proofs::{
 use rand::rngs::mock::StepRng;
 
 use crate::params::load_default_kzg_params;
-use crate::{
-    circuit::circuit_info::CircuitInfo, circuit::generate_circuit_info,
-    deserialize_circuit_and_verify, test_verifier,
-};
+use crate::{deserialize_circuit_and_verify, test_verifier};
+use halo2_circuit_info::{circuit_info::CircuitInfo, generate_circuit_info};
 use vk_gen_examples::examples::{
     circuit_layout, serialization, shuffle, shuffle_api, simple_example, two_chip, vector_mul,
 };
